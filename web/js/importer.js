@@ -433,19 +433,18 @@ const isOfChampion = (card, legend) => card.champion === champOf(legend) || card
 
 /** Sección donde va una carta: la que diga la lista, salvo que su tipo diga otra cosa. */
 function slotFor(card, section) {
+  if (section === 'sideboard') return 'sideboard';
   if (card.type === 'Legend') return 'legend';
   if (card.type === 'Rune') return 'runes';
   if (card.type === 'Battlefield') return 'battlefields';
-  if (section === 'sideboard') return section;
   if (section === 'champion' && card.type === 'Unit' && card.supertype === 'Champion') return section;
   return 'main';
 }
 
-/** Filas emparejadas -> { legend, champion, main, runes, battlefields } + avisos. Anota r.slot. */
+/** Filas emparejadas -> { legend, champion, main, runes, battlefields, sideboard } + avisos. Anota r.slot. */
 export function assembleDeck(rows) {
-  const deck = { legend: null, champion: null, main: {}, runes: {}, battlefields: [] };
+  const deck = { legend: null, champion: null, main: {}, runes: {}, battlefields: [], sideboard: {} };
   const notes = [];
-  let sideboard = 0;
   for (const r of rows) {
     r.slot = r.card ? slotFor(r.card, r.section) : null;
     if (!r.include || !r.card) continue;
@@ -460,7 +459,8 @@ export function assembleDeck(rows) {
         if (n > 1) deck.main[c.id] = (deck.main[c.id] || 0) + n - 1;
       }
     } else if (r.slot === 'sideboard') {
-      sideboard += n;
+      if (['Unit', 'Spell', 'Gear'].includes(c.type)) deck.sideboard[c.id] = (deck.sideboard[c.id] || 0) + n;
+      else notes.push(`${c.name} no puede ir en el sideboard: se descarta.`);
     } else if (r.slot === 'battlefields') {
       if (!deck.battlefields.includes(c.id)) deck.battlefields.push(c.id);
     } else {
@@ -478,6 +478,5 @@ export function assembleDeck(rows) {
       notes.push(`Campeón elegido automáticamente: ${pick.card.name}.`);
     }
   }
-  if (sideboard) notes.push(`El banquillo (${sideboard} carta${sideboard === 1 ? '' : 's'}) no se importa.`);
   return { deck, notes };
 }

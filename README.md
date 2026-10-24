@@ -13,7 +13,9 @@ y armar mazos con las cartas que tienes.
 - **Importar:** cualquier Excel o CSV (o una lista pegada tipo "3x Arena Kingpin"). La app adivina
   las columnas (código, set, nº, nombre, copias, foil), busca cada carta por código, por nombre o
   por nombre aproximado, y enseña todo para revisarlo antes de sumar o reemplazar la colección.
-- **Mazos:** Leyenda, Campeón, mazo principal (40), Runas (12) y Campos de batalla (3), con
+- **Mazos:** Leyenda, Campeón, mazo principal (40), Runas (12), Campos de batalla (3) y sideboard
+  (hasta 10 cartas, que cuentan para el máximo de 3 copias; se pasan cartas 1 por 1 entre mazo y
+  sideboard), con
   validación de reglas (dominios, máximo 3 copias, cartas de firma) y aviso de las cartas que te faltan.
   Cada mazo se exporta como lista de texto, Excel (con resumen: curva, avisos, cartas que faltan) o
   CSV, y también todos a la vez. Se pueden importar listas de cualquier web (secciones Legend/Champion/Main Deck/Runes/Battlefields

@@ -19,7 +19,7 @@ const CARD_COLUMNS = [
   ['Energía', 9], ['Poder', 8], ['Color de poder', 32], ['Copias', 8], ['Texto', 95], ['Errata', 9],
 ];
 const DECK_COLUMNS = [['Sección', 16], ...CARD_COLUMNS.slice(0, 10), ['Tengo', 8], ...CARD_COLUMNS.slice(10)];
-const SECTIONS = [['legend', 'Leyenda'], ['champion', 'Campeón'], ['main', 'Principal'], ['runes', 'Runas'], ['battlefields', 'Campo de batalla']];
+const SECTIONS = [['legend', 'Leyenda'], ['champion', 'Campeón'], ['main', 'Principal'], ['runes', 'Runas'], ['battlefields', 'Campo de batalla'], ['sideboard', 'Sideboard']];
 const HEADER_FILL = 'FF2F3E4E';
 const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
@@ -236,7 +236,7 @@ export async function exportExcel(cards, collection) {
 // ---------- Mazos ----------
 // ctx = { byId, owned(id), validate(deck) }
 
-/** Filas de un mazo: Leyenda, Campeón, Principal (por coste), Runas y Campos de batalla. */
+/** Filas de un mazo: Leyenda, Campeón, Principal (por coste), Runas, Campos de batalla y Sideboard. */
 export function deckRows(deck, { byId, owned }) {
   const rows = [];
   const push = (label, id, n) => {
@@ -255,6 +255,7 @@ export function deckRows(deck, { byId, owned }) {
     if (key === 'main') byCost(deck.main).forEach(([c, n]) => push(label, c.id, n));
     if (key === 'runes') byCost(deck.runes).forEach(([c, n]) => push(label, c.id, n));
     if (key === 'battlefields') deck.battlefields.forEach((id) => push(label, id, 1));
+    if (key === 'sideboard') byCost(deck.sideboard ?? {}).forEach(([c, n]) => push(label, c.id, n));
   }
   return rows;
 }
@@ -293,6 +294,7 @@ function writeDeckSummary(ws, deck, s) {
     ['Mazo principal', `${s.v.mainCount}/40`],
     ['Runas', `${s.v.runeCount}/12`],
     ['Campos de batalla', `${deck.battlefields.length}/3`],
+    ['Sideboard', `${s.v.sideCount ?? 0}/10`],
     ['Estado', s.status],
     ['Cartas que te faltan', s.lacking],
   ];
@@ -352,11 +354,11 @@ export async function exportAllDecksExcel(decks, ctx) {
   const index = decks.map((d, i) => {
     const s = deckSummary(d, ctx);
     return [d.name, names[i], s.legend?.name ?? '—', s.champion?.name ?? '—', s.domains || '—',
-      `${s.v.mainCount}/40`, `${s.v.runeCount}/12`, `${d.battlefields.length}/3`, s.status, s.lacking, s.v.issues.join(' · ') || null];
+      `${s.v.mainCount}/40`, `${s.v.runeCount}/12`, `${d.battlefields.length}/3`, `${s.v.sideCount ?? 0}/10`, s.status, s.lacking, s.v.issues.join(' · ') || null];
   });
   addTable(wb, 'Mazos', [
     ['Mazo', 28], ['Hoja', 20], ['Leyenda', 32], ['Campeón', 30], ['Dominios', 32],
-    ['Principal', 10], ['Runas', 8], ['Campos', 8], ['Estado', 12], ['Te faltan', 10], ['Avisos', 80],
+    ['Principal', 10], ['Runas', 8], ['Campos', 8], ['Sideboard', 10], ['Estado', 12], ['Te faltan', 10], ['Avisos', 80],
   ], index);
   decks.forEach((d, i) => addTable(wb, names[i], DECK_COLUMNS, deckRows(d, ctx)));
   await saveWorkbook(wb, 'mazos_riftbound.xlsx');

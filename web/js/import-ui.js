@@ -20,7 +20,7 @@ let idx;
 let state; // { sheets, sheet, header, data, map, rows, deckName }
 let kind = 'collection'; // o 'deck'
 
-const SLOT_ES = { legend: 'Leyenda', champion: 'Campeón', main: 'Principal', runes: 'Runa', battlefields: 'Campo de batalla', sideboard: 'Banquillo (no se importa)' };
+const SLOT_ES = { legend: 'Leyenda', champion: 'Campeón', main: 'Principal', runes: 'Runa', battlefields: 'Campo de batalla', sideboard: 'Sideboard' };
 
 function dlg() {
   return $('#import-dialog');
@@ -221,7 +221,7 @@ function deckFooter({ deck, notes }) {
     el('div', { class: 'grow' },
       nameInput,
       el('div', { class: 'small', text: `Leyenda: ${legend?.name ?? '—'} · Campeón: ${champion?.name ?? '—'}` }),
-      el('div', { class: 'small muted', text: `Principal ${v.mainCount}/40 · Runas ${v.runeCount}/12 · Campos ${deck.battlefields.length}/3${lacking ? ` · te faltan ${lacking} cartas de tu colección` : ' · tienes todas las cartas'}` }),
+      el('div', { class: 'small muted', text: `Principal ${v.mainCount}/40 · Runas ${v.runeCount}/12 · Campos ${deck.battlefields.length}/3 · Sideboard ${v.sideCount}/10${lacking ? ` · te faltan ${lacking} cartas de tu colección` : ' · tienes todas las cartas'}` }),
       notes.map((n) => el('div', { class: 'small muted', text: n })),
       v.issues.length > 0 && el('details', {}, el('summary', { class: 'small warn', text: `${v.issues.length} aviso(s) de reglas` }),
         el('ul', { class: 'issues' }, v.issues.map((i) => el('li', { text: i })))),

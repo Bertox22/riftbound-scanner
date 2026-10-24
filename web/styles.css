@@ -173,7 +173,7 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
 .deck-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
 .deck-row { display: flex; gap: 12px; align-items: center; padding: 10px; background: var(--surface); border-radius: var(--radius); cursor: pointer; }
 .deck-name { width: 100%; font-size: 18px; font-weight: 700; margin: 4px 0 12px; }
-.deck-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.deck-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 8px; text-align: center; display: flex; flex-direction: column; }
 .stat strong { font-size: 18px; }
 .stat span { font-size: 12px; color: var(--muted); }
@@ -228,7 +228,10 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
 .import-footer .btn { margin-left: auto; }
 .slot-chip { display: inline-block; margin-top: 4px; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 99px; background: var(--surface); border: 1px solid var(--border); color: var(--muted); }
 .slot-chip.legend, .slot-chip.champion { color: var(--accent); border-color: var(--accent); }
-.slot-chip.sideboard { text-decoration: line-through; }
+.slot-chip.sideboard { color: var(--ok); border-color: var(--ok); }
 .import-footer.deck { align-items: flex-end; }
 .import-footer.deck .deck-name { margin: 0 0 4px; font-size: 16px; }
 .export-all { align-items: center; margin-top: 16px; }
+.stat.bad-stat strong { color: var(--warn); }
+.deck-cards .swap { padding: 3px 8px; font-size: 12px; white-space: nowrap; }
+.tile-links { display: flex; gap: 10px; }

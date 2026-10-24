@@ -7,13 +7,16 @@
 //   - Cartas de firma (Signature): máximo 3 y solo las del campeón de la Leyenda.
 //   - 12 Runas de los dominios de la Leyenda.
 //   - 3 Campos de batalla con nombres distintos.
+//   - Sideboard de hasta 10 cartas válidas para el mazo principal (no Runas, Leyenda ni Campos).
+//     El máximo de copias por nombre cuenta mazo + sideboard. Entre partidas se cambian 1 por 1.
+//     (Reglas de torneo, 601.1.c y 403.4.)
 
 import { store } from './store.js';
 import { $, el, toast, cardImg, cardCode, baseName, download, DOMAIN_ES, TYPE_ES } from './ui.js';
 import { exportDeckExcel, exportDeckCsv, exportAllDecksExcel, exportAllDecksCsv, exportAllDecksText } from './export.js';
 
 const MAIN_TYPES = new Set(['Unit', 'Spell', 'Gear']);
-const MAIN_SIZE = 40, RUNES = 12, BATTLEFIELDS = 3, MAX_COPIES = 3, MAX_SIGNATURE = 3;
+const MAIN_SIZE = 40, RUNES = 12, BATTLEFIELDS = 3, MAX_COPIES = 3, MAX_SIGNATURE = 3, SIDEBOARD = 10;
 
 let ctx; // { cards, byId, openCard }
 let current = null; // mazo en edición
@@ -38,8 +41,11 @@ function section(card) {
 }
 
 function sum(obj) {
-  return Object.values(obj).reduce((a, b) => a + b, 0);
+  return Object.values(obj ?? {}).reduce((a, b) => a + b, 0);
 }
+
+/** Sideboard del mazo (los mazos antiguos no lo tienen). */
+const side = (deck) => deck.sideboard ?? {};
 
 /** Copias de cada id usadas en el mazo (para compararlas con la colección). */
 function usage(deck) {
@@ -49,6 +55,7 @@ function usage(deck) {
   if (deck.champion) bump(deck.champion);
   for (const [id, n] of Object.entries(deck.main)) bump(id, n);
   for (const [id, n] of Object.entries(deck.runes)) bump(id, n);
+  for (const [id, n] of Object.entries(side(deck))) bump(id, n);
   deck.battlefields.forEach((id) => bump(id));
   return u;
 }
@@ -84,7 +91,16 @@ export function validate(deck) {
     }
     if (!legalDomain(c, legend)) issues.push(`${c.name}: no es de los dominios de tu Leyenda.`);
   }
-  for (const [name, n] of Object.entries(copies)) if (n > MAX_COPIES) issues.push(`${name}: ${n} copias (máximo ${MAX_COPIES}).`);
+  const sideCount = sum(side(deck));
+  if (sideCount > SIDEBOARD) issues.push(`Sideboard: ${sideCount} cartas (máximo ${SIDEBOARD}).`);
+  for (const [id, n] of Object.entries(side(deck))) {
+    const c = byId.get(id);
+    copies[baseName(c)] = (copies[baseName(c)] || 0) + n; // el límite cuenta mazo + sideboard
+    if (!MAIN_TYPES.has(c.type)) issues.push(`${c.name}: el sideboard solo admite cartas del mazo principal.`);
+    else if (!legalDomain(c, legend)) issues.push(`${c.name} (sideboard): no es de los dominios de tu Leyenda.`);
+    else if (c.supertype === 'Signature' && legend && !ofChampion(c, legend)) issues.push(`${c.name} (sideboard): es una carta de firma de otro campeón.`);
+  }
+  for (const [name, n] of Object.entries(copies)) if (n > MAX_COPIES) issues.push(`${name}: ${n} copias entre mazo y sideboard (máximo ${MAX_COPIES}).`);
   if (signatures > MAX_SIGNATURE) issues.push(`Cartas de firma: ${signatures} (máximo ${MAX_SIGNATURE}).`);
   for (const [id, n] of Object.entries(deck.runes)) {
     if (!legalDomain(byId.get(id), legend)) issues.push(`${byId.get(id).name}: no es de los dominios de tu Leyenda.`);
@@ -95,11 +111,11 @@ export function validate(deck) {
     const lack = n - store.owned(id);
     if (lack > 0) missing.push([byId.get(id), lack]);
   }
-  return { issues, missing, mainCount, runeCount };
+  return { issues, missing, mainCount, runeCount, sideCount };
 }
 
 function newDeck() {
-  return { id: crypto.randomUUID?.() ?? String(Date.now()), name: 'Mazo nuevo', legend: null, champion: null, main: {}, runes: {}, battlefields: [], updated: Date.now() };
+  return { id: crypto.randomUUID?.() ?? String(Date.now()), name: 'Mazo nuevo', legend: null, champion: null, main: {}, runes: {}, battlefields: [], sideboard: {}, updated: Date.now() };
 }
 
 function save() {
@@ -108,6 +124,30 @@ function save() {
   if (i >= 0) store.decks[i] = current;
   else store.decks.unshift(current);
   store.saveDecks();
+}
+
+/** Añade (o quita) una copia en el sideboard. */
+function addToSide(card, delta = 1) {
+  if (!MAIN_TYPES.has(card.type)) return toast('El sideboard solo admite unidades, hechizos y equipos.');
+  const bag = (current.sideboard ??= {});
+  if (delta > 0 && sum(bag) >= SIDEBOARD) return toast(`El sideboard ya tiene ${SIDEBOARD} cartas.`);
+  bag[card.id] = (bag[card.id] || 0) + delta;
+  if (bag[card.id] <= 0) delete bag[card.id];
+  save();
+  renderEditor();
+}
+
+/** Pasa una copia entre mazo principal y sideboard (como el cambio 1 por 1 entre partidas). */
+function moveCard(card, to) {
+  const from = to === 'sideboard' ? current.main : (current.sideboard ??= {});
+  const dest = to === 'sideboard' ? (current.sideboard ??= {}) : current.main;
+  if (!from[card.id]) return;
+  if (to === 'sideboard' && sum(dest) >= SIDEBOARD) return toast(`El sideboard ya tiene ${SIDEBOARD} cartas.`);
+  from[card.id] -= 1;
+  if (!from[card.id]) delete from[card.id];
+  dest[card.id] = (dest[card.id] || 0) + 1;
+  save();
+  renderEditor();
 }
 
 /** Añade una carta al mazo en la sección que le corresponde. */
@@ -144,6 +184,7 @@ export function exportText(deck) {
   out.push('', `Mazo principal (${sum(deck.main) + (deck.champion ? 1 : 0)}):`, ...group(deck.main).map(([c, n]) => line(n, c)));
   out.push('', `Runas (${sum(deck.runes)}):`, ...group(deck.runes).map(([c, n]) => line(n, c)));
   out.push('', 'Campos de batalla:', ...deck.battlefields.map((id) => line(1, byId.get(id))));
+  if (sum(side(deck))) out.push('', `Sideboard (${sum(side(deck))}):`, ...group(side(deck)).map(([c, n]) => line(n, c)));
   return out.join('\n');
 }
 
@@ -173,13 +214,13 @@ function renderList() {
   }
   for (const deck of store.decks) {
     const legend = ctx.byId.get(deck.legend);
-    const { issues, missing } = validate(deck);
+    const { issues, missing, sideCount } = validate(deck);
     list.append(
       el('li', { class: 'deck-row', onclick: () => openEditor(deck) },
         legend ? cardImg(legend, 'thumb small') : el('div', { class: 'thumb small placeholder' }, '?'),
         el('div', { class: 'grow' },
           el('strong', { text: deck.name }),
-          el('div', { class: 'muted', text: legend ? `${champTag(legend)} · ${legend.domain.map((d) => DOMAIN_ES[d] || d).join(' / ')}` : 'Sin leyenda' }),
+          el('div', { class: 'muted', text: (legend ? `${champTag(legend)} · ${legend.domain.map((d) => DOMAIN_ES[d] || d).join(' / ')}` : 'Sin leyenda') + (sideCount ? ` · sideboard ${sideCount}` : '') }),
           el('div', { class: issues.length ? 'warn' : 'ok', text: issues.length ? `${issues.length} pendiente(s)` : 'Mazo válido' + (missing.length ? ` · faltan ${missing.reduce((a, [, n]) => a + n, 0)} cartas` : '') }),
         ),
       ),
@@ -212,7 +253,8 @@ function slot(label, cardId, onPick, onClear) {
   );
 }
 
-function deckRows(bag, title, target) {
+/** kind: "main" (botón para pasar al sideboard), "sideboard" (para volver al mazo) o null. */
+function deckRows(bag, title, target, kind = null) {
   const entries = Object.entries(bag).map(([id, n]) => [ctx.byId.get(id), n]);
   entries.sort((a, b) => (a[0].energy ?? 99) - (b[0].energy ?? 99) || a[0].name.localeCompare(b[0].name));
   return el('div', { class: 'deck-section' },
@@ -223,11 +265,15 @@ function deckRows(bag, title, target) {
         el('span', { class: 'cost', text: c.energy ?? '–' }),
         el('button', { class: 'link grow', onclick: () => ctx.openCard(c) }, c.name),
         lack > 0 && el('span', { class: 'warn small', title: 'Te faltan copias', text: `-${lack}` }),
-        el('button', { class: 'icon-btn', onclick: () => addToDeck(c, -1) }, '−'),
+        kind === 'main' && MAIN_TYPES.has(c.type) && el('button', { class: 'btn ghost small swap', title: 'Pasar una copia al sideboard', onclick: () => moveCard(c, 'sideboard') }, '↓ side'),
+        kind === 'sideboard' && el('button', { class: 'btn ghost small swap', title: 'Pasar una copia al mazo principal', onclick: () => moveCard(c, 'main') }, '↑ mazo'),
+        el('button', { class: 'icon-btn', onclick: () => (kind === 'sideboard' ? addToSide(c, -1) : addToDeck(c, -1)) }, '−'),
         el('span', { class: 'qty', text: n }),
-        el('button', { class: 'icon-btn', onclick: () => addToDeck(c, 1) }, '+'),
+        el('button', { class: 'icon-btn', onclick: () => (kind === 'sideboard' ? addToSide(c, 1) : addToDeck(c, 1)) }, '+'),
       );
-    })) : el('p', { class: 'muted', text: 'Vacío. Añade cartas desde la lista de abajo.' }),
+    })) : el('p', { class: 'muted', text: kind === 'sideboard'
+      ? 'Vacío. Usa "+ side" en la lista de abajo o "↓ side" en una carta del mazo.'
+      : 'Vacío. Añade cartas desde la lista de abajo.' }),
   );
 }
 
@@ -269,6 +315,7 @@ function renderEditor() {
       stat('Principal', v.mainCount, MAIN_SIZE),
       stat('Runas', v.runeCount, RUNES),
       stat('Campos', current.battlefields.length, BATTLEFIELDS),
+      stat('Sideboard', v.sideCount, SIDEBOARD),
     ),
     v.issues.length
       ? el('ul', { class: 'issues' }, v.issues.map((i) => el('li', { text: i })))
@@ -279,7 +326,7 @@ function renderEditor() {
     ),
     slot('Leyenda', current.legend, pickLegend, current.legend && (() => { current.legend = null; current.champion = null; save(); renderEditor(); })),
     slot('Campeón', current.champion, pickChampion, current.champion && (() => { current.champion = null; save(); renderEditor(); })),
-    deckRows(current.main, 'Mazo principal', MAIN_SIZE - (current.champion ? 1 : 0)),
+    deckRows(current.main, 'Mazo principal', MAIN_SIZE - (current.champion ? 1 : 0), 'main'),
     deckRows(current.runes, 'Runas', RUNES),
     el('div', { class: 'deck-section' },
       el('h3', {}, 'Campos de batalla ', el('span', { class: 'muted', text: `(${current.battlefields.length}/${BATTLEFIELDS})` })),
@@ -288,12 +335,15 @@ function renderEditor() {
         return el('li', {}, el('button', { class: 'link grow', onclick: () => ctx.openCard(c) }, c.name), el('button', { class: 'icon-btn', onclick: () => addToDeck(c, -1) }, '✕'));
       })),
     ),
+    deckRows(side(current), 'Sideboard', SIDEBOARD, 'sideboard'),
     renderPool(legend, used),
   );
 }
 
 function stat(label, n, target) {
-  return el('div', { class: `stat ${n === target || (label === 'Principal' && n >= target) ? 'ok' : ''}` }, el('strong', { text: `${n}/${target}` }), el('span', { text: label }));
+  // Principal: al menos 40. Sideboard: hasta 10 (vacío también vale). El resto: exacto.
+  const ok = label === 'Principal' ? n >= target : label === 'Sideboard' ? n <= target : n === target;
+  return el('div', { class: `stat ${ok ? 'ok' : 'bad-stat'}` }, el('strong', { text: `${n}/${target}` }), el('span', { text: label }));
 }
 
 function renderPool(legend, used) {
@@ -318,7 +368,9 @@ function renderPool(legend, used) {
         el('div', { class: 'tile-info' },
           el('span', { class: 'tile-name', text: c.name }),
           el('span', { class: 'muted small', text: `${u}/${owned} usadas` }),
-          el('button', { class: 'link small', onclick: () => ctx.openCard(c) }, 'ver'),
+          el('span', { class: 'tile-links' },
+            el('button', { class: 'link small', onclick: () => ctx.openCard(c) }, 'ver'),
+            MAIN_TYPES.has(c.type) && el('button', { class: 'link small', title: 'Añadir al sideboard', onclick: () => addToSide(c, 1) }, '+ side')),
         ),
       );
     }));
