@@ -55,7 +55,9 @@ function openCard(card) {
           el('p', { text: [TYPE_ES[card.type] || card.type, card.supertype].filter(Boolean).join(' · ') + (card.domain.length ? ` · ${card.domain.map((d) => DOMAIN_ES[d] || d).join(' / ')}` : '') }),
           stats && el('p', { text: stats }),
           card.tags.length > 0 && el('p', { class: 'muted', text: card.tags.join(', ') }),
+          card.errata && el('p', { class: 'errata-note', text: '⚠ Errata: el texto oficial vigente difiere del impreso en la carta.' }),
           card.text && el('p', { class: 'card-text', text: readableText(card.text) }),
+          card.printedText && el('details', { class: 'printed' }, el('summary', { text: 'Texto impreso (antiguo)' }), el('p', { class: 'card-text muted', text: readableText(card.printedText) })),
           (card.effect || card.mightBonus != null) && el('p', { class: 'card-text', text: `Unidad equipada: ${[readableText(card.effect), card.mightBonus != null ? `${card.mightBonus >= 0 ? '+' : ''}${card.mightBonus} Might` : ''].filter(Boolean).join(' · ')}` }),
           qtyRow('Normales', e.n, (d) => { store.add(card.id, d, false); render(); }),
           qtyRow('Foil', e.f, (d) => { store.add(card.id, d, true); render(); }),
@@ -136,6 +138,7 @@ function addScanned(card) {
   session.unshift({ card, foil });
   feedback();
   renderRecent();
+  if (card.errata) toast(`⚠ ${card.name} tiene errata: su texto oficial ha cambiado`, 3500);
 }
 
 function renderCandidates(results, state) {
@@ -179,7 +182,7 @@ function renderRecent() {
       el('button', { class: 'tile-img', onclick: () => openCard(card) }, cardImg(card, 'thumb small')),
       el('div', { class: 'grow' },
         el('strong', { text: card.name }),
-        el('div', { class: 'muted small', text: `${cardCode(card)}${foil ? ' · Foil' : ''} · tienes ${store.owned(card.id)}` }),
+        el('div', { class: 'muted small', text: `${cardCode(card)}${foil ? ' · Foil' : ''}${card.errata ? ' · ⚠ Errata' : ''} · tienes ${store.owned(card.id)}` }),
         variants.length > 1 && el('select', {
           class: 'small',
           onchange: (e) => {
@@ -285,7 +288,7 @@ $('#photo-input').addEventListener('change', async (e) => {
 
 // ---------- Colección ----------
 
-const col = { q: '', set: '', type: '', domain: '', owned: true, sort: 'set' };
+const col = { q: '', set: '', type: '', domain: '', owned: true, errata: false, sort: 'set' };
 $('#col-set').append(...sets.map(([id, name]) => el('option', { value: id, text: `${name} (${id})` })));
 $('#col-type').append(...[...new Set(cards.map((c) => c.type))].map((t) => el('option', { value: t, text: TYPE_ES[t] || t })));
 $('#col-domain').append(...Object.entries(DOMAIN_ES).map(([d, es]) => el('option', { value: d, text: es })));
@@ -293,6 +296,7 @@ for (const [key, sel, ev] of [['q', '#col-search', 'input'], ['set', '#col-set',
   $(sel).addEventListener(ev, (e) => { col[key] = e.target.value; renderCollection(); });
 }
 $('#col-owned').addEventListener('change', (e) => { col.owned = e.target.checked; renderCollection(); });
+$('#col-errata').addEventListener('change', (e) => { col.errata = e.target.checked; renderCollection(); });
 
 const COL_PAGE = 120;
 let colLimit = COL_PAGE;
@@ -302,6 +306,7 @@ function renderCollection(keepLimit = false) {
   const q = col.q.trim().toLowerCase();
   let list = cards.filter((c) =>
     (!col.owned || store.owned(c.id) > 0) &&
+    (!col.errata || c.errata) &&
     (!col.set || c.set === col.set) &&
     (!col.type || c.type === col.type) &&
     (!col.domain || c.domain.includes(col.domain)) &&
@@ -324,7 +329,7 @@ function renderCollection(keepLimit = false) {
     const e = store.collection[c.id];
     const n = e ? e.n + e.f : 0;
     return el('div', { class: `tile ${n ? '' : 'dim'}` },
-      el('button', { class: 'tile-img', onclick: () => openCard(c) }, cardImg(c), n > 0 && el('span', { class: 'badge', text: `×${n}` }), e?.f > 0 && el('span', { class: 'badge foil', text: `${e.f} foil` })),
+      el('button', { class: 'tile-img', onclick: () => openCard(c) }, cardImg(c), n > 0 && el('span', { class: 'badge', text: `×${n}` }), e?.f > 0 && el('span', { class: 'badge foil', text: `${e.f} foil` }), c.errata && el('span', { class: 'badge errata', title: 'Tiene errata', text: 'Errata' })),
       el('div', { class: 'tile-info' },
         el('span', { class: 'tile-name', text: c.name }),
         el('div', { class: 'tile-qty' },

@@ -147,6 +147,9 @@ input[type=search] { width: 100%; }
 .tile-qty { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
 .badge { position: absolute; top: 4px; right: 4px; background: var(--accent); color: var(--accent-ink); font-weight: 700; font-size: 12px; border-radius: 99px; padding: 1px 7px; }
 .badge.foil { top: auto; bottom: 4px; background: linear-gradient(90deg, #8ad7ff, #e3a6ff); }
+.badge.errata { right: auto; left: 4px; background: var(--warn); }
+.errata-note { color: var(--warn); font-size: 14px; }
+.printed summary { cursor: pointer; color: var(--muted); font-size: 13px; }
 .more { grid-column: 1 / -1; }
 
 /* Diálogos */

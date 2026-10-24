@@ -1,5 +1,5 @@
 // Exportación de la colección a Excel y CSV con el formato de "coleccion_riftbound.xlsx":
-// Set | Nº | Tipo | Color | Nombre | Might | Energía | Poder | Color de poder | Copias | Texto
+// Set | Nº | Tipo | Color | Nombre | Might | Energía | Poder | Color de poder | Copias | Texto | Errata
 // y una hoja "Resumen" con totales por set y por tipo.
 
 import { download } from './ui.js';
@@ -12,7 +12,7 @@ const COLOR = {
 };
 const COLUMNS = [
   ['Set', 7], ['Nº', 6], ['Tipo', 18], ['Color', 32], ['Nombre', 36], ['Might', 8],
-  ['Energía', 9], ['Poder', 8], ['Color de poder', 32], ['Copias', 8], ['Texto', 95],
+  ['Energía', 9], ['Poder', 8], ['Color de poder', 32], ['Copias', 8], ['Texto', 95], ['Errata', 9],
 ];
 const HEADER_FILL = 'FF2F3E4E';
 
@@ -93,7 +93,8 @@ export function collectionRows(cards, collection) {
         power,
         power > 0 ? colors(c.domain) || 'Neutral - Gris' : null,
         e.n + e.f,
-        fullText(c),
+        fullText(c), // con la errata ya aplicada: es el texto oficial vigente
+        c.errata ? 'Sí' : null,
       ];
     });
 }
@@ -138,7 +139,7 @@ export async function exportExcel(cards, collection) {
   styleHeader(ws.getRow(1));
   ws.addRows(rows);
   const last = rows.length + 1;
-  ws.autoFilter = `A1:K${last}`;
+  ws.autoFilter = `A1:L${last}`;
   for (let r = 2; r <= last; r++) {
     ws.getRow(r).eachCell({ includeEmpty: true }, (cell, col) => {
       cell.alignment = col === 11 ? { vertical: 'middle', wrapText: true } : { vertical: 'middle' };

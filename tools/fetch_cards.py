@@ -28,6 +28,9 @@ from pathlib import Path
 
 from PIL import Image
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from errata import apply_errata, fetch_errata  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
 GALLERY = "https://riftbound.leagueoflegends.com/en-us/card-gallery/"
 API = "https://api.riftcodex.com"
@@ -243,7 +246,7 @@ def add_champions(cards):
         if not champ:
             continue
         c["champion"] = champ
-        if c["type"] == "Legend" and not c["name"].startswith(champ):
+        if c["type"] == "Legend" and not c["name"].lower().startswith(champ.lower()):
             c["name"] = f"{champ} - {c['name']}"
         elif c["type"] != "Legend" and c.get("supertype") == "Signature":
             name = c["name"].removesuffix(f" - {champ}").removesuffix(" (Signature)")
@@ -280,7 +283,15 @@ def main():
 
     cards = [c for c in cards if (CACHE / f"{file_id(c['id'])}.jpg").exists()]
     check_domains(cards)
-    add_champions(cards)
+    add_champions(cards)  # antes de las erratas: así los nombres de una misma carta coinciden
+    try:
+        errata = fetch_errata()
+        missing = apply_errata(cards, errata)
+        print(f"Erratas: {len(errata)} ({sum(1 for c in cards if c.get('errata'))} impresiones afectadas)")
+        for e in missing:
+            print(f"  errata sin carta asociada: {e['key']} {e['name']}")
+    except Exception as exc:  # noqa: BLE001
+        print(f"No se pudieron leer las erratas: {exc}")
     (DATA / "cards.json").write_text(json.dumps(cards, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     by_set = {}
     for c in cards:

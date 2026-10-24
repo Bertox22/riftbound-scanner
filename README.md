@@ -13,6 +13,10 @@ y armar mazos con las cartas que tienes.
 - **Mazos:** Leyenda, Campeón, mazo principal (40), Runas (12) y Campos de batalla (3), con
   validación de reglas (dominios, máximo 3 copias, cartas de firma) y aviso de las cartas que te faltan.
 
+**Erratas:** las cartas cuyo texto oficial ha cambiado respecto al impreso usan el texto vigente
+(fuente: la base de datos de [riftbound.gg](https://riftbound.gg/rules/errata/)). La app avisa al
+escanearlas, la ficha muestra también el texto impreso y la exportación lleva una columna "Errata".
+
 Incluye todos los sets publicados: Origins, Proving Grounds, Spiritforged, Unleashed, Vendetta,
 Radiance y las cartas promocionales.
 
@@ -37,7 +41,8 @@ web/                 la app (estática, se puede publicar tal cual)
   models/            modelo ONNX
   thumbs/            miniaturas
 tools/
-  fetch_cards.py     descarga cartas e imágenes (galería oficial + Riftcodex)
+  fetch_cards.py     descarga cartas e imágenes (galería oficial + Riftcodex) y aplica erratas
+  errata.py          erratas desde la base de datos de riftbound.gg
   build_index.py     calcula los embeddings de referencia
   calibrate.py       mide la precisión y propone umbrales
   eval_models.py     comparativa de modelos (usada para elegir DINOv2)

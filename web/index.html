@@ -7,7 +7,7 @@
   <title>Riftbound Scanner</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=3">
+  <link rel="stylesheet" href="styles.css?v=4">
   <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.wasm.min.js"></script>
 </head>
 <body>
@@ -61,6 +61,7 @@
         </div>
         <div class="filter-row">
           <label class="toggle"><input type="checkbox" id="col-owned" checked><span>Solo las que tengo</span></label>
+          <label class="toggle"><input type="checkbox" id="col-errata"><span>Con errata</span></label>
           <select id="col-sort">
             <option value="set">Orden: set y número</option>
             <option value="name">Orden: nombre</option>
