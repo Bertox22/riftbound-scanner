@@ -3,6 +3,8 @@
 Aplicación web para registrar tu colección de cartas de **Riftbound** con la cámara del móvil
 y armar mazos con las cartas que tienes.
 
+**App:** https://bertox22.github.io/riftbound-scanner/
+
 - **Escanear:** pones cada carta dentro del recuadro y se añade sola en cuanto la reconoce (con
   vibración y pitido). Si duda, te enseña las candidatas para que toques la correcta. Para añadir
   varias copias iguales seguidas basta con retirar la carta del recuadro y poner la siguiente.
