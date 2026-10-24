@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f1320">
+  <title>Riftbound Scanner</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css?v=2">
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.wasm.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <h1>Riftbound Scanner</h1>
+    <span id="owned-count" class="pill">0 cartas</span>
+  </header>
+
+  <main>
+    <!-- ESCANEAR -->
+    <section id="view-scan" class="view active">
+      <div class="cam" id="cam">
+        <video id="video" playsinline muted></video>
+        <div class="cam-placeholder" id="cam-placeholder">
+          <p>Coloca cada carta dentro del recuadro.<br>Se añade sola cuando la reconoce.</p>
+          <button id="btn-start" class="btn primary">Activar cámara</button>
+          <label class="btn ghost small">
+            o reconocer desde una foto
+            <input type="file" id="photo-input" accept="image/*" capture="environment" hidden>
+          </label>
+        </div>
+        <div class="guide" id="guide"><span></span></div>
+        <div class="flash" id="flash"></div>
+        <div class="cam-status" id="cam-status">Cargando modelo…</div>
+      </div>
+
+      <div class="cam-controls">
+        <button id="btn-stop" class="btn ghost small" hidden>Parar cámara</button>
+        <label class="toggle"><input type="checkbox" id="opt-auto" checked><span>Añadir automáticamente</span></label>
+        <label class="toggle"><input type="checkbox" id="opt-foil"><span>Foil</span></label>
+        <button id="btn-torch" class="btn ghost small" hidden>Linterna</button>
+      </div>
+
+      <div id="candidates" class="candidates"></div>
+
+      <div class="section-head">
+        <h2>Escaneadas en esta sesión <span id="session-count" class="muted"></span></h2>
+        <button id="btn-clear-session" class="btn ghost small">Vaciar lista</button>
+      </div>
+      <ul id="recent" class="recent"></ul>
+    </section>
+
+    <!-- COLECCIÓN -->
+    <section id="view-collection" class="view">
+      <div class="filters">
+        <input type="search" id="col-search" placeholder="Buscar carta, texto o etiqueta…">
+        <div class="filter-row">
+          <select id="col-set"><option value="">Todos los sets</option></select>
+          <select id="col-type"><option value="">Todos los tipos</option></select>
+          <select id="col-domain"><option value="">Todos los dominios</option></select>
+        </div>
+        <div class="filter-row">
+          <label class="toggle"><input type="checkbox" id="col-owned" checked><span>Solo las que tengo</span></label>
+          <select id="col-sort">
+            <option value="set">Orden: set y número</option>
+            <option value="name">Orden: nombre</option>
+            <option value="qty">Orden: cantidad</option>
+            <option value="energy">Orden: coste</option>
+          </select>
+        </div>
+      </div>
+      <p id="col-summary" class="muted"></p>
+      <div id="col-grid" class="grid"></div>
+      <div class="section-head">
+        <h2>Copia de seguridad</h2>
+      </div>
+      <div class="actions">
+        <button id="btn-export-csv" class="btn ghost small">Exportar CSV</button>
+        <button id="btn-export-json" class="btn ghost small">Exportar copia (JSON)</button>
+        <label class="btn ghost small">Importar copia<input type="file" id="import-json" accept=".json,application/json" hidden></label>
+      </div>
+    </section>
+
+    <!-- MAZOS -->
+    <section id="view-decks" class="view">
+      <div id="deck-list-view">
+        <div class="section-head">
+          <h2>Mis mazos</h2>
+          <button id="btn-new-deck" class="btn primary small">Nuevo mazo</button>
+        </div>
+        <ul id="deck-list" class="deck-list"></ul>
+      </div>
+      <div id="deck-editor" hidden></div>
+    </section>
+  </main>
+
+  <nav class="tabbar">
+    <button data-view="scan" class="active">Escanear</button>
+    <button data-view="collection">Colección</button>
+    <button data-view="decks">Mazos</button>
+  </nav>
+
+  <dialog id="card-dialog"></dialog>
+  <dialog id="picker-dialog"></dialog>
+  <div id="toast" class="toast"></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

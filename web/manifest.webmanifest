@@ -1,0 +1,12 @@
+{
+  "name": "Riftbound Scanner",
+  "short_name": "Riftbound",
+  "description": "Escanea tus cartas de Riftbound con la cámara y arma mazos con tu colección.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f1320",
+  "theme_color": "#0f1320",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
