@@ -84,7 +84,7 @@ export class Recognizer {
 
     ort.env.wasm.wasmPaths = ORT_CDN;
     ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 1) : 1;
-    const model = await loadModel(meta.model, meta.version, onProgress);
+    const model = await loadModel(meta.model, meta.modelVersion ?? meta.version, onProgress);
     this.session = await ort.InferenceSession.create(model, {
       executionProviders: ['wasm'],
       graphOptimizationLevel: 'all',

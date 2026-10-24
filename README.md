@@ -73,7 +73,15 @@ la web se sirva por **HTTPS** (los navegadores no dejan usar la cámara en http)
 La colección se guarda en el navegador del móvil (localStorage). Usa **Colección → Exportar copia**
 de vez en cuando para no perderla si borras los datos del navegador.
 
-## Actualizar cuando salga un set nuevo
+## Actualización automática (diaria)
+
+El workflow `.github/workflows/update-cards.yml` se ejecuta cada día a las 23:00 UTC (00:00 en
+España en invierno, 01:00 en verano): descarga cartas y erratas, y si hay cambios los sube y vuelve
+a publicar la app. Con cartas nuevas recalcula el índice de reconocimiento solo para ellas. Si una
+fuente falla o devuelve datos incompletos no sube nada (y GitHub avisa por correo del fallo).
+Se puede lanzar a mano desde la pestaña **Actions → Actualizar cartas y erratas → Run workflow**.
+
+## Actualizar a mano
 
 ```bash
 python -m venv .venv

@@ -1,0 +1,116 @@
+# Actualización diaria de cartas y erratas.
+#
+# Descarga las cartas (galería oficial de Riot + Riftcodex) y las erratas (riftbound.gg). Si algo
+# ha cambiado lo sube al repositorio, y si hay cartas nuevas recalcula antes el índice de
+# reconocimiento (solo para esas cartas). Después lanza la publicación de la app.
+# Si una fuente falla o devuelve datos incompletos, no sube nada: la app sigue con lo anterior.
+name: Actualizar cartas y erratas
+
+on:
+  schedule:
+    - cron: "0 23 * * *" # 23:00 UTC = 00:00 en España en horario de invierno (01:00 en verano)
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [".github/workflows/update-cards.yml"] # una ejecución de prueba al cambiar este archivo
+
+permissions:
+  contents: write # subir los datos actualizados
+  actions: write # lanzar la publicación en Pages
+
+concurrency:
+  group: update-cards
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: tools/requirements.txt
+
+      - run: pip install -r tools/requirements.txt
+
+      # Las imágenes originales (cache/images) no están en el repositorio: se guardan entre
+      # ejecuciones para no descargar las ~1.600 cartas cada día.
+      - name: Recuperar imágenes descargadas
+        uses: actions/cache/restore@v4
+        with:
+          path: cache/images
+          key: card-images-${{ github.run_id }}
+          restore-keys: card-images-
+
+      - name: Descargar cartas y erratas
+        run: |
+          echo "IMAGES_BEFORE=$(ls cache/images 2>/dev/null | wc -l)" >> "$GITHUB_ENV"
+          python tools/fetch_cards.py --strict
+          echo "IMAGES_AFTER=$(ls cache/images | wc -l)" >> "$GITHUB_ENV"
+
+      - name: Guardar imágenes descargadas
+        if: env.IMAGES_AFTER != env.IMAGES_BEFORE
+        uses: actions/cache/save@v4
+        with:
+          path: cache/images
+          key: card-images-${{ github.run_id }}
+
+      - name: Resumen de cambios
+        id: diff
+        shell: python
+        run: |
+          import datetime, json, os, subprocess
+          old = json.loads(subprocess.run(["git", "show", "HEAD:web/data/cards.json"], capture_output=True, check=True).stdout.decode("utf-8"))
+          new = json.load(open("web/data/cards.json", encoding="utf-8"))
+          o, n = {c["id"]: c for c in old}, {c["id"]: c for c in new}
+          added = [n[i] for i in n if i not in o]
+          removed = [o[i] for i in o if i not in n]
+          errata = [n[i] for i in n if n[i].get("errata") and (i not in o or not o[i].get("errata") or o[i]["text"] != n[i]["text"])]
+          edited = [n[i] for i in n if i in o and n[i] != o[i] and n[i] not in errata]
+          lines = [f"- Cartas nuevas: {len(added)}", f"- Cartas retiradas: {len(removed)}",
+                   f"- Erratas nuevas o cambiadas: {len(errata)}", f"- Otras correcciones de datos: {len(edited)}"]
+          for title, items in (("Cartas nuevas", added), ("Erratas", errata)):
+              if items:
+                  lines += ["", f"**{title}:** " + ", ".join(f"{c['name']} ({c['id']})" for c in items[:60])]
+          summary = "\n".join(lines)
+          print(summary)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
+              f.write("## Actualización de cartas\n\n" + summary + "\n")
+          with open(os.path.join(os.environ["RUNNER_TEMP"], "commit_msg.txt"), "w", encoding="utf-8") as f:
+              f.write(f"Actualización automática de cartas y erratas ({datetime.date.today()})\n\n{summary}\n")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"new_cards={len(added) + len(removed)}\n")
+
+      - name: Recalcular el índice de reconocimiento
+        if: steps.diff.outputs.new_cards != '0'
+        run: python tools/build_index.py --incremental
+
+      - name: Subir cambios
+        id: commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/data web/thumbs
+          if ! git diff --cached --quiet; then
+            git commit -q -F "$RUNNER_TEMP/commit_msg.txt"
+            git push
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Sin cambios en cartas ni erratas."
+          # GitHub desactiva las tareas programadas tras 60 días sin actividad en el repositorio.
+          last=$(git log -1 --format=%ct)
+          if [ $(( $(date +%s) - last )) -gt $(( 50 * 86400 )) ]; then
+            git commit -q --allow-empty -m "Mantener activa la actualización diaria"
+            git push
+          fi
+
+      - name: Publicar la app
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --ref main

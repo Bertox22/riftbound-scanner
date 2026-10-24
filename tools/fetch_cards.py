@@ -7,6 +7,8 @@ Fuentes (se combinan por id de carta, p. ej. "ven-095-166"):
 Uso:
     python tools/fetch_cards.py            # todos los sets
     python tools/fetch_cards.py VEN RAD    # solo esos sets
+    python tools/fetch_cards.py --strict   # actualización automática: si falla una fuente o
+                                           # faltan cartas, no toca web/data/cards.json
 
 Genera:
     cache/images/<id>.jpg      imagen reducida (para calcular los embeddings)
@@ -253,8 +255,13 @@ def add_champions(cards):
             c["name"] = name if name.endswith(f"({champ})") else f"{name} ({champ})"
 
 
+class SourceError(Exception):
+    pass
+
+
 def main():
-    only = {s.upper() for s in sys.argv[1:]} or None
+    strict = "--strict" in sys.argv
+    only = {s.upper() for s in sys.argv[1:] if not s.startswith("--")} or None
     for d in (CACHE, THUMBS, DATA):
         d.mkdir(parents=True, exist_ok=True)
 
@@ -263,6 +270,8 @@ def main():
         try:
             found = [c for c in fetch() if not only or c["set"] in only]
         except Exception as exc:  # noqa: BLE001
+            if strict:
+                raise SourceError(f"No se pudo leer {source}: {exc}") from exc
             print(f"No se pudo leer {source}: {exc}")
             continue
         print(f"{source}: {len(found)} cartas")
@@ -291,7 +300,15 @@ def main():
         for e in missing:
             print(f"  errata sin carta asociada: {e['key']} {e['name']}")
     except Exception as exc:  # noqa: BLE001
+        if strict:
+            raise SourceError(f"No se pudieron leer las erratas: {exc}") from exc
         print(f"No se pudieron leer las erratas: {exc}")
+    if strict and not only:
+        # Una fuente que de repente devuelve menos cartas es casi seguro un fallo suyo, no cartas retiradas.
+        previous = {c["id"] for c in json.loads((DATA / "cards.json").read_text(encoding="utf-8"))}
+        lost = previous - {c["id"] for c in cards}
+        if len(lost) > 5:
+            raise SourceError(f"Faltan {len(lost)} cartas que antes estaban (p. ej. {sorted(lost)[:5]}); no se guarda nada.")
     (DATA / "cards.json").write_text(json.dumps(cards, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     by_set = {}
     for c in cards:
@@ -300,4 +317,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SourceError as exc:
+        print(f"ERROR: {exc}")
+        sys.exit(1)
