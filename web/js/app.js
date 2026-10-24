@@ -3,6 +3,7 @@ import { Scanner } from './scanner.js';
 import { store } from './store.js';
 import { initDecks } from './decks.js';
 import { exportCsv, exportExcel, readableText } from './export.js';
+import { initImport } from './import-ui.js';
 import { $, el, toast, cardImg, cardCode, baseName, download, DOMAIN_ES, TYPE_ES, RARITY_ES } from './ui.js';
 
 const cards = await (await fetch('data/cards.json')).json();
@@ -385,3 +386,4 @@ $('#import-json').addEventListener('change', async (e) => {
 // ---------- Mazos ----------
 
 initDecks({ cards, byId, openCard });
+initImport({ cards, byId, openCard });

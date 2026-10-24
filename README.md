@@ -8,8 +8,11 @@ y armar mazos con las cartas que tienes.
 - **Escanear:** pones cada carta dentro del recuadro y se añade sola en cuanto la reconoce (con
   vibración y pitido). Si duda, te enseña las candidatas para que toques la correcta. Para añadir
   varias copias iguales seguidas basta con retirar la carta del recuadro y poner la siguiente.
-- **Colección:** filtros por set, tipo y dominio, cantidades normales/foil, exportación a CSV y
+- **Colección:** filtros por set, tipo y dominio, cantidades normales/foil, exportación a Excel/CSV y
   copia de seguridad en JSON.
+- **Importar:** cualquier Excel o CSV (o una lista pegada tipo "3x Arena Kingpin"). La app adivina
+  las columnas (código, set, nº, nombre, copias, foil), busca cada carta por código, por nombre o
+  por nombre aproximado, y enseña todo para revisarlo antes de sumar o reemplazar la colección.
 - **Mazos:** Leyenda, Campeón, mazo principal (40), Runas (12) y Campos de batalla (3), con
   validación de reglas (dominios, máximo 3 copias, cartas de firma) y aviso de las cartas que te faltan.
 

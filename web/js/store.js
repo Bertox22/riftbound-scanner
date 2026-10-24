@@ -86,4 +86,15 @@ export const store = {
     this.emit('collection');
     this.emit('decks');
   },
+
+  /** Solo la colección (desde Excel/CSV): "merge" suma, "replace" la sustituye. Los mazos no se tocan. */
+  importCollection(collection, mode = 'merge') {
+    if (mode === 'replace') this.collection = {};
+    for (const [id, e] of Object.entries(collection)) {
+      const cur = this.collection[id] || { n: 0, f: 0 };
+      this.collection[id] = { n: cur.n + e.n, f: cur.f + e.f };
+    }
+    write(KEYS.collection, this.collection);
+    this.emit('collection');
+  },
 };

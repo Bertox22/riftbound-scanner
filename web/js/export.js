@@ -106,7 +106,7 @@ export function exportCsv(cards, collection) {
 }
 
 let excelLib;
-function loadExcelJS() {
+export function loadExcelJS() {
   excelLib ??= new Promise((resolve, reject) => {
     const s = document.createElement('script');
     s.src = EXCELJS;
