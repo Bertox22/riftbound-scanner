@@ -341,11 +341,38 @@ function renderCollection(keepLimit = false) {
   }
 }
 
+/** Texto de la carta con los símbolos del juego convertidos a palabras (para leerlo fuera de la app). */
+function readableText(text) {
+  return (text || '')
+    .replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&')
+    .replace(/:rb_energy_(\d+):/g, '{$1 Energy}')
+    .replace(/:rb_rune_rainbow:/g, '{1 Power of any domain}')
+    .replace(/:rb_rune_(\w+):/g, (_, d) => `{1 ${d[0].toUpperCase()}${d.slice(1)} Power}`)
+    .replace(/:rb_might:/g, 'Might')
+    .replace(/:rb_exhaust:/g, '{Exhaust}')
+    .replace(/\[>\]/g, ' → ')
+    .replace(/\)(?=[A-Z[])/g, ')\n') // algunas habilidades vienen pegadas sin salto de línea
+    .trim();
+}
+
 $('#btn-export-csv').addEventListener('click', () => {
-  const rows = [['set', 'codigo', 'nombre', 'tipo', 'rareza', 'normales', 'foil']];
+  const rows = [[
+    'set', 'codigo', 'nombre', 'tipo', 'supertipo', 'rareza', 'dominios',
+    'coste_energia', 'coste_runas', 'runas_de_dominio', 'might', 'etiquetas', 'texto',
+    'normales', 'foil', 'total',
+  ]];
   for (const c of cards) {
     const e = store.collection[c.id];
-    if (e) rows.push([c.set, cardCode(c), c.name, c.type, c.rarity, e.n, e.f]);
+    if (!e) continue;
+    const power = c.power ?? '';
+    // Algunas cartas recién publicadas aún no traen dominio en las fuentes de datos.
+    const runeDomains = c.domain.filter((d) => d !== 'Colorless').join(' o ') || 'sin dato';
+    rows.push([
+      c.set, cardCode(c), c.name, c.type, c.supertype ?? '', c.rarity, c.domain.join(' / '),
+      c.energy ?? '', power, power ? runeDomains : '', c.might ?? '',
+      c.tags.join(', '), readableText(c.text),
+      e.n, e.f, e.n + e.f,
+    ]);
   }
   const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
   download('coleccion-riftbound.csv', '﻿' + csv, 'text/csv');
