@@ -7,7 +7,7 @@
   <title>Riftbound Scanner</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=7">
+  <link rel="stylesheet" href="styles.css?v=8">
   <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.wasm.min.js"></script>
 </head>
 <body>
@@ -92,7 +92,10 @@
       <div id="deck-list-view">
         <div class="section-head">
           <h2>Mis mazos</h2>
-          <button id="btn-new-deck" class="btn primary small">Nuevo mazo</button>
+          <div class="actions">
+            <button id="btn-import-deck" class="btn ghost small">Importar mazo</button>
+            <button id="btn-new-deck" class="btn primary small">Nuevo mazo</button>
+          </div>
         </div>
         <ul id="deck-list" class="deck-list"></ul>
       </div>

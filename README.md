@@ -15,6 +15,8 @@ y armar mazos con las cartas que tienes.
   por nombre aproximado, y enseña todo para revisarlo antes de sumar o reemplazar la colección.
 - **Mazos:** Leyenda, Campeón, mazo principal (40), Runas (12) y Campos de batalla (3), con
   validación de reglas (dominios, máximo 3 copias, cartas de firma) y aviso de las cartas que te faltan.
+  Se pueden importar listas de cualquier web (secciones Legend/Champion/Main Deck/Runes/Battlefields
+  opcionales: lo que no tenga sección se coloca por tipo de carta) o archivos .txt, CSV y Excel.
 
 **Erratas:** las cartas cuyo texto oficial ha cambiado respecto al impreso usan el texto vigente
 (fuente: la base de datos de [riftbound.gg](https://riftbound.gg/rules/errata/)). La app avisa al

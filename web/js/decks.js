@@ -133,7 +133,7 @@ function addToDeck(card, delta = 1) {
   renderEditor();
 }
 
-function exportText(deck) {
+export function exportText(deck) {
   const { byId } = ctx;
   const line = (n, c) => `${n} ${c.name} (${cardCode(c)})`;
   const out = [`# ${deck.name}`];
@@ -171,7 +171,7 @@ function renderList() {
   }
 }
 
-function openEditor(deck) {
+export function openEditor(deck) {
   current = structuredClone(deck);
   $('#deck-list-view').hidden = true;
   $('#deck-editor').hidden = false;

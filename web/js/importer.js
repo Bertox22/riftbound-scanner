@@ -9,6 +9,7 @@
 import { loadExcelJS } from './export.js';
 
 export const ROLES = {
+  section: 'Sección del mazo',
   code: 'Código (OGN-001/298)',
   set: 'Set',
   number: 'Nº de colección',
@@ -111,26 +112,82 @@ function parseCsv(text, d) {
   return rows;
 }
 
+/** Una línea de lista: "3x Brawl (RAD-004)", "Brawl x3", "1 Death Mark (Zed)" -> [copias, nombre, código]. */
+function parseLine(line) {
+  let qty = '';
+  let m = line.match(/^(\d+)\s*[x×]?\s+(.+)$/i);
+  if (m) { qty = m[1]; line = m[2]; }
+  else if ((m = line.match(/^(.+?)\s+[x×]\s*(\d+)$/i) || line.match(/^(.+?)\s+(\d+)\s*[x×]$/i))) { line = m[1]; qty = m[2]; }
+  let code = '';
+  m = line.match(/^(.*?)\s*[([]\s*([A-Za-z]{2,4}[-\s]?[A-Za-z]{0,3}\d{1,3}[A-Za-z*]?(?:\s*\/\s*\d+)?)\s*[)\]]\s*$/);
+  if (m) { line = m[1]; code = m[2]; }
+  return [qty, line.replace(/^[-•*]\s+/, '').trim(), code];
+}
+
+const isComment = (line) => /^(#|\/\/)/.test(line);
+
 /** Lista suelta: "3x Arena Kingpin", "Arena Kingpin x3", "2 Brawl (RAD-004)". */
 export function parseList(text) {
   const rows = [['Copias', 'Nombre', 'Código']];
   for (let line of text.split(/\r?\n/)) {
     line = line.trim();
-    if (!line || /^(#|\/\/)/.test(line) || /:$/.test(line)) continue; // comentarios y "Runas:"
-    let qty = '';
-    let m = line.match(/^(\d+)\s*[x×]?\s+(.+)$/i);
-    if (m) { qty = m[1]; line = m[2]; }
-    else if ((m = line.match(/^(.+?)\s+[x×]\s*(\d+)$/i) || line.match(/^(.+?)\s+(\d+)\s*[x×]$/i))) { line = m[1]; qty = m[2]; }
-    let code = '';
-    m = line.match(/^(.*?)\s*[([]\s*([A-Za-z]{2,4}[-\s]?[A-Za-z]{0,3}\d{1,3}[A-Za-z*]?(?:\s*\/\s*\d+)?)\s*[)\]]\s*$/);
-    if (m) { line = m[1]; code = m[2]; }
-    rows.push([qty, line.trim(), code]);
+    if (!line || isComment(line) || /:$/.test(line)) continue; // comentarios y "Runas:"
+    rows.push(parseLine(line));
   }
   return [{ name: 'Lista', rows }];
 }
 
+// ---------- Listas de mazo ----------
+
+const SECTION_WORDS = [
+  ['legend', /^(leyenda|leyendas|legend|legends)$/],
+  ['champion', /^(campeon|campeon elegido|champion|chosen champion|champions)$/],
+  ['runes', /^(runa|runas|rune|runes|rune deck|mazo de runas)$/],
+  ['battlefields', /^(campo de batalla|campos de batalla|campos|battlefield|battlefields)$/],
+  ['sideboard', /^(sideboard|side|banquillo|reserva)$/],
+  ['main', /^(mazo principal|principal|main|main deck|maindeck|deck|mazo|cards|cartas|units?|unidades|spells?|hechizos|gear|equipo|equipos)$/],
+];
+
+/** "Mazo principal (40):", "Runes - 12", "## Battlefields" -> "main", "runes"... o null. */
+export function deckSection(value) {
+  const n = norm(String(value ?? '').replace(/[:#]/g, ' ').replace(/[([]\s*\d+\s*(\/\s*\d+)?\s*[)\]]/g, ' ').replace(/[-–]\s*\d+\s*$/, ''));
+  return SECTION_WORDS.find(([, re]) => re.test(n))?.[0] ?? null;
+}
+
+/** Lista de mazo con secciones -> hoja con columnas Sección, Copias, Nombre, Código. */
+export function parseDeckText(text) {
+  const rows = [['Sección', 'Copias', 'Nombre', 'Código']];
+  let section = '', deckName = '';
+  for (let line of text.split(/\r?\n/)) {
+    line = line.trim();
+    if (!line) continue;
+    if (isComment(line)) {
+      const sec = deckSection(line);
+      if (sec) section = sec;
+      else if (!deckName && rows.length === 1) deckName = line.replace(/^(#+|\/\/)\s*/, '').replace(/^(mazo|deck)\s*:\s*/i, '');
+      continue;
+    }
+    const sec = deckSection(line);
+    if (sec && (/:$/.test(line) || !/^\d/.test(line))) { section = sec; continue; }
+    const named = line.match(/^(mazo|deck|nombre|name)\s*:\s*(.+)$/i);
+    if (named) { deckName ||= named[2]; continue; }
+    const inline = line.match(/^([^:]{3,30}):\s*(.+)$/); // "Legend: Akali - Rogue Assassin"
+    if (inline && deckSection(inline[1])) {
+      rows.push([deckSection(inline[1]), ...parseLine(inline[2])]); // solo afecta a esta línea
+      continue;
+    }
+    if (/:$/.test(line)) continue; // otra cabecera que no conocemos
+    rows.push([section, ...parseLine(line)]);
+  }
+  return [{ name: deckName || 'Mazo', rows, deckName }];
+}
+
+function looksLikeDeckText(text) {
+  return text.split(/\r?\n/).some((l) => deckSection(l.trim()) && (/:\s*$/.test(l) || /^#/.test(l.trim())));
+}
+
 /** Devuelve [{ name, rows: string[][] }] (una entrada por hoja). */
-export async function readFile(file) {
+export async function readFile(file, { deck = false } = {}) {
   const ext = file.name.split('.').pop().toLowerCase();
   if (ext === 'xls') throw new Error('Los .xls antiguos no se pueden leer: guárdalo como .xlsx o CSV desde Excel.');
   if (ext === 'xlsx' || ext === 'xlsm') {
@@ -152,8 +209,10 @@ export async function readFile(file) {
   }
   let text = await file.text();
   text = text.replace(/^﻿/, '');
+  if (deck && looksLikeDeckText(text)) return parseDeckText(text);
   const d = detectDelimiter(text);
-  return d ? [{ name: file.name, rows: parseCsv(text, d) }] : parseList(text);
+  if (d) return [{ name: file.name, rows: parseCsv(text, d) }];
+  return deck ? parseDeckText(text) : parseList(text);
 }
 
 // ---------- Índices de cartas ----------
@@ -209,6 +268,7 @@ function parseCode(value, idx) {
 // ---------- Detección de columnas ----------
 
 const HEADER_HINTS = {
+  section: /^(seccion|section|zona|zone|slot|categoria|category|parte)$/,
   code: /^(cod|codigo|code|card code|card id|id|collector code|public code|ref|referencia)$/,
   set: /^(set|set code|set name|expansion|edicion|coleccion de la carta|expansion code)$/,
   number: /^(n|no|n o|nº|num|numero|number|collector number|card number|nr)$/,
@@ -243,7 +303,7 @@ export function guessMapping(header, data, idx) {
   // 1) Por cabecera. "normales" tiene prioridad sobre "total" para no contar los foil dos veces.
   const h = header.map(norm);
   take('qty', h.indexOf('normales'));
-  for (const role of ['code', 'set', 'number', 'name', 'qty']) take(role, h.findIndex((x, i) => !taken.has(i) && HEADER_HINTS[role].test(x)));
+  for (const role of ['section', 'code', 'set', 'number', 'name', 'qty']) take(role, h.findIndex((x, i) => !taken.has(i) && HEADER_HINTS[role].test(x)));
   const foilCol = h.findIndex((x, i) => !taken.has(i) && (HEADER_HINTS.foilQty.test(x) || HEADER_HINTS.foil.test(x)));
   if (foilCol >= 0) {
     // Con números es "cuántas foil"; con sí/no/x es "estas copias son foil".
@@ -345,7 +405,8 @@ export function matchRows(data, map, idx) {
     if (map.foil != null && truthy(get(r, 'foil'))) { foilQty += qty ?? 1; qty = 0; }
     qty ??= map.qty != null && foilQty ? 0 : 1;
     if (!qty && !foilQty) continue; // filas con 0 copias
-    out.push({ raw: r, label: name || String(get(r, 'code') || `${get(r, 'set')} ${get(r, 'number')}`).trim(), card, status, note, qty, foilQty });
+    const section = map.section != null ? deckSection(get(r, 'section')) : null;
+    out.push({ raw: r, label: name || String(get(r, 'code') || `${get(r, 'set')} ${get(r, 'number')}`).trim(), card, status, note, qty, foilQty, section });
   }
   return out;
 }
@@ -363,4 +424,60 @@ export function searchCards(q, cards, idx, limit = 8) {
     if (s) scored.push([s, c]);
   }
   return scored.sort((a, b) => b[0] - a[0] || a[1].name.localeCompare(b[1].name)).slice(0, limit).map(([, c]) => c);
+}
+
+// ---------- Montar un mazo ----------
+
+const champOf = (legend) => legend?.champion ?? legend?.tags?.[0];
+const isOfChampion = (card, legend) => card.champion === champOf(legend) || card.tags.includes(champOf(legend));
+
+/** Sección donde va una carta: la que diga la lista, salvo que su tipo diga otra cosa. */
+function slotFor(card, section) {
+  if (card.type === 'Legend') return 'legend';
+  if (card.type === 'Rune') return 'runes';
+  if (card.type === 'Battlefield') return 'battlefields';
+  if (section === 'sideboard') return section;
+  if (section === 'champion' && card.type === 'Unit' && card.supertype === 'Champion') return section;
+  return 'main';
+}
+
+/** Filas emparejadas -> { legend, champion, main, runes, battlefields } + avisos. Anota r.slot. */
+export function assembleDeck(rows) {
+  const deck = { legend: null, champion: null, main: {}, runes: {}, battlefields: [] };
+  const notes = [];
+  let sideboard = 0;
+  for (const r of rows) {
+    r.slot = r.card ? slotFor(r.card, r.section) : null;
+    if (!r.include || !r.card) continue;
+    const c = r.card, n = r.qty + r.foilQty;
+    if (r.slot === 'legend') {
+      if (deck.legend && deck.legend !== c.id) notes.push(`Hay más de una Leyenda: se usa la primera (${c.name} se descarta).`);
+      deck.legend ??= c.id;
+    } else if (r.slot === 'champion') {
+      if (deck.champion) deck.main[c.id] = (deck.main[c.id] || 0) + n; // si hay dos, la segunda va al mazo
+      else {
+        deck.champion = c.id;
+        if (n > 1) deck.main[c.id] = (deck.main[c.id] || 0) + n - 1;
+      }
+    } else if (r.slot === 'sideboard') {
+      sideboard += n;
+    } else if (r.slot === 'battlefields') {
+      if (!deck.battlefields.includes(c.id)) deck.battlefields.push(c.id);
+    } else {
+      deck[r.slot][c.id] = (deck[r.slot][c.id] || 0) + n;
+    }
+  }
+  // Sin Campeón indicado: una copia de la unidad Campeón de la Leyenda que esté en el mazo.
+  const legend = rows.find((r) => r.card?.id === deck.legend)?.card;
+  if (!deck.champion && legend) {
+    const pick = rows.find((r) => r.include && r.slot === 'main' && r.card.type === 'Unit' && r.card.supertype === 'Champion' && isOfChampion(r.card, legend));
+    if (pick) {
+      deck.champion = pick.card.id;
+      deck.main[pick.card.id] -= 1;
+      if (!deck.main[pick.card.id]) delete deck.main[pick.card.id];
+      notes.push(`Campeón elegido automáticamente: ${pick.card.name}.`);
+    }
+  }
+  if (sideboard) notes.push(`El banquillo (${sideboard} carta${sideboard === 1 ? '' : 's'}) no se importa.`);
+  return { deck, notes };
 }
