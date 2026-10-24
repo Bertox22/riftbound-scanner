@@ -10,6 +10,7 @@
 
 import { store } from './store.js';
 import { $, el, toast, cardImg, cardCode, baseName, download, DOMAIN_ES, TYPE_ES } from './ui.js';
+import { exportDeckExcel, exportDeckCsv, exportAllDecksExcel, exportAllDecksCsv, exportAllDecksText } from './export.js';
 
 const MAIN_TYPES = new Set(['Unit', 'Spell', 'Gear']);
 const MAIN_SIZE = 40, RUNES = 12, BATTLEFIELDS = 3, MAX_COPIES = 3, MAX_SIGNATURE = 3;
@@ -148,9 +149,24 @@ export function exportText(deck) {
 
 // ---------- Vistas ----------
 
+/** Datos que necesita el exportador: cartas, cuántas tienes de cada una y la validación. */
+const exportCtx = () => ({ byId: ctx.byId, owned: (id) => store.owned(id), validate });
+
+async function runExport(button, fn) {
+  button.disabled = true;
+  try {
+    await fn();
+  } catch (err) {
+    toast(err.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function renderList() {
   const list = $('#deck-list');
   list.replaceChildren();
+  $('#deck-export-all').hidden = !store.decks.length;
   if (!store.decks.length) {
     list.append(el('li', { class: 'empty' }, 'Aún no tienes mazos. Escanea tus cartas y crea uno.'));
     return;
@@ -237,7 +253,9 @@ function renderEditor() {
       el('button', { class: 'btn ghost small', onclick: closeEditor }, '← Mazos'),
       el('div', { class: 'actions' },
         el('button', { class: 'btn ghost small', onclick: () => { navigator.clipboard?.writeText(exportText(current)).then(() => toast('Lista copiada')); } }, 'Copiar lista'),
-        el('button', { class: 'btn ghost small', onclick: () => download(`${current.name}.txt`, exportText(current)) }, 'Descargar'),
+        el('button', { class: 'btn ghost small', title: 'Lista en texto (.txt)', onclick: () => download(`${current.name}.txt`, exportText(current)) }, 'Texto'),
+        el('button', { class: 'btn ghost small', title: 'Excel con todas las columnas y un resumen del mazo', onclick: (e) => runExport(e.target, () => exportDeckExcel(current, exportCtx())) }, 'Excel'),
+        el('button', { class: 'btn ghost small', title: 'CSV con todas las columnas', onclick: (e) => runExport(e.target, () => exportDeckCsv(current, exportCtx())) }, 'CSV'),
         el('button', { class: 'btn danger small', onclick: () => {
           if (!confirm(`¿Borrar el mazo "${current.name}"?`)) return;
           store.decks = store.decks.filter((d) => d.id !== current.id);
@@ -346,6 +364,9 @@ function picker(title, cards, onPick) {
 export function initDecks(context) {
   ctx = context;
   $('#btn-new-deck').addEventListener('click', () => openEditor(newDeck()));
+  $('#btn-decks-excel').addEventListener('click', (e) => runExport(e.target, () => exportAllDecksExcel(store.decks, exportCtx())));
+  $('#btn-decks-csv').addEventListener('click', (e) => runExport(e.target, () => exportAllDecksCsv(store.decks, exportCtx())));
+  $('#btn-decks-txt').addEventListener('click', () => exportAllDecksText(store.decks, exportText));
   store.onChange((what) => {
     if (what === 'collection' && current) renderEditor();
     if (!current) renderList();
