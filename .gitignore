@@ -1,4 +1,4 @@
 .venv/
-cache/
-models/
+/cache/
+/models/
 __pycache__/
