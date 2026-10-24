@@ -2,6 +2,7 @@ import { Recognizer } from './recognizer.js';
 import { Scanner } from './scanner.js';
 import { store } from './store.js';
 import { initDecks } from './decks.js';
+import { exportCsv, exportExcel, readableText } from './export.js';
 import { $, el, toast, cardImg, cardCode, baseName, download, DOMAIN_ES, TYPE_ES, RARITY_ES } from './ui.js';
 
 const cards = await (await fetch('data/cards.json')).json();
@@ -54,7 +55,8 @@ function openCard(card) {
           el('p', { text: [TYPE_ES[card.type] || card.type, card.supertype].filter(Boolean).join(' · ') + (card.domain.length ? ` · ${card.domain.map((d) => DOMAIN_ES[d] || d).join(' / ')}` : '') }),
           stats && el('p', { text: stats }),
           card.tags.length > 0 && el('p', { class: 'muted', text: card.tags.join(', ') }),
-          card.text && el('p', { class: 'card-text', text: card.text }),
+          card.text && el('p', { class: 'card-text', text: readableText(card.text) }),
+          (card.effect || card.mightBonus != null) && el('p', { class: 'card-text', text: `Unidad equipada: ${[readableText(card.effect), card.mightBonus != null ? `${card.mightBonus >= 0 ? '+' : ''}${card.mightBonus} Might` : ''].filter(Boolean).join(' · ')}` }),
           qtyRow('Normales', e.n, (d) => { store.add(card.id, d, false); render(); }),
           qtyRow('Foil', e.f, (d) => { store.add(card.id, d, true); render(); }),
           variants.length > 0 && el('div', {},
@@ -341,41 +343,20 @@ function renderCollection(keepLimit = false) {
   }
 }
 
-/** Texto de la carta con los símbolos del juego convertidos a palabras (para leerlo fuera de la app). */
-function readableText(text) {
-  return (text || '')
-    .replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&')
-    .replace(/:rb_energy_(\d+):/g, '{$1 Energy}')
-    .replace(/:rb_rune_rainbow:/g, '{1 Power of any domain}')
-    .replace(/:rb_rune_(\w+):/g, (_, d) => `{1 ${d[0].toUpperCase()}${d.slice(1)} Power}`)
-    .replace(/:rb_might:/g, 'Might')
-    .replace(/:rb_exhaust:/g, '{Exhaust}')
-    .replace(/\[>\]/g, ' → ')
-    .replace(/\)(?=[A-Z[])/g, ')\n') // algunas habilidades vienen pegadas sin salto de línea
-    .trim();
-}
-
-$('#btn-export-csv').addEventListener('click', () => {
-  const rows = [[
-    'set', 'codigo', 'nombre', 'tipo', 'supertipo', 'rareza', 'dominios',
-    'coste_energia', 'coste_runas', 'runas_de_dominio', 'might', 'etiquetas', 'texto',
-    'normales', 'foil', 'total',
-  ]];
-  for (const c of cards) {
-    const e = store.collection[c.id];
-    if (!e) continue;
-    const power = c.power ?? '';
-    // Algunas cartas recién publicadas aún no traen dominio en las fuentes de datos.
-    const runeDomains = c.domain.filter((d) => d !== 'Colorless').join(' o ') || 'sin dato';
-    rows.push([
-      c.set, cardCode(c), c.name, c.type, c.supertype ?? '', c.rarity, c.domain.join(' / '),
-      c.energy ?? '', power, power ? runeDomains : '', c.might ?? '',
-      c.tags.join(', '), readableText(c.text),
-      e.n, e.f, e.n + e.f,
-    ]);
+$('#btn-export-excel').addEventListener('click', async (e) => {
+  if (!store.totalOwned()) return toast('Tu colección está vacía.');
+  e.target.disabled = true;
+  try {
+    await exportExcel(cards, store.collection);
+  } catch (err) {
+    toast(err.message);
+  } finally {
+    e.target.disabled = false;
   }
-  const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
-  download('coleccion-riftbound.csv', '﻿' + csv, 'text/csv');
+});
+$('#btn-export-csv').addEventListener('click', () => {
+  if (!store.totalOwned()) return toast('Tu colección está vacía.');
+  exportCsv(cards, store.collection);
 });
 $('#btn-export-json').addEventListener('click', () => {
   download(`riftbound-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(store.exportData(), null, 1), 'application/json');

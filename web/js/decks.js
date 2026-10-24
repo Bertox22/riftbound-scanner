@@ -19,7 +19,9 @@ let current = null; // mazo en edición
 let pool = { q: '', type: '', owned: true };
 
 const isToken = (c) => c.supertype === 'Token';
-const champTag = (legend) => legend?.tags?.[0];
+const champTag = (legend) => legend?.champion ?? legend?.tags?.[0];
+/** ¿Es esta carta (Campeón o de firma) del campeón de la Leyenda? */
+const ofChampion = (card, legend) => (card.champion ?? null) === champTag(legend) || card.tags.includes(champTag(legend));
 
 function legalDomain(card, legend) {
   if (!legend) return true;
@@ -60,7 +62,7 @@ export function validate(deck) {
 
   if (!legend) issues.push('Elige una Leyenda.');
   if (!champion) issues.push('Elige el Campeón (una unidad Campeón de tu Leyenda).');
-  else if (legend && !champion.tags.includes(champTag(legend))) issues.push(`El Campeón debe ser de ${champTag(legend)}.`);
+  else if (legend && !ofChampion(champion, legend)) issues.push(`El Campeón debe ser de ${champTag(legend)}.`);
   if (mainCount < MAIN_SIZE) issues.push(`Mazo principal: ${mainCount}/${MAIN_SIZE} (faltan ${MAIN_SIZE - mainCount}).`);
   if (runeCount !== RUNES) issues.push(`Runas: ${runeCount}/${RUNES}.`);
   if (deck.battlefields.length !== BATTLEFIELDS) issues.push(`Campos de batalla: ${deck.battlefields.length}/${BATTLEFIELDS}.`);
@@ -77,7 +79,7 @@ export function validate(deck) {
     copies[baseName(c)] = (copies[baseName(c)] || 0) + n;
     if (c.supertype === 'Signature') {
       signatures += n;
-      if (legend && !c.tags.includes(champTag(legend))) issues.push(`${c.name}: es una carta de firma de otro campeón.`);
+      if (legend && !ofChampion(c, legend)) issues.push(`${c.name}: es una carta de firma de otro campeón.`);
     }
     if (!legalDomain(c, legend)) issues.push(`${c.name}: no es de los dominios de tu Leyenda.`);
   }
@@ -113,7 +115,7 @@ function addToDeck(card, delta = 1) {
   if (sec === 'legend') {
     current.legend = delta > 0 ? card.id : null;
     const champ = ctx.byId.get(current.champion);
-    if (champ && !champ.tags.includes(champTag(card))) current.champion = null;
+    if (champ && !ofChampion(champ, card)) current.champion = null;
   } else if (sec === 'battlefields') {
     if (delta > 0) {
       if (current.battlefields.length >= BATTLEFIELDS) return toast(`Ya tienes ${BATTLEFIELDS} Campos de batalla.`);
@@ -223,7 +225,7 @@ function renderEditor() {
   const pickLegend = () => picker('Leyenda', ctx.cards.filter((c) => c.type === 'Legend' && !isToken(c)), (c) => addToDeck(c, 1));
   const pickChampion = () => {
     if (!legend) return toast('Elige primero la Leyenda.');
-    picker('Campeón', ctx.cards.filter((c) => c.type === 'Unit' && c.supertype === 'Champion' && c.tags.includes(champTag(legend))), (c) => {
+    picker('Campeón', ctx.cards.filter((c) => c.type === 'Unit' && c.supertype === 'Champion' && ofChampion(c, legend)), (c) => {
       current.champion = c.id;
       save();
       renderEditor();
@@ -286,7 +288,7 @@ function renderPool(legend, used) {
       if (pool.owned && store.owned(c.id) === 0) return false;
       if (pool.type && c.type !== pool.type) return false;
       if (legend && !legalDomain(c, legend)) return false;
-      if (legend && c.supertype === 'Signature' && !c.tags.includes(champTag(legend))) return false;
+      if (legend && c.supertype === 'Signature' && !ofChampion(c, legend)) return false;
       if (q && !`${c.name} ${c.tags.join(' ')} ${c.text}`.toLowerCase().includes(q)) return false;
       return true;
     });

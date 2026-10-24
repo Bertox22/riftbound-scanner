@@ -18,6 +18,7 @@ Vuelve a ejecutarlo cuando salga un set nuevo: solo descarga las imágenes que f
 import html
 import io
 import json
+import math
 import re
 import sys
 import time
@@ -36,6 +37,29 @@ DATA = ROOT / "web" / "data"
 THUMB_WIDTH = 240
 CACHE_WIDTH = 600
 UA = {"User-Agent": "Mozilla/5.0 (riftbound-scanner)"}
+KNOWN_TYPES = {"Unit", "Spell", "Gear", "Legend", "Battlefield", "Rune"}
+
+# Comprobación del dominio por el color de la banda del nombre (ver check_domains). Centroides RGB
+# medidos sobre ~775 cartas de un solo dominio de OGN/SFD/UNL/VEN (99,9 % de acierto).
+DOMAIN_COLORS = {
+    "Fury": (190, 24, 31), "Calm": (75, 141, 49), "Mind": (18, 110, 162),
+    "Body": (218, 110, 16), "Chaos": (106, 63, 143), "Order": (187, 160, 18),
+}
+# Sets cuyos datos oficiales traen dominios equivocados y se corrigen con la imagen.
+IMAGE_DOMAIN_SETS = {"RAD"}
+
+
+# Datos que faltan en las fuentes, sacados de la imagen de la carta. Solo se aplican si la fuente
+# sigue sin traer ese campo, así que cuando Riot los complete mandan los suyos.
+OVERRIDES = {
+    "rad-006-167": {"domain": ["Fury"]},  # Scorched Earth
+    "rad-009-167": {"domain": ["Fury"]},  # Antagonistic Apparatus
+    "rad-022-167": {"domain": ["Fury"]},  # Whirling Twirligig
+    "rad-041-167": {"domain": ["Calm"]},  # Hush
+    "rad-104-167": {"domain": ["Chaos"]},  # Pitiless Stalker
+    "rad-123-167": {"domain": ["Order"], "tags": ["Equipment"]},  # Protector's Shield
+    "rad-134-167": {"domain": ["Order"]},  # Raucous Anthem
+}
 
 
 def get(url):
@@ -48,7 +72,8 @@ def get_json(url):
 
 
 def strip_html(text):
-    text = re.sub(r"<br\s*/?>|</p>\s*<p>", "\n", text or "")
+    text = re.sub(r"<li[^>]*>", "\n• ", text or "")  # opciones de "Choose one —"
+    text = re.sub(r"<br\s*/?>|</p>\s*<p>", "\n", text)
     return html.unescape(re.sub(r"<[^>]+>", "", text)).strip()
 
 
@@ -64,9 +89,17 @@ def from_gallery():
     cards = []
     for c in items:
         types = [t["label"] for t in c["cardType"].get("type", [])]
-        if not types:  # algunas cartas recién publicadas vienen sin tipo: se saca del texto alternativo
-            m = re.match(r"Riftbound (\w+):", c["cardImage"].get("accessibilityText", ""))
-            types = [m.group(1) if m and m.group(1) != "None" else "Other"]
+        # El texto alternativo de la imagen ("Riftbound Spell: ...") es más fiable que cardType: en
+        # Radiance llegó con tipos cambiados entre cartas, o vacíos.
+        m = re.match(r"Riftbound (\w+):", c["cardImage"].get("accessibilityText", ""))
+        alt_type = m.group(1) if m and m.group(1) != "None" else None
+        tags = (c.get("tags") or {}).get("tags", [])
+        if alt_type and alt_type in KNOWN_TYPES:
+            if types and types[0] != alt_type:
+                tags = []  # si el tipo venía cambiado, las etiquetas tampoco son de esta carta
+            types = [alt_type]
+        elif not types:
+            types = ["Other"]
         supertype = (c["cardType"].get("superType") or [{}])[0].get("label")
         name = c["name"]
         if c.get("subtitle") and c["subtitle"] not in name:
@@ -85,8 +118,12 @@ def from_gallery():
             "energy": value(c.get("energy")),
             "might": value(c.get("might")),
             "power": value(c.get("power")),
-            "tags": (c.get("tags") or {}).get("tags", []),
+            "tags": tags,
             "text": strip_html((c.get("text") or {}).get("richText", {}).get("body")),
+            # Equipos: lo que ganan la unidad equipada (effect) y su bonificación de Might.
+            # (solo en equipos: alguna otra carta trae basura en este campo, p. ej. un "1")
+            "effect": (strip_html((c.get("effect") or {}).get("richText", {}).get("body")) or None) if types[0] == "Gear" else None,
+            "mightBonus": value(c.get("mightBonus")),
             "image": c["cardImage"]["url"],
             "orientation": c["orientation"],
         })
@@ -158,6 +195,61 @@ def download(card):
         img.resize((round(img.width * scale), round(img.height * scale)), Image.LANCZOS).save(thumb, "WEBP", quality=80)
 
 
+def banner_domain(card):
+    """Dominio según el color de la banda del nombre, o None si no es concluyente."""
+    img = Image.open(CACHE / f"{file_id(card['id'])}.jpg").convert("RGB")
+    w, h = img.size
+    if w > h:
+        return None
+    region = img.crop((int(w * 0.05), int(h * 0.585), int(w * 0.60), int(h * 0.615)))
+    raw = region.tobytes()
+    px = [p for p in zip(raw[0::3], raw[1::3], raw[2::3]) if 25 < max(p) < 235]  # sin texto blanco ni borde negro
+    if not px:
+        return None
+    median = tuple(sorted(ch)[len(ch) // 2] for ch in zip(*px))
+    domain, dist = min(((d, math.dist(median, rgb)) for d, rgb in DOMAIN_COLORS.items()), key=lambda t: t[1])
+    return domain if dist <= 60 else None
+
+
+def check_domains(cards):
+    """Corrige con la imagen el dominio de las cartas normales (de un color) de IMAGE_DOMAIN_SETS."""
+    fixed = {}
+    for c in cards:
+        if c["set"] not in IMAGE_DOMAIN_SETS or c["type"] not in ("Unit", "Spell", "Gear"):
+            continue
+        if c.get("supertype") in ("Champion", "Signature"):  # estas venían bien y algunas son bicolor
+            continue
+        d = banner_domain(c)
+        if d:
+            fixed[(c["set"], c["name"])] = d
+            if c["domain"] != [d]:
+                print(f"  dominio por imagen: {c['id']} {c['name']}: {c['domain']} -> {d}")
+                c["domain"], c["tags"] = [d], []
+    # Variantes (arte alternativo, showcase) cuyo marco no permite leer el color: igual que la normal.
+    for c in cards:
+        d = fixed.get((c["set"], c["name"]))
+        if d and c["domain"] != [d] and c.get("supertype") not in ("Champion", "Signature"):
+            c["domain"], c["tags"] = [d], []
+
+
+def add_champions(cards):
+    """Campo "champion" en Leyendas, Campeones y cartas de firma, y nombres más reconocibles:
+    "Akali - Rogue Assassin" para las Leyendas y "Death Mark (Zed)" para las de firma."""
+    champions = {c["name"].split(" - ")[0] for c in cards if c["type"] == "Unit" and c.get("supertype") == "Champion"}
+    for c in cards:
+        if c["type"] != "Legend" and c.get("supertype") not in ("Champion", "Signature"):
+            continue
+        champ = next((t for t in c["tags"] if t in champions), None)
+        if not champ:
+            continue
+        c["champion"] = champ
+        if c["type"] == "Legend" and not c["name"].startswith(champ):
+            c["name"] = f"{champ} - {c['name']}"
+        elif c["type"] != "Legend" and c.get("supertype") == "Signature":
+            name = c["name"].removesuffix(f" - {champ}").removesuffix(" (Signature)")
+            c["name"] = name if name.endswith(f"({champ})") else f"{name} ({champ})"
+
+
 def main():
     only = {s.upper() for s in sys.argv[1:]} or None
     for d in (CACHE, THUMBS, DATA):
@@ -176,6 +268,9 @@ def main():
 
     cards = sorted(merged.values(), key=lambda c: (c["set"], c["number"], c["id"]))
     for c in cards:
+        for key, fix in OVERRIDES.get(c["id"], {}).items():
+            if not c.get(key):
+                c[key] = fix
         c.setdefault("code", None)
         c.setdefault("supertype", None)
         c["thumb"] = f"thumbs/{file_id(c['id'])}.webp"
@@ -184,6 +279,8 @@ def main():
         list(pool.map(download, cards))
 
     cards = [c for c in cards if (CACHE / f"{file_id(c['id'])}.jpg").exists()]
+    check_domains(cards)
+    add_champions(cards)
     (DATA / "cards.json").write_text(json.dumps(cards, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     by_set = {}
     for c in cards:
