@@ -21,6 +21,12 @@ y armar mazos con las cartas que tienes.
   CSV, y también todos a la vez. Se pueden importar listas de cualquier web (secciones Legend/Champion/Main Deck/Runes/Battlefields
   opcionales: lo que no tenga sección se coloca por tipo de carta) o archivos .txt, CSV y Excel.
 
+**Precios:** cada noche se descargan los precios de Cardmarket (€) y TCGplayer ($) de riftbound.gg.
+La colección muestra el precio de cada carta y el valor total, se puede ordenar por precio, el escáner
+avisa cuando una carta vale 5 € o más (o cuando existe una versión con la misma ilustración mucho más
+cara, como las Showcase firmadas) y las exportaciones llevan las columnas "Precio €" y "Valor €".
+Las runas de arte alternativo ("Showcase") solo existen en foil y se valoran como tales.
+
 **Erratas:** las cartas cuyo texto oficial ha cambiado respecto al impreso usan el texto vigente
 (fuente: la base de datos de [riftbound.gg](https://riftbound.gg/rules/errata/)). La app avisa al
 escanearlas, la ficha muestra también el texto impreso y la exportación lleva una columna "Errata".

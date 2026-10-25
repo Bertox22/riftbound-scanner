@@ -3,6 +3,8 @@
 Fuentes (se combinan por id de carta, p. ej. "ven-095-166"):
   1. Galería oficial de Riot: es la que antes incluye los sets nuevos (Radiance...).
   2. API pública de Riftcodex: añade lo que falte en la galería (promos, cartas de OP...).
+  3. Base de datos de riftbound.gg: versiones que no están en ninguna de las anteriores (sobre todo
+     las Showcase firmadas "*"), además de erratas y precios (web/data/prices.json).
 
 Uso:
     python tools/fetch_cards.py            # todos los sets
@@ -14,6 +16,7 @@ Genera:
     cache/images/<id>.jpg      imagen reducida (para calcular los embeddings)
     web/thumbs/<id>.webp       miniatura para mostrar en la app
     web/data/cards.json        metadatos de las cartas
+    web/data/prices.json       precios de Cardmarket y TCGplayer (cambian cada día)
 
 Vuelve a ejecutarlo cuando salga un set nuevo: solo descarga las imágenes que faltan.
 """
@@ -31,7 +34,9 @@ from pathlib import Path
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import dotgg  # noqa: E402
 from errata import apply_errata, fetch_errata  # noqa: E402
+from prices import build_prices  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 GALLERY = "https://riftbound.leagueoflegends.com/en-us/card-gallery/"
@@ -255,6 +260,49 @@ def add_champions(cards):
             c["name"] = name if name.endswith(f"({champ})") else f"{name} ({champ})"
 
 
+def from_dotgg(merged):
+    """Versiones de riftbound.gg que no tienen las otras fuentes, solo de sets que ya conocemos."""
+    known_sets = {c["set"] for c in merged.values()}
+    have = {"-".join(i.split("-")[:2]) for i in merged}
+    totals = {}  # "VEN" -> "166": el total de colección que usan los ids de ese set
+    for i in merged:
+        parts = i.split("-")
+        if len(parts) == 3:
+            totals.setdefault(parts[0].upper(), {}).setdefault(parts[2], 0)
+            totals[parts[0].upper()][parts[2]] += 1
+    cards = []
+    for c in dotgg.get_cards():
+        key = dotgg.key_of(c["id"])
+        set_id = key.split("-")[0].upper()
+        if dotgg.is_variant(key) or key in have or set_id not in known_sets:
+            continue
+        total = max(totals.get(set_id, {}).items(), key=lambda kv: kv[1], default=(None, 0))[0]
+        types = [t for t in (c.get("type") or []) if t in KNOWN_TYPES] or ["Other"]
+        energy = dotgg.number(c.get("cost"))
+        num = re.match(r"\d+", key.split("-")[1])
+        cards.append({
+            "id": f"{key}-{total}" if total else key,
+            "name": c["name"],
+            "set": set_id,
+            "setName": c.get("set_name") or set_id,
+            "number": int(num.group()) if num else 0,
+            "code": None,
+            "type": types[0],
+            "supertype": c.get("supertype") or None,
+            "rarity": c.get("rarity") or "",
+            "domain": c.get("color") or [],
+            "energy": energy,
+            "might": dotgg.number(c.get("might")),
+            "power": dotgg.number(c.get("power")) if energy is not None else None,
+            "tags": c.get("tags") or [],
+            "text": dotgg.clean(c.get("effect")),
+            "mightBonus": dotgg.number(c.get("mightBonus")) if types[0] == "Gear" else None,
+            "image": c["image"],
+            "orientation": "landscape" if types[0] == "Battlefield" else "portrait",
+        })
+    return cards
+
+
 class SourceError(Exception):
     pass
 
@@ -277,6 +325,15 @@ def main():
         print(f"{source}: {len(found)} cartas")
         for c in found:  # la galería va después, así que sus datos tienen prioridad
             merged[c["id"]] = {**merged.get(c["id"], {}), **{k: v for k, v in c.items() if v is not None}}
+    try:
+        extra = [c for c in from_dotgg(merged) if not only or c["set"] in only]
+        print(f"riftbound.gg: {len(extra)} versiones que no estaban")
+        for c in extra:
+            merged[c["id"]] = {k: v for k, v in c.items() if v is not None}
+    except Exception as exc:  # noqa: BLE001
+        if strict:
+            raise SourceError(f"No se pudo leer riftbound.gg: {exc}") from exc
+        print(f"No se pudo leer riftbound.gg: {exc}")
 
     cards = sorted(merged.values(), key=lambda c: (c["set"], c["number"], c["id"]))
     for c in cards:
@@ -309,6 +366,14 @@ def main():
         lost = previous - {c["id"] for c in cards}
         if len(lost) > 5:
             raise SourceError(f"Faltan {len(lost)} cartas que antes estaban (p. ej. {sorted(lost)[:5]}); no se guarda nada.")
+    try:
+        prices = build_prices(cards)  # también añade a cada carta su enlace de Cardmarket
+        (DATA / "prices.json").write_text(json.dumps(prices, separators=(",", ":")), encoding="utf-8")
+        print(f"Precios: {len(prices['prices'])} cartas")
+    except Exception as exc:  # noqa: BLE001
+        if strict:
+            raise SourceError(f"No se pudieron leer los precios: {exc}") from exc
+        print(f"No se pudieron leer los precios: {exc}")
     (DATA / "cards.json").write_text(json.dumps(cards, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     by_set = {}
     for c in cards:

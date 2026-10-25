@@ -1,6 +1,6 @@
 """Erratas de cartas: texto oficial vigente cuando difiere del impreso.
 
-Fuente: la base de datos de riftbound.gg (api.dotgg.gg), la misma que alimenta
+Fuente: la base de datos de riftbound.gg (ver dotgg.py), la misma que alimenta
 https://riftbound.gg/rules/errata/ y los artículos de erratas por set
 (https://riftbound.gg/radiance-errata-updates, .../vendetta-errata-updates). Cada
 impresión con errata trae el campo "errata" con el texto vigente.
@@ -8,35 +8,20 @@ impresión con errata trae el campo "errata" con el texto vigente.
 Se asocia por set y número ("OGN-305*" -> "ogn-305*-298") y se extiende a las demás
 impresiones de la misma carta (promos, arte alternativo...) que esa base no incluya.
 """
-import html
-import json
 import re
-import urllib.request
 
-ERRATA_API = "https://api.dotgg.gg/cgfw/getcards?game=riftbound"
-UA = {"User-Agent": "Mozilla/5.0 (riftbound-scanner)"}
+from dotgg import clean, get_cards, is_variant, key_of
+
 PROMO_SETS = {"OPP", "PR", "JDG"}
 
 
-def clean(text):
-    text = re.sub(r"<br\s*/?>", "\n", text or "")
-    return html.unescape(re.sub(r"<[^>]+>", "", text)).strip()
-
-
 def fetch_errata():
-    """[{"key": "ogn-305*", "name": "...", "text": "..."}] con el texto oficial vigente."""
-    req = urllib.request.Request(ERRATA_API, headers=UA)
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        cards = json.load(resp)
+    """[{"key": "ogn-305*", "name": "...", "text": "...", "variant": bool}] con el texto vigente."""
     out = []
-    for c in cards:
-        if not c.get("errata"):
-            continue
-        key = re.sub(r"-star$", "*", c["id"].lower())  # firmas: "OGN-310-star" -> "ogn-310*"
-        # Promos y versiones especiales ("ogn-259-mb-p", "sfd-139-p2", "ogn-296/298"): no son
-        # cartas aparte en nuestros datos, pero su texto se aplica igual por nombre.
-        variant = key.count("-") > 1 or "/" in key
-        out.append({"key": key, "name": c["name"], "text": clean(c["errata"]), "variant": variant})
+    for c in get_cards():
+        if c.get("errata"):
+            key = key_of(c["id"])
+            out.append({"key": key, "name": c["name"], "text": clean(c["errata"]), "variant": is_variant(key)})
     return out
 
 

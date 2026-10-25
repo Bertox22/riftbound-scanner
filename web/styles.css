@@ -235,3 +235,10 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
 .stat.bad-stat strong { color: var(--warn); }
 .deck-cards .swap { padding: 3px 8px; font-size: 12px; white-space: nowrap; }
 .tile-links { display: flex; gap: 10px; }
+
+/* Precios */
+.price-block { background: var(--surface-2); border-radius: 8px; padding: 6px 10px; margin: 8px 0; }
+.price-block p { margin: 4px 0; }
+.price-block a { color: var(--accent); }
+.price-hot { color: var(--accent); font-weight: 700; }
+.tile-price { white-space: nowrap; min-height: 1.2em; }

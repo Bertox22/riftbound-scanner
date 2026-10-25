@@ -79,6 +79,48 @@ def load_existing():
     return old
 
 
+def existing_groups():
+    try:
+        return json.loads((DATA / "index.json").read_text(encoding="utf-8"))["sameArt"]
+    except (FileNotFoundError, KeyError):
+        return None
+
+
+def art_groups(cards, portraits):
+    """Grupos de cartas con la misma ilustración, que la cámara no puede distinguir:
+    reimpresiones y promos idénticas (por píxeles) y cada Showcase firmada ("ven-189*") con su
+    versión sin firmar ("ven-189"), aunque la imagen de la firmada sea una foto con brillo foil."""
+    parent = list(range(len(cards)))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    def union(i, j):
+        parent[find(i)] = find(j)
+
+    same = dup_groups(portraits)
+    for i, j in zip(*np.nonzero(np.triu(same, 1))):
+        union(int(i), int(j))
+    by_key = {"-".join(c["id"].split("-")[:2]): i for i, c in enumerate(cards)}
+    for key, i in by_key.items():
+        if key.endswith("*") and key[:-1] in by_key:
+            union(i, by_key[key[:-1]])
+
+    members = {}
+    for i in range(len(cards)):
+        members.setdefault(find(i), []).append(i)
+    groups = []
+    for g in members.values():
+        if len(g) > 1:
+            # El primero es el que se propone por defecto: la edición normal antes que promos y firmadas.
+            g.sort(key=lambda j: (cards[j]["set"] in PROMO_SETS, "*" in cards[j]["id"], j))
+            groups.append([cards[j]["id"] for j in g])
+    return sorted(groups, key=lambda g: g[0])
+
+
 def main():
     incremental = "--incremental" in sys.argv
     if incremental and MODEL_DST.exists():
@@ -114,22 +156,11 @@ def main():
         if computed % 100 == 0:
             print(f"  {computed} cartas calculadas  ({time.time() - t0:.0f}s)")
     removed = set(old) - {c["id"] for c in cards}
-    if incremental and not computed and not removed:
+    groups = art_groups(cards, portraits)
+    if incremental and not computed and not removed and groups == existing_groups():
         print("Índice al día: no hay cartas nuevas.")
         return
     print(f"Vectores calculados: {computed} cartas · reutilizados: {len(cards) - computed} · eliminados: {len(removed)}")
-
-    # Grupos de cartas con la misma ilustración (reimpresiones, promos...): la cámara no puede distinguirlas.
-    same = dup_groups(portraits)
-    groups, seen = [], set()
-    for i in range(len(cards)):
-        if i in seen:
-            continue
-        # El primero del grupo es el que se propone por defecto: mejor la edición normal que el promo.
-        g = sorted((int(j) for j in np.nonzero(same[i])[0]), key=lambda j: (cards[j]["set"] in PROMO_SETS, j))
-        seen.update(g)
-        if len(g) > 1:
-            groups.append([cards[j]["id"] for j in g])
 
     matrix = np.stack(vecs).astype(np.float16)
     (DATA / "index.bin").write_bytes(matrix.tobytes())

@@ -7,6 +7,7 @@
 // (Leyenda, dominios, curva de energía, avisos de reglas y cartas que faltan).
 
 import { download } from './ui.js';
+import { unitPrice, entryValue } from './prices.js';
 
 const EXCELJS = 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';
 const SET_ORDER = ['OGN', 'OGS', 'SFD', 'UNL', 'VEN', 'RAD']; // orden de salida; los promos van detrás
@@ -18,7 +19,10 @@ const CARD_COLUMNS = [
   ['Set', 7], ['Nº', 6], ['Tipo', 18], ['Color', 32], ['Nombre', 36], ['Might', 8],
   ['Energía', 9], ['Poder', 8], ['Color de poder', 32], ['Copias', 8], ['Texto', 95], ['Errata', 9],
 ];
-const DECK_COLUMNS = [['Sección', 16], ...CARD_COLUMNS.slice(0, 10), ['Tengo', 8], ...CARD_COLUMNS.slice(10)];
+// Precio € = una copia normal (o foil si solo existe en foil), Cardmarket; Valor € = tus copias.
+const COLLECTION_COLUMNS = [...CARD_COLUMNS, ['Precio €', 10], ['Valor €', 10]];
+const DECK_COLUMNS = [['Sección', 16], ...CARD_COLUMNS.slice(0, 10), ['Tengo', 8], ...CARD_COLUMNS.slice(10), ['Precio €', 10]];
+const round2 = (v) => (v == null ? null : Math.round(v * 100) / 100);
 const SECTIONS = [['legend', 'Leyenda'], ['champion', 'Campeón'], ['main', 'Principal'], ['runes', 'Runas'], ['battlefields', 'Campo de batalla'], ['sideboard', 'Sideboard']];
 const HEADER_FILL = 'FF2F3E4E';
 const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -106,7 +110,10 @@ export function collectionRows(cards, collection) {
   return cards
     .filter((c) => collection[c.id])
     .sort((a, b) => setRank(a.set) - setRank(b.set) || a.set.localeCompare(b.set) || special(a) - special(b) || a.number - b.number || a.id.localeCompare(b.id))
-    .map((c) => cardColumns(c, collection[c.id].n + collection[c.id].f));
+    .map((c) => {
+      const e = collection[c.id];
+      return [...cardColumns(c, e.n + e.f), round2(unitPrice(c.id)), round2(entryValue(c.id, e)) || null];
+    });
 }
 
 // ---------- Utilidades de archivo ----------
@@ -184,14 +191,14 @@ function sheetName(name, used) {
 // ---------- Colección ----------
 
 export function exportCsv(cards, collection) {
-  download('coleccion_riftbound.csv', toCsv(CARD_COLUMNS.map(([h]) => h), collectionRows(cards, collection)), 'text/csv');
+  download('coleccion_riftbound.csv', toCsv(COLLECTION_COLUMNS.map(([h]) => h), collectionRows(cards, collection)), 'text/csv');
 }
 
 export async function exportExcel(cards, collection) {
   const ExcelJS = await loadExcelJS();
   const rows = collectionRows(cards, collection);
   const wb = new ExcelJS.Workbook();
-  const { last } = addTable(wb, 'Colección', CARD_COLUMNS, rows);
+  const { last } = addTable(wb, 'Colección', COLLECTION_COLUMNS, rows);
 
   // Hoja Resumen (con fórmulas y su resultado ya calculado, para quien la lea sin recalcular)
   const sum = wb.addWorksheet('Resumen');
@@ -226,9 +233,14 @@ export async function exportExcel(cards, collection) {
   sum.getCell(`B${t}`).value = { formula: `SUM(B${sets.first}:B${t - 1})`, result: rows.length };
   sum.getCell(`C${t}`).value = { formula: `SUM(C${sets.first}:C${t - 1})`, result: rows.reduce((a, row) => a + row[9], 0) };
   sum.getRow(t).font = { bold: true };
+  const value = rows.reduce((a, row) => a + (row[13] || 0), 0);
+  sum.getCell(`A${t + 1}`).value = 'Valor (Cardmarket, €)';
+  sum.getCell(`C${t + 1}`).value = { formula: `SUM(${range('N')})`, result: round2(value) };
+  sum.getCell(`C${t + 1}`).numFmt = '#,##0.00 "€"';
+  sum.getRow(t + 1).font = { bold: true };
 
   const typeKeys = [...new Set(rows.map((row) => row[2]))].sort();
-  block(t + 2, 'Por tipo', 'Tipo', 'C', typeKeys, (row) => row[2]);
+  block(t + 3, 'Por tipo', 'Tipo', 'C', typeKeys, (row) => row[2]);
 
   await saveWorkbook(wb, 'coleccion_riftbound.xlsx');
 }
@@ -243,7 +255,7 @@ export function deckRows(deck, { byId, owned }) {
     const c = byId.get(id);
     if (!c) return;
     const cols = cardColumns(c, n);
-    rows.push([label, ...cols.slice(0, 10), owned(id), ...cols.slice(10)]);
+    rows.push([label, ...cols.slice(0, 10), owned(id), ...cols.slice(10), round2(unitPrice(id))]);
   };
   const byCost = (bag) => Object.entries(bag)
     .map(([id, n]) => [byId.get(id), n])

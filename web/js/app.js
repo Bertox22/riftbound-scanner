@@ -4,9 +4,10 @@ import { store } from './store.js';
 import { initDecks } from './decks.js';
 import { exportCsv, exportExcel, readableText } from './export.js';
 import { initImport } from './import-ui.js';
+import { loadPrices, pricesDate, priceInfo, unitPrice, entryValue, eur, usd, VALUABLE_EUR } from './prices.js';
 import { $, el, toast, cardImg, cardCode, baseName, download, DOMAIN_ES, TYPE_ES, RARITY_ES } from './ui.js';
 
-const cards = await (await fetch('data/cards.json')).json();
+const [cards] = await Promise.all([fetch('data/cards.json').then((r) => r.json()), loadPrices()]);
 const byId = new Map(cards.map((c) => [c.id, c]));
 const sets = [...new Map(cards.map((c) => [c.set, c.setName])).entries()];
 
@@ -21,9 +22,16 @@ function showView(name) {
 }
 document.querySelectorAll('.tabbar button').forEach((b) => b.addEventListener('click', () => showView(b.dataset.view)));
 
+function collectionValue() {
+  let v = 0;
+  for (const [id, e] of Object.entries(store.collection)) v += entryValue(id, e);
+  return v;
+}
+
 function updateOwnedCount() {
   const total = store.totalOwned();
-  $('#owned-count').textContent = `${total} carta${total === 1 ? '' : 's'}`;
+  const value = collectionValue();
+  $('#owned-count').textContent = `${total} carta${total === 1 ? '' : 's'}${value ? ` · ${eur(value)}` : ''}`;
 }
 store.onChange((what) => what === 'collection' && updateOwnedCount());
 updateOwnedCount();
@@ -35,6 +43,43 @@ function variantsOf(card) {
   const ids = new Set(recognizer.meta ? recognizer.sameArt(card.id) : [card.id]);
   for (const c of cards) if (baseName(c) === baseName(card)) ids.add(c.id);
   return [...ids].map((id) => byId.get(id));
+}
+
+/**
+ * Versión mucho más cara con la misma ilustración (p. ej. la Showcase firmada "*"): la cámara no
+ * las distingue, así que conviene avisar para que se mire la carta.
+ */
+function pricierTwin(card) {
+  if (!recognizer.meta) return null;
+  const base = unitPrice(card.id) ?? 0;
+  let best = null;
+  for (const id of recognizer.sameArt(card.id)) {
+    const p = unitPrice(id);
+    if (id !== card.id && p >= VALUABLE_EUR && p > base * 3 && (!best || p > best.price)) best = { card: byId.get(id), price: p };
+  }
+  return best;
+}
+
+function priceBlock(card) {
+  const p = priceInfo(card.id);
+  const twin = pricierTwin(card);
+  if (!p && !twin) return null;
+  const trend = p?.eur7d ? ` (${p.eur7d > 0 ? '▲' : '▼'} ${eur(Math.abs(p.eur7d))} en 7 días)` : '';
+  return el('div', { class: 'price-block' },
+    p && el('p', {},
+      el('strong', { text: 'Cardmarket: ' }),
+      p.foilOnly ? `${eur(p.eurFoil ?? p.eur)} (solo existe en foil)` : `normal ${eur(p.eur)} · foil ${eur(p.eurFoil)}${trend}`),
+    p && (p.usd || p.usdFoil) && el('p', { class: 'muted small', text: `TCGplayer: normal ${usd(p.usd)} · foil ${usd(p.usdFoil)}` }),
+    twin && el('p', { class: 'warn small', text: `💰 Hay una versión con la misma ilustración que vale ${eur(twin.price)}: ${twin.card.name} (${cardCode(twin.card)}${twin.card.id.includes('*') ? ', firmada' : ''}). Mira si la tuya es esa.` }),
+    el('p', { class: 'muted small' },
+      el('a', {
+        href: card.cardmarket
+          ? `https://www.cardmarket.com/en/Riftbound/Products/Singles/${card.cardmarket}`
+          : `https://www.cardmarket.com/en/Riftbound/Products/Search?searchString=${encodeURIComponent(baseName(card))}`,
+        target: '_blank', rel: 'noopener',
+      }, card.cardmarket ? 'Ver en Cardmarket' : 'Buscar en Cardmarket'),
+      pricesDate() && ` · precios del ${new Date(pricesDate()).toLocaleDateString('es-ES')}`),
+  );
 }
 
 function openCard(card) {
@@ -60,6 +105,7 @@ function openCard(card) {
           card.text && el('p', { class: 'card-text', text: readableText(card.text) }),
           card.printedText && el('details', { class: 'printed' }, el('summary', { text: 'Texto impreso (antiguo)' }), el('p', { class: 'card-text muted', text: readableText(card.printedText) })),
           (card.effect || card.mightBonus != null) && el('p', { class: 'card-text', text: `Unidad equipada: ${[readableText(card.effect), card.mightBonus != null ? `${card.mightBonus >= 0 ? '+' : ''}${card.mightBonus} Might` : ''].filter(Boolean).join(' · ')}` }),
+          priceBlock(card),
           qtyRow('Normales', e.n, (d) => { store.add(card.id, d, false); render(); }),
           qtyRow('Foil', e.f, (d) => { store.add(card.id, d, true); render(); }),
           variants.length > 0 && el('div', {},
@@ -139,7 +185,11 @@ function addScanned(card) {
   session.unshift({ card, foil });
   feedback();
   renderRecent();
-  if (card.errata) toast(`⚠ ${card.name} tiene errata: su texto oficial ha cambiado`, 3500);
+  const price = unitPrice(card.id, foil);
+  const twin = pricierTwin(card);
+  if (price >= VALUABLE_EUR) toast(`💰 ¡Carta valiosa! ${card.name}: ${eur(price)}`, 4500);
+  else if (twin) toast(`💰 Mira bien esta carta: la versión ${cardCode(twin.card)} vale ${eur(twin.price)}`, 5000);
+  else if (card.errata) toast(`⚠ ${card.name} tiene errata: su texto oficial ha cambiado`, 3500);
 }
 
 function renderCandidates(results, state) {
@@ -184,6 +234,7 @@ function renderRecent() {
       el('div', { class: 'grow' },
         el('strong', { text: card.name }),
         el('div', { class: 'muted small', text: `${cardCode(card)}${foil ? ' · Foil' : ''}${card.errata ? ' · ⚠ Errata' : ''} · tienes ${store.owned(card.id)}` }),
+        unitPrice(card.id, foil) != null && el('div', { class: `small ${unitPrice(card.id, foil) >= VALUABLE_EUR ? 'price-hot' : 'muted'}`, text: eur(unitPrice(card.id, foil)) }),
         variants.length > 1 && el('select', {
           class: 'small',
           onchange: (e) => {
@@ -317,13 +368,16 @@ function renderCollection(keepLimit = false) {
     name: (a, b) => a.name.localeCompare(b.name),
     qty: (a, b) => store.owned(b.id) - store.owned(a.id),
     energy: (a, b) => (a.energy ?? 99) - (b.energy ?? 99) || a.name.localeCompare(b.name),
+    price: (a, b) => (unitPrice(b.id) ?? -1) - (unitPrice(a.id) ?? -1),
+    value: (a, b) => entryValue(b.id, store.collection[b.id]) - entryValue(a.id, store.collection[a.id]) || (unitPrice(b.id) ?? -1) - (unitPrice(a.id) ?? -1),
   };
   list = [...list].sort(sorters[col.sort]);
 
   const copies = list.reduce((a, c) => a + store.owned(c.id), 0);
-  $('#col-summary').textContent = col.owned
+  const value = list.reduce((a, c) => a + entryValue(c.id, store.collection[c.id]), 0);
+  $('#col-summary').textContent = (col.owned
     ? `${list.length} cartas distintas · ${copies} copias`
-    : `${list.length} cartas · tienes ${list.filter((c) => store.owned(c.id)).length}`;
+    : `${list.length} cartas · tienes ${list.filter((c) => store.owned(c.id)).length}`) + (value ? ` · valor ≈ ${eur(value)}` : '');
 
   const grid = $('#col-grid');
   grid.replaceChildren(...list.slice(0, colLimit).map((c) => {
@@ -334,6 +388,7 @@ function renderCollection(keepLimit = false) {
       el('div', { class: 'tile-info' },
         el('span', { class: 'tile-name', title: c.name, text: c.name }),
         el('span', { class: 'tile-code muted small', text: cardCode(c) }),
+        el('span', { class: `tile-price small ${unitPrice(c.id) >= VALUABLE_EUR ? 'price-hot' : 'muted'}`, text: unitPrice(c.id) != null ? eur(unitPrice(c.id)) : ' ' }),
         el('div', { class: 'tile-qty' },
           el('button', { class: 'icon-btn small', title: 'Quitar una', onclick: () => { store.add(c.id, -1, !e?.n && e?.f > 0); renderCollection(true); }, disabled: !n }, '−'),
           el('span', { class: 'qty', text: n }),

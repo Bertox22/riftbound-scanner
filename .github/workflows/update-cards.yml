@@ -1,6 +1,8 @@
-# Actualización diaria de cartas y erratas.
+# Actualización diaria de cartas, erratas y precios.
 #
-# Descarga las cartas (galería oficial de Riot + Riftcodex) y las erratas (riftbound.gg). Si algo
+# Descarga las cartas (galería oficial de Riot + Riftcodex + riftbound.gg), las erratas y los
+# precios de Cardmarket/TCGplayer (riftbound.gg). Como los precios cambian a diario, casi todas las
+# noches hay algo que subir y la app se vuelve a publicar. Si algo
 # ha cambiado lo sube al repositorio, y si hay cartas nuevas recalcula antes el índice de
 # reconocimiento (solo para esas cartas). Después lanza la publicación de la app.
 # Si una fuente falla o devuelve datos incompletos, no sube nada: la app sigue con lo anterior.
@@ -71,8 +73,10 @@ jobs:
           removed = [o[i] for i in o if i not in n]
           errata = [n[i] for i in n if n[i].get("errata") and (i not in o or not o[i].get("errata") or o[i]["text"] != n[i]["text"])]
           edited = [n[i] for i in n if i in o and n[i] != o[i] and n[i] not in errata]
+          prices = json.load(open("web/data/prices.json", encoding="utf-8"))
           lines = [f"- Cartas nuevas: {len(added)}", f"- Cartas retiradas: {len(removed)}",
-                   f"- Erratas nuevas o cambiadas: {len(errata)}", f"- Otras correcciones de datos: {len(edited)}"]
+                   f"- Erratas nuevas o cambiadas: {len(errata)}", f"- Otras correcciones de datos: {len(edited)}",
+                   f"- Precios (Cardmarket/TCGplayer) del {prices['updated']}: {len(prices['prices'])} cartas"]
           for title, items in (("Cartas nuevas", added), ("Erratas", errata)):
               if items:
                   lines += ["", f"**{title}:** " + ", ".join(f"{c['name']} ({c['id']})" for c in items[:60])]

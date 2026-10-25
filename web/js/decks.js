@@ -14,6 +14,7 @@
 import { store } from './store.js';
 import { $, el, toast, cardImg, cardCode, baseName, download, DOMAIN_ES, TYPE_ES } from './ui.js';
 import { exportDeckExcel, exportDeckCsv, exportAllDecksExcel, exportAllDecksCsv, exportAllDecksText } from './export.js';
+import { unitPrice, eur } from './prices.js';
 
 const MAIN_TYPES = new Set(['Unit', 'Spell', 'Gear']);
 const MAIN_SIZE = 40, RUNES = 12, BATTLEFIELDS = 3, MAX_COPIES = 3, MAX_SIGNATURE = 3, SIDEBOARD = 10;
@@ -321,8 +322,8 @@ function renderEditor() {
       ? el('ul', { class: 'issues' }, v.issues.map((i) => el('li', { text: i })))
       : el('p', { class: 'ok', text: '✓ El mazo cumple las reglas de construcción.' }),
     v.missing.length > 0 && el('details', { class: 'missing' },
-      el('summary', { text: `Te faltan ${v.missing.reduce((a, [, n]) => a + n, 0)} cartas de tu colección` }),
-      el('ul', {}, v.missing.map(([c, n]) => el('li', { text: `${n}× ${c.name} (${cardCode(c)})` }))),
+      el('summary', { text: `Te faltan ${v.missing.reduce((a, [, n]) => a + n, 0)} cartas de tu colección${missingCost(v.missing) ? ` (≈ ${eur(missingCost(v.missing))} en Cardmarket)` : ''}` }),
+      el('ul', {}, v.missing.map(([c, n]) => el('li', { text: `${n}× ${c.name} (${cardCode(c)})${unitPrice(c.id) != null ? ` · ${eur(unitPrice(c.id) * n)}` : ''}` }))),
     ),
     slot('Leyenda', current.legend, pickLegend, current.legend && (() => { current.legend = null; current.champion = null; save(); renderEditor(); })),
     slot('Campeón', current.champion, pickChampion, current.champion && (() => { current.champion = null; save(); renderEditor(); })),
@@ -338,6 +339,11 @@ function renderEditor() {
     deckRows(side(current), 'Sideboard', SIDEBOARD, 'sideboard'),
     renderPool(legend, used),
   );
+}
+
+/** Lo que costaría comprar en Cardmarket las cartas que faltan (las que tienen precio). */
+function missingCost(missing) {
+  return missing.reduce((a, [c, n]) => a + (unitPrice(c.id) ?? 0) * n, 0);
 }
 
 function stat(label, n, target) {
