@@ -5,7 +5,7 @@ import { initDecks } from './decks.js';
 import { exportCsv, exportExcel, readableText } from './export.js';
 import { initImport } from './import-ui.js';
 import { loadPrices, pricesDate, priceInfo, unitPrice, entryValue, eur, usd, VALUABLE_EUR } from './prices.js';
-import { $, el, toast, cardImg, cardCode, baseName, download, DOMAIN_ES, TYPE_ES, RARITY_ES } from './ui.js';
+import { $, el, toast, cardImg, cardCode, baseName, download, matchesType, DOMAIN_ES, TYPE_ES, RARITY_ES } from './ui.js';
 
 const [cards] = await Promise.all([fetch('data/cards.json').then((r) => r.json()), loadPrices()]);
 const byId = new Map(cards.map((c) => [c.id, c]));
@@ -342,7 +342,10 @@ $('#photo-input').addEventListener('change', async (e) => {
 
 const col = { q: '', set: '', type: '', domain: '', owned: true, errata: false, sort: 'set' };
 $('#col-set').append(...sets.map(([id, name]) => el('option', { value: id, text: `${name} (${id})` })));
-$('#col-type').append(...[...new Set(cards.map((c) => c.type))].map((t) => el('option', { value: t, text: TYPE_ES[t] || t })));
+// En el orden de TYPE_ES ("Campeón" justo después de "Unidad"); los tipos desconocidos, al final.
+const present = new Set([...cards.map((c) => c.type), 'Champion']);
+const types = [...Object.keys(TYPE_ES).filter((t) => present.has(t)), ...[...present].filter((t) => !(t in TYPE_ES))];
+$('#col-type').append(...types.map((t) => el('option', { value: t, text: TYPE_ES[t] || t })));
 $('#col-domain').append(...Object.entries(DOMAIN_ES).map(([d, es]) => el('option', { value: d, text: es })));
 for (const [key, sel, ev] of [['q', '#col-search', 'input'], ['set', '#col-set', 'change'], ['type', '#col-type', 'change'], ['domain', '#col-domain', 'change'], ['sort', '#col-sort', 'change']]) {
   $(sel).addEventListener(ev, (e) => { col[key] = e.target.value; renderCollection(); });
@@ -360,7 +363,7 @@ function renderCollection(keepLimit = false) {
     (!col.owned || store.owned(c.id) > 0) &&
     (!col.errata || c.errata) &&
     (!col.set || c.set === col.set) &&
-    (!col.type || c.type === col.type) &&
+    matchesType(c, col.type) &&
     (!col.domain || c.domain.includes(col.domain)) &&
     (!q || `${c.name} ${c.tags.join(' ')} ${c.text} ${cardCode(c)}`.toLowerCase().includes(q)));
   const sorters = {

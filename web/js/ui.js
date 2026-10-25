@@ -51,5 +51,12 @@ export function download(filename, text, type = 'text/plain') {
 }
 
 export const DOMAIN_ES = { Fury: 'Furia', Calm: 'Calma', Mind: 'Mente', Body: 'Cuerpo', Chaos: 'Caos', Order: 'Orden', Colorless: 'Incoloro' };
-export const TYPE_ES = { Unit: 'Unidad', Spell: 'Hechizo', Gear: 'Equipo', Legend: 'Leyenda', Battlefield: 'Campo de batalla', Rune: 'Runa', Other: 'Otro' };
+export const TYPE_ES = { Unit: 'Unidad', Champion: 'Campeón', Spell: 'Hechizo', Gear: 'Equipo', Legend: 'Leyenda', Battlefield: 'Campo de batalla', Rune: 'Runa', Other: 'Otro' };
+
+/** Filtro por tipo. "Champion" no es un tipo de carta sino las unidades Campeón. */
+export function matchesType(card, type) {
+  if (!type) return true;
+  if (type === 'Champion') return card.type === 'Unit' && card.supertype === 'Champion';
+  return card.type === type;
+}
 export const RARITY_ES = { Common: 'Común', Uncommon: 'Infrecuente', Rare: 'Rara', Epic: 'Épica', Showcase: 'Showcase', Promo: 'Promo' };

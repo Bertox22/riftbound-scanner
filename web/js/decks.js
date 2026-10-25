@@ -12,7 +12,7 @@
 //     (Reglas de torneo, 601.1.c y 403.4.)
 
 import { store } from './store.js';
-import { $, el, toast, cardImg, cardCode, baseName, download, DOMAIN_ES, TYPE_ES } from './ui.js';
+import { $, el, toast, cardImg, cardCode, baseName, download, matchesType, DOMAIN_ES, TYPE_ES } from './ui.js';
 import { exportDeckExcel, exportDeckCsv, exportAllDecksExcel, exportAllDecksCsv, exportAllDecksText } from './export.js';
 import { unitPrice, eur } from './prices.js';
 
@@ -360,7 +360,7 @@ function renderPool(legend, used) {
     const list = ctx.cards.filter((c) => {
       if (isToken(c) || c.type === 'Legend' || c.type === 'Other') return false;
       if (pool.owned && store.owned(c.id) === 0) return false;
-      if (pool.type && c.type !== pool.type) return false;
+      if (!matchesType(c, pool.type)) return false;
       if (legend && !legalDomain(c, legend)) return false;
       if (legend && c.supertype === 'Signature' && !ofChampion(c, legend)) return false;
       if (q && !`${c.name} ${c.tags.join(' ')} ${c.text}`.toLowerCase().includes(q)) return false;
@@ -385,7 +385,7 @@ function renderPool(legend, used) {
   };
   const typeSel = el('select', { onchange: (e) => { pool.type = e.target.value; draw(); } },
     el('option', { value: '', text: 'Todos los tipos' }),
-    ['Unit', 'Spell', 'Gear', 'Rune', 'Battlefield'].map((t) => el('option', { value: t, text: TYPE_ES[t], selected: pool.type === t })),
+    ['Unit', 'Champion', 'Spell', 'Gear', 'Rune', 'Battlefield'].map((t) => el('option', { value: t, text: TYPE_ES[t], selected: pool.type === t })),
   );
   wrap.append(
     el('h3', { text: legend ? `Añadir cartas (${legend.domain.map((d) => DOMAIN_ES[d] || d).join(' / ')})` : 'Añadir cartas' }),
