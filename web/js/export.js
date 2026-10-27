@@ -3,10 +3,11 @@
 // Colección, con el formato de "coleccion_riftbound.xlsx":
 //   Set | Nº | Tipo | Color | Nombre | Might | Energía | Poder | Color de poder | Copias | Texto | Errata
 //   + hoja "Resumen" con totales por set y por tipo.
-// Mazos: las mismas columnas con "Sección" delante y "Tengo" tras "Copias", más un resumen del mazo
-// (Leyenda, dominios, curva de energía, avisos de reglas y cartas que faltan).
+// Mazos: una hoja "Mazo" legible (la lista por secciones, como el texto), un resumen del mazo
+// (Leyenda, dominios, curva de energía, avisos de reglas y cartas que faltan) y la hoja "Detalle"
+// con las mismas columnas que la colección, "Sección" delante y "Tengo" tras "Copias".
 
-import { download } from './ui.js';
+import { download, cardCode } from './ui.js';
 import { unitPrice, entryValue } from './prices.js';
 
 const EXCELJS = 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';
@@ -272,6 +273,61 @@ export function deckRows(deck, { byId, owned }) {
   return rows;
 }
 
+/** Secciones del mazo como en la lista de texto: [título, [[carta, copias], …]], sin las vacías. */
+function deckSections(deck, byId) {
+  const byCost = (bag) => Object.entries(bag ?? {})
+    .map(([id, n]) => [byId.get(id), n])
+    .filter(([c]) => c)
+    .sort((a, b) => (a[0].energy ?? 99) - (b[0].energy ?? 99) || a[0].name.localeCompare(b[0].name));
+  const one = (id) => (byId.get(id) ? [[byId.get(id), 1]] : []);
+  const total = (cards) => cards.reduce((a, [, n]) => a + n, 0);
+  const main = byCost(deck.main);
+  const runes = byCost(deck.runes);
+  const fields = deck.battlefields.flatMap(one);
+  const side = byCost(deck.sideboard);
+  return [
+    ['Leyenda', one(deck.legend)],
+    ['Campeón', one(deck.champion)],
+    [`Mazo principal (${total(main) + (deck.champion ? 1 : 0)})`, main],
+    [`Runas (${total(runes)})`, runes],
+    [`Campos de batalla (${fields.length})`, fields],
+    [`Sideboard (${total(side)})`, side],
+  ].filter(([, cards]) => cards.length);
+}
+
+const LIST_COLUMNS = [['Copias', 8], ['Carta', 38], ['Código', 14], ['Tipo', 18], ['Coste', 7], ['Tengo', 7], ['Precio €', 10]];
+
+/** Hoja "Mazo": el mazo completo por secciones, con lo justo para leerlo o imprimirlo. */
+function writeDeckList(ws, deck, { byId, owned }) {
+  ws.columns = LIST_COLUMNS.map(([, width]) => ({ width }));
+  ws.getCell('A1').value = deck.name;
+  ws.getCell('A1').font = { bold: true, size: 14 };
+  ws.getRow(3).values = LIST_COLUMNS.map(([h]) => h);
+  styleHeader(ws.getRow(3));
+  ws.views = [{ state: 'frozen', ySplit: 3 }];
+  let r = 4, value = 0;
+  for (const [title, cards] of deckSections(deck, byId)) {
+    r++;
+    ws.getCell(`A${r}`).value = title;
+    ws.getCell(`A${r}`).font = { bold: true };
+    r++;
+    for (const [c, n] of cards) {
+      const price = round2(unitPrice(c.id));
+      const row = ws.getRow(r++);
+      row.values = [n, c.name, cardCode(c), typeLabel(c), c.energy ?? null, owned(c.id), price];
+      if (owned(c.id) < n) row.getCell(6).font = { color: { argb: 'FFC0392B' }, bold: true }; // te faltan copias
+      row.getCell(7).numFmt = '0.00';
+      value += (price ?? 0) * n;
+    }
+  }
+  r++;
+  ws.getCell(`A${r}`).value = 'Valor aproximado (Cardmarket)';
+  ws.getCell(`A${r}`).font = { bold: true };
+  ws.getCell(`G${r}`).value = round2(value);
+  ws.getCell(`G${r}`).numFmt = '#,##0.00 "€"';
+  ws.getCell(`G${r}`).font = { bold: true };
+}
+
 /** Datos de resumen de un mazo (para la hoja Resumen y el índice de mazos). */
 function deckSummary(deck, { byId, validate }) {
   const legend = byId.get(deck.legend);
@@ -343,8 +399,9 @@ export function exportDeckCsv(deck, ctx) {
 export async function exportDeckExcel(deck, ctx) {
   const ExcelJS = await loadExcelJS();
   const wb = new ExcelJS.Workbook();
-  addTable(wb, 'Mazo', DECK_COLUMNS, deckRows(deck, ctx));
+  writeDeckList(wb.addWorksheet('Mazo'), deck, ctx);
   writeDeckSummary(wb.addWorksheet('Resumen'), deck, deckSummary(deck, ctx));
+  addTable(wb, 'Detalle', DECK_COLUMNS, deckRows(deck, ctx));
   await saveWorkbook(wb, `mazo_${slug(deck.name)}.xlsx`);
 }
 
@@ -357,7 +414,7 @@ export function exportAllDecksText(decks, exportText) {
   download('mazos_riftbound.txt', decks.map(exportText).join('\n\n' + '-'.repeat(40) + '\n\n'));
 }
 
-/** Hoja "Mazos" con un resumen de cada uno y una hoja por mazo con sus cartas. */
+/** Hoja "Mazos" con un resumen de cada uno y una hoja por mazo con su lista completa. */
 export async function exportAllDecksExcel(decks, ctx) {
   const ExcelJS = await loadExcelJS();
   const wb = new ExcelJS.Workbook();
@@ -372,6 +429,6 @@ export async function exportAllDecksExcel(decks, ctx) {
     ['Mazo', 28], ['Hoja', 20], ['Leyenda', 32], ['Campeón', 30], ['Dominios', 32],
     ['Principal', 10], ['Runas', 8], ['Campos', 8], ['Sideboard', 10], ['Estado', 12], ['Te faltan', 10], ['Avisos', 80],
   ], index);
-  decks.forEach((d, i) => addTable(wb, names[i], DECK_COLUMNS, deckRows(d, ctx)));
+  decks.forEach((d, i) => writeDeckList(wb.addWorksheet(names[i]), d, ctx));
   await saveWorkbook(wb, 'mazos_riftbound.xlsx');
 }

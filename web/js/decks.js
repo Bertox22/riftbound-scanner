@@ -194,6 +194,28 @@ export function exportText(deck) {
 /** Datos que necesita el exportador: cartas, cuántas tienes de cada una y la validación. */
 const exportCtx = () => ({ byId: ctx.byId, owned: (id) => store.owned(id), validate });
 
+/** Hoja con los formatos para exportar un mazo suelto (también desde la lista de mazos). */
+function exportSheet(deck) {
+  const dlg = $('#picker-dialog');
+  const option = (label, hint, fn) => el('button', {
+    class: 'export-option',
+    onclick: async (e) => { await runExport(e.currentTarget, fn); dlg.close(); },
+  }, el('strong', { text: label }), el('span', { class: 'muted small', text: hint }));
+  dlg.replaceChildren(
+    el('div', { class: 'dialog-head' }, el('h2', { text: `Exportar «${deck.name}»` }), el('button', { class: 'icon-btn', title: 'Cerrar', onclick: () => dlg.close() }, '✕')),
+    el('div', { class: 'export-options' },
+      option('Texto (.txt)', 'La lista del mazo; se puede volver a importar.', () => download(`${deck.name}.txt`, exportText(deck))),
+      option('Excel (.xlsx)', 'El mazo completo por secciones, resumen y detalle.', () => exportDeckExcel(deck, exportCtx())),
+      option('CSV (.csv)', 'Tabla con todas las columnas de cada carta.', () => exportDeckCsv(deck, exportCtx())),
+      option('Copiar lista', 'Copia el texto para pegarlo donde quieras.', async () => {
+        await navigator.clipboard.writeText(exportText(deck));
+        toast('Lista copiada');
+      }),
+    ),
+  );
+  dlg.showModal();
+}
+
 async function runExport(button, fn) {
   button.disabled = true;
   try {
@@ -224,6 +246,10 @@ function renderList() {
           el('div', { class: 'muted', text: (legend ? `${champTag(legend)} · ${legend.domain.map((d) => DOMAIN_ES[d] || d).join(' / ')}` : 'Sin leyenda') + (sideCount ? ` · sideboard ${sideCount}` : '') }),
           el('div', { class: issues.length ? 'warn' : 'ok', text: issues.length ? `${issues.length} pendiente(s)` : 'Mazo válido' + (missing.length ? ` · faltan ${missing.reduce((a, [, n]) => a + n, 0)} cartas` : '') }),
         ),
+        el('button', {
+          class: 'icon-btn deck-export', title: 'Exportar este mazo', 'aria-label': `Exportar ${deck.name}`,
+          onclick: (e) => { e.stopPropagation(); exportSheet(deck); },
+        }, icon('download')),
       ),
     );
   }
@@ -249,6 +275,7 @@ const ICONS = {
   down: '<path d="M12 5v14M6 13l6 6 6-6"/>',
   up: '<path d="M12 19V5M6 11l6-6 6 6"/>',
   x: '<path d="M6 6l12 12M18 6 6 18"/>',
+  download: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
 };
 function icon(name) {
   const span = el('span', { class: 'icon', 'aria-hidden': 'true' });

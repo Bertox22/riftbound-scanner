@@ -53,7 +53,9 @@ p { margin: 8px 0; }
 }
 .brand { display: flex; align-items: center; gap: 10px; font-size: 18px; white-space: nowrap; }
 .brand-mark { width: 26px; height: 26px; flex: none; color: var(--accent); }
-.pill { background: var(--surface); border-radius: 99px; padding: 6px 12px; font-size: 14px; font-weight: 500; white-space: nowrap; }
+.pill { background: var(--surface); border-radius: 99px; padding: 6px 12px; font-size: 14px; font-weight: 500; white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* En pantallas estrechas el contador (cartas · valor) tiene prioridad sobre la palabra "Scanner". */
+@media (max-width: 420px) { .brand-sub { display: none; } }
 
 main { max-width: 960px; margin: 0 auto; padding: 12px 16px; }
 .view { display: none; }
@@ -281,6 +283,20 @@ dialog::backdrop { background: rgba(0, 0, 0, .7); }
 .deck-row .thumb.small { width: 56px; border-radius: 6px; }
 .deck-row strong { font-size: 16px; font-weight: 600; }
 .deck-row .muted { color: var(--faint); }
+.deck-row .deck-export { background: transparent; color: var(--muted); }
+.deck-row .deck-export:hover { background: var(--surface-2); color: var(--text); }
+/* Hoja "Exportar": una opción por formato, con lo que contiene debajo. */
+.export-options { display: flex; flex-direction: column; gap: 8px; }
+.export-option {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; padding: 14px 16px;
+  border: 0; border-radius: 16px; background: var(--surface-2); color: var(--text); font: inherit; text-align: left;
+  cursor: pointer; transition: background-color .15s, transform .1s;
+}
+.export-option:hover { background: #333; }
+.export-option:active { transform: scale(.99); }
+.export-option:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.export-option:disabled { opacity: .5; }
+.export-option strong { font-weight: 600; }
 .deck-name { width: 100%; font-size: 20px; font-weight: 600; margin: 4px 0 12px; background: transparent; }
 .deck-name:hover { background: var(--surface); }
 /* Las cuatro cifras del mazo en una sola franja dividida. */
