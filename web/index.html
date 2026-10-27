@@ -3,16 +3,25 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0f1320">
+  <meta name="theme-color" content="#0a0a0b">
   <title>Riftbound Scanner</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=11">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=23">
   <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.wasm.min.js"></script>
 </head>
 <body>
   <header class="topbar">
-    <h1>Riftbound Scanner</h1>
+    <h1 class="brand">
+      <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true">
+        <rect x="17" y="9" width="30" height="42" rx="4" fill="none" stroke="currentColor" stroke-width="4" transform="rotate(-8 32 30)"/>
+        <path d="M32 18l6 12-6 12-6-12z" fill="currentColor"/>
+      </svg>
+      Riftbound Scanner
+    </h1>
     <span id="owned-count" class="pill">0 cartas</span>
   </header>
 
@@ -112,9 +121,18 @@
   </main>
 
   <nav class="tabbar">
-    <button data-view="scan" class="active">Escanear</button>
-    <button data-view="collection">Colección</button>
-    <button data-view="decks">Mazos</button>
+    <button data-view="scan" class="active">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/><rect x="9" y="7.5" width="6" height="9" rx="1"/></svg>
+      <span>Escanear</span>
+    </button>
+    <button data-view="collection">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="9" rx="1"/><rect x="13" y="4" width="7" height="9" rx="1"/><path d="M4 17h7M13 17h7M4 20h7M13 20h7"/></svg>
+      <span>Colección</span>
+    </button>
+    <button data-view="decks">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="3.5" width="10" height="14" rx="1.5"/><path d="M5.5 6.5v12A1.5 1.5 0 0 0 7 20h8.5"/></svg>
+      <span>Mazos</span>
+    </button>
   </nav>
 
   <dialog id="card-dialog"></dialog>

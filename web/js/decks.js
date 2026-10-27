@@ -321,10 +321,11 @@ function renderEditor() {
     v.issues.length
       ? el('ul', { class: 'issues' }, v.issues.map((i) => el('li', { text: i })))
       : el('p', { class: 'ok', text: '✓ El mazo cumple las reglas de construcción.' }),
-    v.missing.length > 0 && el('details', { class: 'missing' },
+    // replaceChildren no ignora `false` (lo pintaría como texto), así que sin cartas que falten va ''.
+    v.missing.length > 0 ? el('details', { class: 'missing' },
       el('summary', { text: `Te faltan ${v.missing.reduce((a, [, n]) => a + n, 0)} cartas de tu colección${missingCost(v.missing) ? ` (≈ ${eur(missingCost(v.missing))} en Cardmarket)` : ''}` }),
       el('ul', {}, v.missing.map(([c, n]) => el('li', { text: `${n}× ${c.name} (${cardCode(c)})${unitPrice(c.id) != null ? ` · ${eur(unitPrice(c.id) * n)}` : ''}` }))),
-    ),
+    ) : '',
     slot('Leyenda', current.legend, pickLegend, current.legend && (() => { current.legend = null; current.champion = null; save(); renderEditor(); })),
     slot('Campeón', current.champion, pickChampion, current.champion && (() => { current.champion = null; save(); renderEditor(); })),
     deckRows(current.main, 'Mazo principal', MAIN_SIZE - (current.champion ? 1 : 0), 'main'),

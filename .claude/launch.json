@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "web",
-      "runtimeExecutable": ".venv/Scripts/python.exe",
+      "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "8000", "--directory", "web"],
       "port": 8000
     }
