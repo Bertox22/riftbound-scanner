@@ -296,15 +296,104 @@ function slotTile(label, cardId, onPick, onClear, sep = false) {
   });
 }
 
-/** kind: "main" (botón para pasar al sideboard), "sideboard" (para volver al mazo) o null. */
-function deckGroup(bag, label, kind = null, sep = false) {
+/** Dominios de las runas que ya hay en el mazo. */
+const runeDomains = () => new Set(Object.keys(current.runes).flatMap((id) => ctx.byId.get(id).domain));
+/** Cuántos dominios de runa admite el mazo: los de la Leyenda (o 2 si aún no hay Leyenda). */
+const runeDomainLimit = () => ctx.byId.get(current.legend)?.domain.filter((d) => d !== 'Colorless').length || 2;
+
+/**
+ * Qué añade cada hoja de "Añadir…" y cómo se cuenta en el mazo.
+ * canAdd(c): si se puede sumar otra copia de esa carta; open(): si el grupo admite otra carta distinta.
+ */
+const ADDERS = {
+  main: {
+    title: 'Añadir cartas', empty: 'Añadir cartas', match: (c) => MAIN_TYPES.has(c.type),
+    count: () => sum(current.main), target: () => MAIN_SIZE - (current.champion ? 1 : 0), copies: (c) => current.main[c.id] || 0,
+  },
+  runes: {
+    title: 'Añadir runas', empty: 'Añadir runas', match: (c) => c.type === 'Rune',
+    count: () => sum(current.runes), target: () => RUNES, copies: (c) => current.runes[c.id] || 0,
+    // Solo runas de tantos dominios como la Leyenda: con los dos ya puestos, se suman copias de esas.
+    canAdd: (c) => c.domain.some((d) => runeDomains().has(d)) || runeDomains().size < runeDomainLimit(),
+    open: () => runeDomains().size < runeDomainLimit(),
+  },
+  battlefields: {
+    title: 'Añadir campos', empty: 'Añadir campos', match: (c) => c.type === 'Battlefield',
+    count: () => current.battlefields.length, target: () => BATTLEFIELDS, copies: (c) => current.battlefields.filter((id) => id === c.id).length,
+    canAdd: () => current.battlefields.length < BATTLEFIELDS,
+  },
+};
+
+/**
+ * Hoja para añadir varias cartas de un grupo seguidas, sin cerrarla ni tocar el filtro de
+ * "Añadir cartas". Sus propios "Solo las que tengo" y buscador se cambian a mano.
+ */
+function adder(kind) {
+  const a = ADDERS[kind];
+  const dlg = $('#picker-dialog');
+  const legend = ctx.byId.get(current.legend);
+  let onlyOwned = pool.owned, q = '';
+  const cards = ctx.cards.filter((c) => !isToken(c) && a.match(c) && legalDomain(c, legend)
+    && !(legend && c.supertype === 'Signature' && !ofChampion(c, legend)));
+  cards.sort((x, y) => (x.energy ?? 99) - (y.energy ?? 99) || x.name.localeCompare(y.name));
+
+  const title = el('h2');
+  const grid = el('div', { class: 'grid' });
+  const change = (c, d) => { addToDeck(c, d); draw(); };
+  const draw = () => {
+    title.replaceChildren(a.title, ' ', el('span', { class: 'muted', text: `${a.count()}/${a.target()}` }));
+    const list = cards.filter((c) => (!onlyOwned || store.owned(c.id) > 0)
+      && (!q || `${c.name} ${c.tags.join(' ')} ${c.text}`.toLowerCase().includes(q)));
+    grid.replaceChildren(...list.slice(0, 300).map((c) => {
+      const n = a.copies(c);
+      const blocked = a.canAdd ? !a.canAdd(c) : false;
+      return el('div', { class: `tile${blocked && !n ? ' dim' : ''}` },
+        el('button', { class: 'tile-img', title: `Añadir ${c.name}`, disabled: blocked, onclick: () => change(c, 1) },
+          cardImg(c), n > 0 && el('span', { class: 'badge', text: `×${n}` })),
+        el('div', { class: 'tile-info' },
+          el('span', { class: 'tile-name', title: c.name, text: c.name }),
+          el('span', { class: 'muted small', text: `Tienes ${store.owned(c.id)}` }),
+          el('div', { class: 'tile-qty' },
+            el('button', { class: 'icon-btn small', title: 'Quitar una', disabled: !n, onclick: () => change(c, -1) }, '−'),
+            el('span', { class: 'qty', text: n }),
+            el('button', { class: 'icon-btn small', title: 'Añadir una', disabled: blocked, onclick: () => change(c, 1) }, '+'),
+          ),
+        ),
+      );
+    }));
+    if (list.length > 300) grid.append(el('p', { class: 'muted', text: `…y ${list.length - 300} más. Usa el buscador.` }));
+    if (!list.length) grid.append(el('p', { class: 'muted', text: onlyOwned ? 'No tienes ninguna. Desactiva «Solo las que tengo» para verlas todas.' : 'Sin resultados.' }));
+  };
+  dlg.replaceChildren(
+    el('div', { class: 'dialog-head' }, title, el('button', { class: 'btn primary small', onclick: () => dlg.close() }, 'Listo')),
+    el('div', { class: 'adder-filters' },
+      kind === 'main' && el('input', { type: 'search', placeholder: 'Buscar…', oninput: (e) => { q = e.target.value.trim().toLowerCase(); draw(); } }),
+      el('label', { class: 'toggle' }, el('input', { type: 'checkbox', checked: onlyOwned, onchange: (e) => { onlyOwned = e.target.checked; draw(); } }), el('span', { text: 'Solo las que tengo' })),
+    ),
+    grid,
+  );
+  draw();
+  dlg.showModal();
+}
+
+/** Casilla "+ Añadir…" al final de un grupo que aún no llega a su número (o en su lugar, si está vacío). */
+function addTile(kind, label = '', sep = false) {
+  return emptyTile({ label, sep, text: ADDERS[kind].empty, onclick: () => adder(kind) });
+}
+
+/**
+ * kind: "main" (botón para pasar al sideboard), "sideboard" (para volver al mazo) o null.
+ * addKind: grupo de ADDERS; si se indica, el grupo acaba en "+ Añadir…" mientras no esté completo.
+ */
+function deckGroup(bag, label, kind = null, sep = false, addKind) {
   const entries = Object.entries(bag).map(([id, n]) => [ctx.byId.get(id), n]);
   entries.sort((a, b) => (a[0].energy ?? 99) - (b[0].energy ?? 99) || a[0].name.localeCompare(b[0].name));
   if (!entries.length) {
-    return [emptyTile({ label, sep, text: kind === 'sideboard' ? 'Vacío. Usa «+ side» abajo o ↓ en una carta.' : 'Vacío. Añade cartas desde abajo.' })];
+    if (addKind) return [addTile(addKind, label, sep)];
+    return [emptyTile({ label, sep, text: 'Vacío. Usa «+ side» abajo o ↓ en una carta.' })];
   }
   const add = (c, d) => (kind === 'sideboard' ? addToSide(c, d) : addToDeck(c, d));
-  return entries.map(([c, n], i) => deckTile({
+  const tiles = entries.map(([c, n], i) => deckTile({
     label: i === 0 ? label : '', sep: i === 0 && sep, card: c,
     actions: [
       kind === 'main' && MAIN_TYPES.has(c.type) && overlayBtn('down', 'Pasar una copia al sideboard', () => moveCard(c, 'sideboard')),
@@ -313,14 +402,19 @@ function deckGroup(bag, label, kind = null, sep = false) {
     ],
     below: qtyPill(n, () => add(c, -1), () => add(c, 1)),
   }));
+  const spec = addKind && ADDERS[addKind];
+  if (spec && spec.count() < spec.target() && (spec.open?.() ?? true)) tiles.push(addTile(addKind));
+  return tiles;
 }
 
 function battlefieldGroup(label, sep) {
-  if (!current.battlefields.length) return [emptyTile({ label, sep, text: 'Vacío. Añade campos desde abajo.' })];
-  return current.battlefields.map((id, i) => {
+  if (!current.battlefields.length) return [addTile('battlefields', label, sep)];
+  const tiles = current.battlefields.map((id, i) => {
     const c = ctx.byId.get(id);
     return deckTile({ label: i === 0 ? label : '', sep: i === 0 && sep, card: c, actions: [overlayBtn('x', 'Quitar campo de batalla', () => addToDeck(c, -1))] });
   });
+  if (current.battlefields.length < BATTLEFIELDS) tiles.push(addTile('battlefields'));
+  return tiles;
 }
 
 function renderEditor() {
@@ -375,10 +469,10 @@ function renderEditor() {
     el('div', { class: 'deck-board' },
       slotTile('Leyenda', current.legend, pickLegend, current.legend && (() => { current.legend = null; current.champion = null; save(); renderEditor(); })),
       slotTile('Campeón', current.champion, pickChampion, current.champion && (() => { current.champion = null; save(); renderEditor(); })),
-      deckGroup(current.main, `Principal ${sum(current.main)}/${MAIN_SIZE - (current.champion ? 1 : 0)}`, 'main', true),
+      deckGroup(current.main, `Principal ${sum(current.main)}/${MAIN_SIZE - (current.champion ? 1 : 0)}`, 'main', true, 'main'),
     ),
     el('div', { class: 'deck-board' },
-      deckGroup(current.runes, `Runas ${sum(current.runes)}/${RUNES}`),
+      deckGroup(current.runes, `Runas ${sum(current.runes)}/${RUNES}`, null, false, 'runes'),
       battlefieldGroup(`Campos ${current.battlefields.length}/${BATTLEFIELDS}`, true),
     ),
     // El sideboard no forma parte del mazo: va en su propia fila, tras otra línea.
@@ -450,13 +544,13 @@ function renderPool(legend, used) {
 
 function picker(title, cards, onPick) {
   const dlg = $('#picker-dialog');
-  let onlyOwned = cards.some((c) => store.owned(c.id) > 0);
+  let onlyOwned = true; // se quita a mano si se quiere ver todas
   const grid = el('div', { class: 'grid' });
   const draw = () => {
     const list = cards.filter((c) => !onlyOwned || store.owned(c.id) > 0);
     grid.replaceChildren(...list.map((c) => el('button', { class: 'tile tile-img', onclick: () => { dlg.close(); onPick(c); } },
       cardImg(c), el('span', { class: 'tile-name', text: `${c.name}${c.tags[0] && !c.name.includes(c.tags[0]) ? ` (${c.tags[0]})` : ''}` }), el('span', { class: 'muted small', text: `Tienes ${store.owned(c.id)}` }))));
-    if (!list.length) grid.append(el('p', { class: 'muted', text: 'No hay cartas disponibles.' }));
+    if (!list.length) grid.append(el('p', { class: 'muted', text: onlyOwned ? 'No tienes ninguna. Desactiva «Solo las que tengo» para verlas todas.' : 'No hay cartas disponibles.' }));
   };
   dlg.replaceChildren(
     el('div', { class: 'dialog-head' }, el('h2', { text: `Elegir ${title.toLowerCase()}` }), el('button', { class: 'icon-btn', onclick: () => dlg.close() }, '✕')),

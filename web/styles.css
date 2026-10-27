@@ -339,6 +339,8 @@ dialog::backdrop { background: rgba(0, 0, 0, .7); }
   border: 1px dashed #444; border-radius: 8px; background: none; color: var(--faint); font: inherit; font-size: 12px;
 }
 button.dt-empty { cursor: pointer; color: var(--text); font-weight: 500; transition: border-color .15s, background-color .15s; }
+button.dt-empty::before { content: "+"; display: block; font-size: 28px; font-weight: 400; line-height: 1; margin-bottom: 6px; color: var(--muted); }
+button.dt-empty { align-content: center; }
 button.dt-empty:hover { border-color: var(--muted); background: var(--surface); }
 button.dt-empty:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 .icon { display: inline-grid; place-items: center; }
@@ -427,3 +429,11 @@ dialog[open]::backdrop { animation: backdrop-in .2s ease-out; }
   *, *::before, *::after, ::backdrop { animation-duration: .01ms !important; transition-duration: .01ms !important; }
   :is(.btn, .icon-btn, .cand, .tile .tile-img, .deck-row, .variant):active { transform: none; }
 }
+
+/* Hoja "Añadir…" del mazo: la cabecera con el contador y "Listo" se queda fija al desplazar. */
+#picker-dialog .dialog-head { position: sticky; top: -20px; z-index: 2; margin: -20px -20px 8px; padding: 16px 20px 12px; background: var(--surface); }
+#picker-dialog .dialog-head h2 .muted { font-weight: 500; font-variant-numeric: tabular-nums; }
+.adder-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-bottom: 8px; }
+.adder-filters input[type=search] { flex: 1 1 200px; }
+.tile .tile-img:disabled { cursor: default; }
+#picker-dialog .tile-qty { background: var(--surface-2); }
