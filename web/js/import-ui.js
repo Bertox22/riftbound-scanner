@@ -75,10 +75,12 @@ async function loadFile(file) {
 function load(sheets, fileName = '') {
   // Por defecto, la hoja con más filas reconocibles (p. ej. "Colección" antes que "Resumen").
   let best = 0, bestScore = -1;
+  // A igualdad de cartas, la que dice la sección de cada una (en el Excel de un mazo, "Detalle" frente a "Mazo").
   sheets.forEach((s, i) => {
     const { header, data } = splitHeader(s.rows);
-    const rows = matchRows(data, guessMapping(header, data, idx), idx);
-    const score = rows.filter((r) => r.card).length;
+    const map = guessMapping(header, data, idx);
+    const rows = matchRows(data, map, idx);
+    const score = rows.filter((r) => r.card).length + (kind === 'deck' && map.section != null ? 0.5 : 0);
     if (score > bestScore) { best = i; bestScore = score; }
   });
   state = { sheets, deckName: sheets[best].deckName || fileName || 'Mazo importado' };
