@@ -244,38 +244,83 @@ function closeEditor() {
   renderList();
 }
 
-function slot(label, cardId, onPick, onClear) {
-  const card = ctx.byId.get(cardId);
-  return el('div', { class: 'slot' },
-    el('div', { class: 'slot-label', text: label }),
-    card
-      ? el('div', { class: 'slot-card' }, cardImg(card, 'thumb small'), el('span', { class: 'grow', text: card.name }), el('button', { class: 'btn ghost small', onclick: onPick }, 'Cambiar'), onClear && el('button', { class: 'icon-btn', title: 'Quitar', onclick: onClear }, '✕'))
-      : el('button', { class: 'btn ghost', onclick: onPick }, `Elegir ${label.toLowerCase()}`),
+const ICONS = {
+  trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>',
+  down: '<path d="M12 5v14M6 13l6 6 6-6"/>',
+  up: '<path d="M12 19V5M6 11l6-6 6 6"/>',
+  x: '<path d="M6 6l12 12M18 6 6 18"/>',
+};
+function icon(name) {
+  const span = el('span', { class: 'icon', 'aria-hidden': 'true' });
+  span.innerHTML = `<svg viewBox="0 0 24 24">${ICONS[name]}</svg>`;
+  return span;
+}
+
+/**
+ * Una casilla del tablero del mazo. La primera de cada grupo lleva el nombre del grupo (y, con
+ * `sep`, la línea que lo separa del anterior); las demás dejan el hueco para que todo alinee.
+ */
+function deckTile({ label = '', sep = false, card, actions = [], below }) {
+  return el('div', { class: `dt${sep ? ' dt-sep' : ''}` },
+    el('span', { class: 'dt-label', text: label }),
+    el('div', { class: 'dt-img' }, el('button', { class: 'tile-img', title: card.name, onclick: () => ctx.openCard(card) }, cardImg(card)), actions),
+    el('span', { class: 'dt-name', title: card.name, text: card.name }),
+    below,
   );
 }
 
+/** Casilla vacía con la forma de una carta (para elegir algo o avisar de que el grupo está vacío). */
+function emptyTile({ label = '', sep = false, text, onclick }) {
+  return el('div', { class: `dt${sep ? ' dt-sep' : ''}` },
+    el('span', { class: 'dt-label', text: label }),
+    onclick ? el('button', { class: 'dt-empty', onclick }, text) : el('div', { class: 'dt-empty' }, text),
+  );
+}
+
+const overlayBtn = (name, title, onclick) => el('button', { class: 'dt-act', title, 'aria-label': title, onclick }, icon(name));
+const lackBadge = (lack) => lack > 0 && el('span', { class: 'dt-lack', title: `Te faltan ${lack} copias` }, `-${lack}`);
+const qtyPill = (n, onMinus, onPlus) => el('div', { class: 'tile-qty' },
+  el('button', { class: 'icon-btn small', title: 'Quitar una', onclick: onMinus }, '−'),
+  el('span', { class: 'qty', text: n }),
+  el('button', { class: 'icon-btn small', title: 'Añadir una', onclick: onPlus }, '+'),
+);
+
+/** Leyenda o Campeón: la carta con "Cambiar" debajo y la ✕ sobre la imagen, o la casilla para elegirla. */
+function slotTile(label, cardId, onPick, onClear, sep = false) {
+  const card = ctx.byId.get(cardId);
+  if (!card) return emptyTile({ label, sep, text: `Elegir ${label.toLowerCase()}`, onclick: onPick });
+  return deckTile({
+    label, sep, card,
+    actions: [onClear && overlayBtn('x', `Quitar ${label.toLowerCase()}`, onClear)],
+    below: el('button', { class: 'btn ghost small dt-change', onclick: onPick }, 'Cambiar'),
+  });
+}
+
 /** kind: "main" (botón para pasar al sideboard), "sideboard" (para volver al mazo) o null. */
-function deckRows(bag, title, target, kind = null) {
+function deckGroup(bag, label, kind = null, sep = false) {
   const entries = Object.entries(bag).map(([id, n]) => [ctx.byId.get(id), n]);
   entries.sort((a, b) => (a[0].energy ?? 99) - (b[0].energy ?? 99) || a[0].name.localeCompare(b[0].name));
-  return el('div', { class: 'deck-section' },
-    el('h3', {}, title, ' ', el('span', { class: 'muted', text: `(${sum(bag)}${target ? `/${target}` : ''})` })),
-    entries.length ? el('ul', { class: 'deck-cards' }, entries.map(([c, n]) => {
-      const lack = n - store.owned(c.id);
-      return el('li', {},
-        el('span', { class: 'cost', text: c.energy ?? '–' }),
-        el('button', { class: 'link grow', onclick: () => ctx.openCard(c) }, c.name),
-        lack > 0 && el('span', { class: 'warn small', title: 'Te faltan copias', text: `-${lack}` }),
-        kind === 'main' && MAIN_TYPES.has(c.type) && el('button', { class: 'btn ghost small swap', title: 'Pasar una copia al sideboard', onclick: () => moveCard(c, 'sideboard') }, '↓ side'),
-        kind === 'sideboard' && el('button', { class: 'btn ghost small swap', title: 'Pasar una copia al mazo principal', onclick: () => moveCard(c, 'main') }, '↑ mazo'),
-        el('button', { class: 'icon-btn', onclick: () => (kind === 'sideboard' ? addToSide(c, -1) : addToDeck(c, -1)) }, '−'),
-        el('span', { class: 'qty', text: n }),
-        el('button', { class: 'icon-btn', onclick: () => (kind === 'sideboard' ? addToSide(c, 1) : addToDeck(c, 1)) }, '+'),
-      );
-    })) : el('p', { class: 'muted', text: kind === 'sideboard'
-      ? 'Vacío. Usa "+ side" en la lista de abajo o "↓ side" en una carta del mazo.'
-      : 'Vacío. Añade cartas desde la lista de abajo.' }),
-  );
+  if (!entries.length) {
+    return [emptyTile({ label, sep, text: kind === 'sideboard' ? 'Vacío. Usa «+ side» abajo o ↓ en una carta.' : 'Vacío. Añade cartas desde abajo.' })];
+  }
+  const add = (c, d) => (kind === 'sideboard' ? addToSide(c, d) : addToDeck(c, d));
+  return entries.map(([c, n], i) => deckTile({
+    label: i === 0 ? label : '', sep: i === 0 && sep, card: c,
+    actions: [
+      kind === 'main' && MAIN_TYPES.has(c.type) && overlayBtn('down', 'Pasar una copia al sideboard', () => moveCard(c, 'sideboard')),
+      kind === 'sideboard' && overlayBtn('up', 'Pasar una copia al mazo principal', () => moveCard(c, 'main')),
+      lackBadge(n - store.owned(c.id)),
+    ],
+    below: qtyPill(n, () => add(c, -1), () => add(c, 1)),
+  }));
+}
+
+function battlefieldGroup(label, sep) {
+  if (!current.battlefields.length) return [emptyTile({ label, sep, text: 'Vacío. Añade campos desde abajo.' })];
+  return current.battlefields.map((id, i) => {
+    const c = ctx.byId.get(id);
+    return deckTile({ label: i === 0 ? label : '', sep: i === 0 && sep, card: c, actions: [overlayBtn('x', 'Quitar campo de batalla', () => addToDeck(c, -1))] });
+  });
 }
 
 function renderEditor() {
@@ -303,12 +348,12 @@ function renderEditor() {
         el('button', { class: 'btn ghost small', title: 'Lista en texto (.txt)', onclick: () => download(`${current.name}.txt`, exportText(current)) }, 'Texto'),
         el('button', { class: 'btn ghost small', title: 'Excel con todas las columnas y un resumen del mazo', onclick: (e) => runExport(e.target, () => exportDeckExcel(current, exportCtx())) }, 'Excel'),
         el('button', { class: 'btn ghost small', title: 'CSV con todas las columnas', onclick: (e) => runExport(e.target, () => exportDeckCsv(current, exportCtx())) }, 'CSV'),
-        el('button', { class: 'btn danger small', onclick: () => {
+        el('button', { class: 'btn danger small icon-only', title: 'Borrar mazo', 'aria-label': 'Borrar mazo', onclick: () => {
           if (!confirm(`¿Borrar el mazo "${current.name}"?`)) return;
           store.decks = store.decks.filter((d) => d.id !== current.id);
           store.saveDecks();
           closeEditor();
-        } }, 'Borrar'),
+        } }, icon('trash')),
       ),
     ),
     el('input', { class: 'deck-name', value: current.name, oninput: (e) => { current.name = e.target.value || 'Mazo'; save(); } }),
@@ -326,18 +371,20 @@ function renderEditor() {
       el('summary', { text: `Te faltan ${v.missing.reduce((a, [, n]) => a + n, 0)} cartas de tu colección${missingCost(v.missing) ? ` (≈ ${eur(missingCost(v.missing))} en Cardmarket)` : ''}` }),
       el('ul', {}, v.missing.map(([c, n]) => el('li', { text: `${n}× ${c.name} (${cardCode(c)})${unitPrice(c.id) != null ? ` · ${eur(unitPrice(c.id) * n)}` : ''}` }))),
     ) : '',
-    slot('Leyenda', current.legend, pickLegend, current.legend && (() => { current.legend = null; current.champion = null; save(); renderEditor(); })),
-    slot('Campeón', current.champion, pickChampion, current.champion && (() => { current.champion = null; save(); renderEditor(); })),
-    deckRows(current.main, 'Mazo principal', MAIN_SIZE - (current.champion ? 1 : 0), 'main'),
-    deckRows(current.runes, 'Runas', RUNES),
-    el('div', { class: 'deck-section' },
-      el('h3', {}, 'Campos de batalla ', el('span', { class: 'muted', text: `(${current.battlefields.length}/${BATTLEFIELDS})` })),
-      el('ul', { class: 'deck-cards' }, current.battlefields.map((id) => {
-        const c = byId.get(id);
-        return el('li', {}, el('button', { class: 'link grow', onclick: () => ctx.openCard(c) }, c.name), el('button', { class: 'icon-btn', onclick: () => addToDeck(c, -1) }, '✕'));
-      })),
+    // Tablero: Leyenda y Campeón | mazo principal; debajo, Runas | Campos | Sideboard.
+    el('div', { class: 'deck-board' },
+      slotTile('Leyenda', current.legend, pickLegend, current.legend && (() => { current.legend = null; current.champion = null; save(); renderEditor(); })),
+      slotTile('Campeón', current.champion, pickChampion, current.champion && (() => { current.champion = null; save(); renderEditor(); })),
+      deckGroup(current.main, `Principal ${sum(current.main)}/${MAIN_SIZE - (current.champion ? 1 : 0)}`, 'main', true),
     ),
-    deckRows(side(current), 'Sideboard', SIDEBOARD, 'sideboard'),
+    el('div', { class: 'deck-board' },
+      deckGroup(current.runes, `Runas ${sum(current.runes)}/${RUNES}`),
+      battlefieldGroup(`Campos ${current.battlefields.length}/${BATTLEFIELDS}`, true),
+    ),
+    // El sideboard no forma parte del mazo: va en su propia fila, tras otra línea.
+    el('div', { class: 'deck-board' },
+      deckGroup(side(current), `Sideboard ${sum(side(current))}/${SIDEBOARD}`, 'sideboard'),
+    ),
     renderPool(legend, used),
   );
 }

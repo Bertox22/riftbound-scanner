@@ -35,7 +35,7 @@ h2 { font-size: 16px; font-weight: 600; margin: 0; }
 h3 { font-size: 14px; font-weight: 600; margin: 16px 0 8px; color: var(--muted); }
 p { margin: 8px 0; }
 /* Cifras de ancho fijo donde se cuentan o se comparan números. */
-.pill, .qty, .badge, .cost, .stat strong, .tile-price, .price-block, #col-summary, #session-count { font-variant-numeric: tabular-nums; }
+.pill, .qty, .badge, .stat strong, .tile-price, .price-block, #col-summary, #session-count { font-variant-numeric: tabular-nums; }
 .muted { color: var(--muted); }
 .small { font-size: 12px; }
 .ok { color: var(--ok); }
@@ -301,15 +301,49 @@ dialog::backdrop { background: rgba(0, 0, 0, .7); }
 .missing { margin: 12px 0; background: var(--surface); border-radius: 16px; padding: 12px 16px; }
 .missing summary { cursor: pointer; }
 .missing ul { padding-left: 20px; margin: 8px 0 0; font-size: 14px; color: var(--muted); }
-.slot { margin-top: 16px; }
-.slot-label { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
-.slot-card { display: flex; align-items: center; gap: 12px; background: var(--surface); border-radius: 16px; padding: 8px 10px 8px 8px; }
-.slot-card .thumb.small { width: 48px; border-radius: 4px; }
-.deck-section h3 { margin-top: 24px; }
-.deck-cards { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; }
-.deck-cards li { display: flex; align-items: center; gap: 8px; min-height: 48px; background: var(--surface); border-radius: 12px; padding: 6px 8px; }
-.deck-cards .link { padding: 4px 0; }
-.cost { width: 26px; height: 26px; border-radius: 50%; background: var(--surface-2); display: grid; place-items: center; font-size: 12px; font-weight: 600; flex: none; }
+/* Tablero del mazo: las cartas como cartas. Cada grupo empieza con su nombre y, si toca,
+   una línea finísima que lo separa del anterior; el siguiente tablero va tras una línea horizontal. */
+.deck-board {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 12px;
+  margin-top: 20px;
+}
+.deck-board + .deck-board { padding-top: 20px; border-top: 1px solid #262626; }
+.dt { position: relative; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.dt-sep::before { content: ""; position: absolute; left: -6.5px; top: 0; bottom: 0; width: 1px; background: #262626; }
+.dt-label { min-height: 18px; font-size: 12px; font-weight: 500; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.dt-img { position: relative; }
+.dt-img .thumb { border-radius: 8px; }
+.dt-img .thumb[data-orient=landscape] { background: var(--surface); }
+.dt-img .tile-img { transition: transform .1s; }
+.dt-img .tile-img:active { transform: scale(.97); }
+.dt-img .tile-img:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; border-radius: 8px; }
+.dt-name { font-size: 12px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Acción sobre la imagen (pasar al sideboard o quitar): círculo oscuro en la esquina. */
+.dt-act {
+  position: absolute; top: 6px; right: 6px; display: grid; place-items: center;
+  width: 32px; height: 32px; border: 0; border-radius: 50%; background: rgba(0, 0, 0, .72); color: var(--text);
+  cursor: pointer; transition: background-color .15s, transform .1s;
+}
+.dt-act:hover { background: #000; }
+.dt-act:active { transform: scale(.92); }
+.dt-act:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.dt-act .icon svg { width: 16px; height: 16px; }
+.dt-lack {
+  position: absolute; left: 6px; bottom: 6px; padding: 2px 8px; border-radius: 999px;
+  background: #2b2414; color: var(--warn); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.dt .tile-qty { margin-top: 0; }
+.dt-change { width: 100%; }
+.dt-empty {
+  aspect-ratio: 240 / 335; display: grid; place-items: center; padding: 10px; text-align: center;
+  border: 1px dashed #444; border-radius: 8px; background: none; color: var(--faint); font: inherit; font-size: 12px;
+}
+button.dt-empty { cursor: pointer; color: var(--text); font-weight: 500; transition: border-color .15s, background-color .15s; }
+button.dt-empty:hover { border-color: var(--muted); background: var(--surface); }
+button.dt-empty:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.icon { display: inline-grid; place-items: center; }
+.icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; display: block; }
+.btn.icon-only { width: 36px; padding: 0; }
 .pool { margin-top: 32px; }
 .pool .toggle { margin-top: 4px; }
 .pool .filter-row input[type=search] { flex: 1 1 160px; max-width: none; min-width: 140px; }
@@ -369,7 +403,6 @@ dialog::backdrop { background: rgba(0, 0, 0, .7); }
 .export-all { align-items: center; margin-top: 16px; }
 .stat.bad-stat strong { color: var(--warn); }
 .export-all .muted { color: var(--faint); }
-.deck-cards .swap { min-height: 30px; padding: 0 10px; font-size: 12px; white-space: nowrap; }
 .tile-links { display: flex; gap: 10px; }
 
 /* Precios */
