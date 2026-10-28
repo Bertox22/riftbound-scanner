@@ -138,7 +138,10 @@ for (const dlg of document.querySelectorAll('dialog')) {
 
 const recognizer = new Recognizer(cards);
 const status = (msg) => ($('#cam-status').textContent = msg);
-const session = []; // { card, foil } añadidas en esta sesión, la última primero
+// Cartas añadidas en esta sesión, la última primero: { card, n: copias normales, f: copias foil }.
+// Volver a escanear una carta suma en su fila en vez de repetirla.
+const session = [];
+let lastAdd = null; // { entry, foil } de la última copia añadida, para poder corregirla
 
 const scanner = new Scanner({
   video: $('#video'),
@@ -179,10 +182,33 @@ function feedback() {
   f.classList.add('on');
 }
 
+/** Suma una copia a la colección y a su fila de la sesión (que pasa arriba). */
+function addCopy(card, foil) {
+  store.add(card.id, 1, foil);
+  let entry = session.find((e) => e.card.id === card.id);
+  if (entry) session.splice(session.indexOf(entry), 1);
+  else entry = { card, n: 0, f: 0 };
+  entry[foil ? 'f' : 'n']++;
+  session.unshift(entry);
+  lastAdd = { entry, foil };
+  return entry;
+}
+
+/** Quita una copia (normal o foil) de la colección y de su fila; con 0 copias la fila desaparece. */
+function removeCopy(entry, foil) {
+  const k = foil ? 'f' : 'n';
+  if (!entry[k]) return;
+  store.add(entry.card.id, -1, foil);
+  entry[k]--;
+  if (!entry.n && !entry.f) {
+    session.splice(session.indexOf(entry), 1);
+    if (lastAdd?.entry === entry) lastAdd = null;
+  }
+}
+
 function addScanned(card) {
   const foil = $('#opt-foil').checked;
-  store.add(card.id, 1, foil);
-  session.unshift({ card, foil });
+  addCopy(card, foil);
   feedback();
   renderRecent();
   const price = unitPrice(card.id, foil);
@@ -201,7 +227,7 @@ function renderCandidates(results, state) {
       class: `cand ${i === 0 && state !== 'unsure' ? 'best' : ''}`,
       onclick: () => {
         // Si la carta ya se había añadido sola y el usuario elige otra, se corrige en vez de sumar.
-        if (state === 'locked' && session[0] && scanner.locked === session[0].card.id && r.id !== session[0].card.id) replaceLast(r.card);
+        if (state === 'locked' && lastAdd && scanner.locked === lastAdd.entry.card.id && r.id !== lastAdd.entry.card.id) replaceLast(r.card);
         else addScanned(r.card);
         scanner.markAdded(r.id);
       },
@@ -210,50 +236,113 @@ function renderCandidates(results, state) {
 }
 
 function replaceLast(card) {
-  const last = session[0];
-  store.add(last.card.id, -1, last.foil);
-  store.add(card.id, 1, last.foil);
-  last.card = card;
+  const { entry, foil } = lastAdd;
+  removeCopy(entry, foil);
+  addCopy(card, foil);
   feedback();
   renderRecent();
   toast(`Corregido: ${card.name}`);
 }
 
+/** Cambia todas las copias de una fila a otra versión de la carta (misma ilustración u otra edición). */
+function switchVariant(entry, v) {
+  for (const foil of [false, true]) {
+    const k = foil ? 'f' : 'n';
+    store.add(entry.card.id, -entry[k], foil);
+    store.add(v.id, entry[k], foil);
+  }
+  const other = session.find((e) => e !== entry && e.card.id === v.id);
+  if (other) { // ya había una fila de esa versión: se juntan
+    other.n += entry.n;
+    other.f += entry.f;
+    session.splice(session.indexOf(entry), 1);
+    if (lastAdd?.entry === entry) lastAdd.entry = other;
+    return other;
+  }
+  entry.card = v;
+  return entry;
+}
+
+function versionSelect(entry, onChange) {
+  const variants = variantsOf(entry.card);
+  return variants.length > 1 && el('select', {
+    class: 'small',
+    onchange: (e) => onChange(switchVariant(entry, byId.get(e.target.value))),
+  }, variants.map((v) => el('option', { value: v.id, selected: v.id === entry.card.id, text: `${cardCode(v)} · ${v.setName}${v.rarity === 'Showcase' ? ' (showcase)' : ''}` })));
+}
+
+/** Insignia foil: solo el número, en plateado. */
+function foilBadge(n) {
+  return n > 0 && el('span', { class: 'badge foil', title: `${n} foil`, 'aria-label': `${n} foil` }, n);
+}
+
+/** Hoja de una carta escaneada: normales y foil de esta sesión (como en la colección), versión y quitar. */
+function openScanned(entry) {
+  const dlg = $('#card-dialog');
+  const refresh = () => { render(); renderRecent(); };
+  const render = () => {
+    if (!session.includes(entry)) return dlg.close();
+    const { card } = entry;
+    const price = unitPrice(card.id, entry.f > 0 && !entry.n);
+    dlg.replaceChildren(
+      el('div', { class: 'dialog-head' }, el('h2', { text: card.name }), el('button', { class: 'icon-btn', title: 'Cerrar', onclick: () => dlg.close() }, '✕')),
+      el('div', { class: 'scan-sheet' },
+        el('div', { class: 'scan-sheet-img' }, cardImg(card), foilBadge(entry.f)),
+        el('div', { class: 'grow' },
+          el('p', { class: 'muted', text: `${cardCode(card)} · tienes ${store.owned(card.id)} en tu colección` }),
+          price != null && el('p', { class: price >= VALUABLE_EUR ? 'price-hot' : 'muted', text: eur(price) }),
+          versionSelect(entry, (e) => { entry = e; refresh(); }),
+          qtyRow('Normales', entry.n, (d) => { d > 0 ? addCopy(card, false) : removeCopy(entry, false); refresh(); }),
+          qtyRow('Foil', entry.f, (d) => { d > 0 ? addCopy(card, true) : removeCopy(entry, true); refresh(); }),
+          el('div', { class: 'actions' },
+            el('button', { class: 'btn ghost small', onclick: () => { dlg.close(); openCard(card); } }, 'Ficha completa'),
+            el('button', {
+              class: 'btn danger small',
+              onclick: () => {
+                while (entry.n) removeCopy(entry, false);
+                while (entry.f) removeCopy(entry, true);
+                renderRecent();
+                dlg.close();
+                toast(`Quitada: ${card.name}`);
+              },
+            }, 'Quitar'),
+          ),
+        ),
+      ),
+    );
+  };
+  render();
+  if (!dlg.open) dlg.showModal();
+}
+
 function renderRecent() {
-  $('#session-count').textContent = session.length ? `(${session.length})` : '';
+  const copies = session.reduce((a, e) => a + e.n + e.f, 0);
+  $('#session-count').textContent = copies ? `(${copies})` : '';
   const list = $('#recent');
   if (!session.length) {
     list.replaceChildren(el('li', { class: 'empty' }, 'Las cartas que escanees aparecerán aquí.'));
     return;
   }
   list.replaceChildren(...session.slice(0, 60).map((entry) => {
-    const { card, foil } = entry;
-    const variants = variantsOf(card);
+    const { card } = entry;
+    const foilOnly = entry.f > 0 && !entry.n;
+    const price = unitPrice(card.id, foilOnly);
+    // El + suma del mismo tipo que la última copia de esta fila; el − quita primero ese tipo.
+    const lastFoil = lastAdd?.entry === entry ? lastAdd.foil : foilOnly;
+    const minus = () => removeCopy(entry, entry[lastFoil ? 'f' : 'n'] ? lastFoil : !lastFoil);
     return el('li', {},
-      el('button', { class: 'tile-img', onclick: () => openCard(card) }, cardImg(card, 'thumb small')),
+      el('button', { class: 'tile-img', title: `Editar ${card.name}`, onclick: () => openScanned(entry) }, cardImg(card, 'thumb small'), foilBadge(entry.f)),
       el('div', { class: 'grow' },
-        el('strong', { text: card.name }),
-        el('div', { class: 'muted small', text: `${cardCode(card)}${foil ? ' · Foil' : ''}${card.errata ? ' · ⚠ Errata' : ''} · tienes ${store.owned(card.id)}` }),
-        unitPrice(card.id, foil) != null && el('div', { class: `small ${unitPrice(card.id, foil) >= VALUABLE_EUR ? 'price-hot' : 'muted'}`, text: eur(unitPrice(card.id, foil)) }),
-        variants.length > 1 && el('select', {
-          class: 'small',
-          onchange: (e) => {
-            const v = byId.get(e.target.value);
-            store.add(card.id, -1, foil);
-            store.add(v.id, 1, foil);
-            entry.card = v;
-            renderRecent();
-          },
-        }, variants.map((v) => el('option', { value: v.id, selected: v.id === card.id, text: `${cardCode(v)} · ${v.setName}${v.rarity === 'Showcase' ? ' (showcase)' : ''}` }))),
+        el('button', { class: 'link', onclick: () => openScanned(entry) }, el('strong', { text: card.name })),
+        el('div', { class: 'muted small', text: `${cardCode(card)}${card.errata ? ' · ⚠ Errata' : ''} · tienes ${store.owned(card.id)}` }),
+        price != null && el('div', { class: `small ${price >= VALUABLE_EUR ? 'price-hot' : 'muted'}`, text: eur(price) }),
+        versionSelect(entry, () => renderRecent()),
       ),
-      el('button', {
-        class: 'icon-btn', title: 'Quitar',
-        onclick: () => {
-          store.add(card.id, -1, foil);
-          session.splice(session.indexOf(entry), 1);
-          renderRecent();
-        },
-      }, '✕'),
+      el('div', { class: 'tile-qty' },
+        el('button', { class: 'icon-btn small', title: 'Quitar una copia', onclick: () => { minus(); renderRecent(); } }, '−'),
+        el('span', { class: 'qty', text: entry.n + entry.f }),
+        el('button', { class: 'icon-btn small', title: 'Añadir una copia', onclick: () => { addCopy(card, lastFoil); renderRecent(); } }, '+'),
+      ),
     );
   }));
 }
@@ -387,7 +476,7 @@ function renderCollection(keepLimit = false) {
     const e = store.collection[c.id];
     const n = e ? e.n + e.f : 0;
     return el('div', { class: `tile ${n ? '' : 'dim'}` },
-      el('button', { class: 'tile-img', onclick: () => openCard(c) }, cardImg(c), n > 0 && el('span', { class: 'badge', text: `×${n}` }), e?.f > 0 && el('span', { class: 'badge foil', text: `${e.f} foil` }), c.errata && el('span', { class: 'badge errata', title: 'Tiene errata', text: 'Errata' })),
+      el('button', { class: 'tile-img', onclick: () => openCard(c) }, cardImg(c), n > 0 && el('span', { class: 'badge', text: `×${n}` }), foilBadge(e?.f), c.errata && el('span', { class: 'badge errata', title: 'Tiene errata', text: 'Errata' })),
       el('div', { class: 'tile-info' },
         el('span', { class: 'tile-name', title: c.name, text: c.name }),
         el('span', { class: 'tile-code muted small', text: cardCode(c) }),
