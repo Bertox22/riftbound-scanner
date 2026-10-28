@@ -13,9 +13,13 @@ const sets = [...new Map(cards.map((c) => [c.set, c.setName])).entries()];
 
 // ---------- Navegación ----------
 
+// La pestaña va en la dirección (#coleccion, #mazos) para que al recargar se quede en la misma.
+const VIEW_HASH = { scan: '', collection: 'coleccion', decks: 'mazos' };
+
 function showView(name) {
   document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.id === `view-${name}`));
   document.querySelectorAll('.tabbar button').forEach((b) => b.classList.toggle('active', b.dataset.view === name));
+  history.replaceState(null, '', VIEW_HASH[name] ? `#${VIEW_HASH[name]}` : location.pathname + location.search);
   if (name !== 'scan' && scanner.running) stopCamera();
   if (name === 'collection') renderCollection();
   window.scrollTo(0, 0);
@@ -535,3 +539,20 @@ $('#import-json').addEventListener('change', async (e) => {
 
 initDecks({ cards, byId, openCard });
 initImport({ cards, byId, openCard });
+
+// Lo que hay detrás de la ficha (colección, escaneadas) se actualiza en cuanto cambian copias o
+// foil, así que al cerrarla ya está al día sin recargar. Varios cambios seguidos, un solo repintado.
+let refreshQueued = false;
+store.onChange((what) => {
+  if (what !== 'collection' || refreshQueued) return;
+  refreshQueued = true;
+  queueMicrotask(() => {
+    refreshQueued = false;
+    if ($('#view-collection').classList.contains('active')) renderCollection(true);
+    renderRecent();
+  });
+});
+
+// Al recargar, vuelve a la pestaña que estaba abierta.
+const startView = Object.keys(VIEW_HASH).find((v) => VIEW_HASH[v] && `#${VIEW_HASH[v]}` === location.hash);
+if (startView) showView(startView);
