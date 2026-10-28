@@ -438,7 +438,11 @@ function battlefieldGroup(label, sep) {
   if (!current.battlefields.length) return [addTile('battlefields', label, sep)];
   const tiles = current.battlefields.map((id, i) => {
     const c = ctx.byId.get(id);
-    return deckTile({ label: i === 0 ? label : '', sep: i === 0 && sep, card: c, actions: [overlayBtn('x', 'Quitar campo de batalla', () => addToDeck(c, -1))] });
+    const used = current.battlefields.filter((b) => b === id).length; // por si se repite (el aviso de reglas ya lo marca)
+    return deckTile({
+      label: i === 0 ? label : '', sep: i === 0 && sep, card: c,
+      actions: [overlayBtn('x', 'Quitar campo de batalla', () => addToDeck(c, -1)), lackBadge(used - store.owned(id))],
+    });
   });
   if (current.battlefields.length < BATTLEFIELDS) tiles.push(addTile('battlefields'));
   return tiles;
