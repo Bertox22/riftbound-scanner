@@ -64,6 +64,14 @@ export const store = {
     write(KEYS.settings, this.settings);
   },
 
+  /** Guarda colección y mazos tal como están (p. ej. tras traerlos de la nube) y avisa. */
+  persist() {
+    write(KEYS.collection, this.collection);
+    write(KEYS.decks, this.decks);
+    this.emit('collection');
+    this.emit('decks');
+  },
+
   exportData() {
     return { app: 'riftbound-scanner', version: 1, exported: new Date().toISOString(), collection: this.collection, decks: this.decks };
   },

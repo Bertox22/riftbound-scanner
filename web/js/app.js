@@ -4,6 +4,7 @@ import { store } from './store.js';
 import { initDecks } from './decks.js';
 import { exportCsv, exportExcel, readableText } from './export.js';
 import { initImport } from './import-ui.js';
+import { initAccount } from './account-ui.js';
 import { loadPrices, pricesDate, priceInfo, unitPrice, entryValue, eur, usd, VALUABLE_EUR } from './prices.js';
 import { $, el, toast, cardImg, cardCode, baseName, download, matchesType, DOMAIN_ES, TYPE_ES, RARITY_ES } from './ui.js';
 
@@ -539,6 +540,7 @@ $('#import-json').addEventListener('change', async (e) => {
 
 initDecks({ cards, byId, openCard });
 initImport({ cards, byId, openCard });
+initAccount();
 
 // Lo que hay detrás de la ficha (colección, escaneadas) se actualiza en cuanto cambian copias o
 // foil, así que al cerrarla ya está al día sin recargar. Varios cambios seguidos, un solo repintado.
