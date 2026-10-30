@@ -14,12 +14,13 @@ const SUPABASE_URL = 'https://eyevxcflrgouelrfkosk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_juyEUUFU4PVzQaIhgJVJLA_SkqddAD0'; // clave pública: puede ir en la web
 const SUPABASE_JS = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.48.1/+esm';
 const AUTH_KEY = 'sb-eyevxcflrgouelrfkosk-auth-token'; // donde supabase-js guarda la sesión
-const EMAIL_DOMAIN = 'usuarios.riftbound-scanner.app'; // el usuario se convierte en un correo interno
+const LEGACY_DOMAIN = 'usuarios.riftbound-scanner.app'; // cuentas antiguas: el usuario era un correo interno
 const SYNC_KEY = 'rb.sync.v1';
 const PUSH_DELAY = 2000;
 const PAGE = 1000; // filas por petición (el máximo de la API)
 
 export const USERNAME_RE = /^[A-Za-z0-9_]{3,20}$/;
+export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 /** Estado visible: off (sin sesión) · syncing · pending (cambios por subir) · idle · offline · error. */
 export const cloud = {
@@ -40,6 +41,7 @@ function setState(state, error = null) {
 let client = null;
 let session = null;
 let askChoice = null; // pregunta qué hacer si este dispositivo y la cuenta tienen datos distintos
+let onRecovery = null; // se ha abierto el enlace de "nueva contraseña" del correo
 
 // ---------- Cliente y sesión ----------
 
@@ -47,7 +49,8 @@ async function getClient() {
   if (client) return client;
   const { createClient } = await import(SUPABASE_JS);
   client = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
-  client.auth.onAuthStateChange((_event, s) => {
+  client.auth.onAuthStateChange((event, s) => {
+    if (event === 'PASSWORD_RECOVERY') setTimeout(() => onRecovery?.());
     // Sin await aquí dentro (lo pide supabase-js): la sincronización va en la siguiente vuelta.
     if (s?.user?.id !== session?.user?.id) setTimeout(() => setSession(s));
     else session = s;
@@ -66,15 +69,22 @@ function setSession(s) {
   syncNow();
 }
 
-/** Arranque: solo carga Supabase si ya había una sesión guardada en este dispositivo. */
-export async function initCloud({ ask }) {
+/** ¿Viene la página de un enlace del correo (confirmar cuenta o nueva contraseña)? */
+const fromAuthLink = () => /access_token=|error_description=|type=(signup|recovery)/.test(location.hash);
+
+/**
+ * Arranque: solo carga Supabase si ya había una sesión guardada en este dispositivo o si se llega
+ * desde un enlace del correo (supabase-js lee el enlace y abre la sesión).
+ */
+export async function initCloud({ ask, recovery }) {
   askChoice = ask;
+  onRecovery = recovery;
   store.onChange(() => schedulePush());
   document.addEventListener('visibilitychange', () => document.hidden || syncNow());
   window.addEventListener('online', () => syncNow());
   let saved = false;
   try { saved = !!localStorage.getItem(AUTH_KEY); } catch { /* sin almacenamiento */ }
-  if (!saved) return;
+  if (!saved && !fromAuthLink()) return;
   try {
     await getClient(); // su onAuthStateChange trae la sesión guardada
   } catch (err) {
@@ -84,37 +94,71 @@ export async function initCloud({ ask }) {
 }
 
 // ---------- Entrar, crear cuenta, salir ----------
+// Las cuentas van con un correo real que hay que confirmar (así no se crean cuentas sin fin).
+// Se entra con el correo; las cuentas antiguas, creadas solo con usuario, siguen entrando con él.
 
-const toEmail = (username) => `${username.toLowerCase()}@${EMAIL_DOMAIN}`;
+const loginEmail = (id) => (id.includes('@') ? id.trim().toLowerCase() : `${id.trim().toLowerCase()}@${LEGACY_DOMAIN}`);
+/** A dónde vuelven los enlaces del correo: esta misma página. */
+const backHere = () => location.origin + location.pathname;
 
 function authMessage(error) {
   const m = error?.message ?? String(error);
-  if (/already registered|already exists/i.test(m)) return 'Ese usuario ya existe. Elige otro o entra con él.';
-  if (/invalid login credentials/i.test(m)) return 'Usuario o contraseña incorrectos.';
+  if (/already registered|already exists/i.test(m)) return 'Ya hay una cuenta con ese correo. Entra con él o recupera la contraseña.';
+  if (/database error saving new user/i.test(m)) return 'Ese nombre de usuario ya está cogido. Elige otro.';
+  if (/invalid login credentials/i.test(m)) return 'Correo o contraseña incorrectos.';
+  if (/email not confirmed/i.test(m)) return 'Aún no has confirmado el correo: abre el enlace que te enviamos al crear la cuenta.';
+  if (/rate limit|too many|security purposes/i.test(m)) return 'Demasiados intentos seguidos. Espera unos minutos y vuelve a probar.';
   if (/LIMITE_MAZOS/.test(m)) return 'Tu cuenta ya tiene 15 mazos: borra alguno para que se sincronicen los demás.';
   if (/signups? (are|is) disabled|signup.*not allowed/i.test(m)) return 'Ahora mismo no se pueden crear cuentas nuevas (está desactivado en Supabase).';
   if (/password.*(6|characters|short)/i.test(m)) return 'La contraseña debe tener al menos 6 caracteres.';
+  if (/invalid.*email|email.*invalid/i.test(m)) return 'Ese correo no es válido.';
   if (/failed to fetch|network/i.test(m)) return 'No hay conexión con la nube. Inténtalo de nuevo.';
   return m;
 }
 
-function checkUsername(username) {
-  if (!USERNAME_RE.test(username)) throw new Error('El usuario debe tener de 3 a 20 letras, números o _ (sin espacios ni tildes).');
+function check(cond, message) {
+  if (!cond) throw new Error(message);
 }
 
-export async function signIn(username, password) {
-  checkUsername(username);
+/** Entra con el correo (o con el usuario, en las cuentas antiguas). */
+export async function signIn(id, password) {
+  check(id.trim(), 'Escribe tu correo.');
   const sb = await getClient();
-  const { error } = await sb.auth.signInWithPassword({ email: toEmail(username), password });
+  const { error } = await sb.auth.signInWithPassword({ email: loginEmail(id), password });
   if (error) throw new Error(authMessage(error));
 }
 
-export async function signUp(username, password) {
-  checkUsername(username);
+/**
+ * Crea la cuenta. Devuelve true si ya queda dentro, o false si hay que confirmar el correo antes
+ * (Supabase envía un enlace; al abrirlo se vuelve a esta página con la sesión iniciada).
+ */
+export async function signUp(username, email, password) {
+  check(USERNAME_RE.test(username), 'El usuario debe tener de 3 a 20 letras, números o _ (sin espacios ni tildes).');
+  check(EMAIL_RE.test(email.trim()), 'Ese correo no es válido.');
   const sb = await getClient();
-  const { data, error } = await sb.auth.signUp({ email: toEmail(username), password, options: { data: { username } } });
+  const { data, error } = await sb.auth.signUp({
+    email: email.trim().toLowerCase(),
+    password,
+    options: { data: { username }, emailRedirectTo: backHere() },
+  });
   if (error) throw new Error(authMessage(error));
-  if (!data.session) throw new Error('La cuenta se ha creado, pero Supabase pide confirmar el correo: desactiva "Confirm email" en Authentication.');
+  return !!data.session;
+}
+
+/** Envía el enlace para poner una contraseña nueva. */
+export async function resetPassword(email) {
+  check(EMAIL_RE.test(email.trim()), 'Escribe el correo de tu cuenta.');
+  const sb = await getClient();
+  const { error } = await sb.auth.resetPasswordForEmail(email.trim().toLowerCase(), { redirectTo: backHere() });
+  if (error) throw new Error(authMessage(error));
+}
+
+/** Guarda la contraseña nueva (tras abrir el enlace del correo, con la sesión ya abierta). */
+export async function updatePassword(password) {
+  check(password.length >= 6, 'La contraseña debe tener al menos 6 caracteres.');
+  const sb = await getClient();
+  const { error } = await sb.auth.updateUser({ password });
+  if (error) throw new Error(authMessage(error));
 }
 
 /** Cierra la sesión. Los datos se quedan en este dispositivo. */
@@ -159,6 +203,15 @@ export async function syncNow() {
     }
   } catch (err) {
     console.error(err);
+    // La cuenta se ha borrado mientras este dispositivo tenía la sesión abierta: se cierra aquí
+    // (los datos se quedan en el dispositivo) en vez de reintentar para siempre.
+    if (/user_id_fkey|sub claim in JWT does not exist|user not found/i.test(err?.message ?? '')) {
+      running = false;
+      try { localStorage.removeItem(SYNC_KEY); } catch { /* sin almacenamiento */ }
+      await client?.auth.signOut({ scope: 'local' }).catch(() => {});
+      setState('off', 'Esa cuenta ya no existe: se ha cerrado la sesión.');
+      return;
+    }
     setState(navigator.onLine === false ? 'offline' : 'error', authMessage(err));
   } finally {
     running = false;

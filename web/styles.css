@@ -77,12 +77,14 @@ p { margin: 8px 0; }
 /* Hoja de cuenta */
 #account-dialog { max-width: 480px; }
 /* Dentro de una hoja los campos van un tono más claro que ella, si no se confunden con el fondo. */
-dialog :is(input[type=search], input[type=password], input:not([type]), select) { background-color: var(--surface-2); }
-dialog :is(input[type=search], input[type=password], input:not([type]), select):hover { background-color: #2e2e2e; }
+dialog :is(input[type=search], input[type=password], input[type=email], input:not([type]), select) { background-color: var(--surface-2); }
+dialog :is(input[type=search], input[type=password], input[type=email], input:not([type]), select):hover { background-color: #2e2e2e; }
 .account-form { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
 .account-form label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--muted); }
 .account-form input { width: 100%; color: var(--text); }
 .account-form .actions { margin-top: 4px; }
+.account-links { margin: 0; }
+.account-links .link.small { font-size: 13px; }
 .form-error { margin: 0; padding: 10px 14px; border-radius: 12px; background: #2c1a20; color: #f08a8f; font-size: 14px; }
 .sync-status { padding: 10px 14px; border-radius: 12px; background: var(--surface-2); font-size: 14px; }
 .sync-status.idle { color: var(--ok); }
@@ -126,13 +128,13 @@ main { max-width: 960px; margin: 0 auto; padding: 12px 16px; }
 :is(.btn, .icon-btn, .link):focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 
 /* Campos: superficie un tono por encima del fondo, sin borde; el foco se marca en blanco. */
-input[type=search], input[type=password], input:not([type]), select, .deck-name {
+input[type=search], input[type=password], input[type=email], input:not([type]), select, .deck-name {
   font: inherit; color: var(--text); background: var(--surface); border: 1px solid transparent;
   border-radius: 999px; min-height: 44px; padding: 0 16px; min-width: 0;
   transition: border-color .15s, background-color .15s;
 }
 input[type=search]:hover, input:not([type]):hover, select:hover { background: #1a1a1a; }
-input[type=search]:focus, input[type=password]:focus, input:not([type]):focus, select:focus, .deck-name:focus { outline: none; border-color: var(--muted); }
+input[type=search]:focus, input[type=password]:focus, input[type=email]:focus, input:not([type]):focus, select:focus, .deck-name:focus { outline: none; border-color: var(--muted); }
 input::placeholder { color: var(--faint); }
 input[type=search] { width: 100%; }
 select {
