@@ -5,6 +5,7 @@ import { initDecks } from './decks.js';
 import { exportCsv, exportExcel, readableText } from './export.js';
 import { initImport } from './import-ui.js';
 import { initAccount } from './account-ui.js';
+import { initMatches } from './matches.js';
 import { loadPrices, pricesDate, priceInfo, unitPrice, entryValue, eur, usd, VALUABLE_EUR } from './prices.js';
 import { $, el, toast, cardImg, cardCode, baseName, download, matchesType, DOMAIN_ES, TYPE_ES, RARITY_ES } from './ui.js';
 
@@ -14,8 +15,8 @@ const sets = [...new Map(cards.map((c) => [c.set, c.setName])).entries()];
 
 // ---------- Navegación ----------
 
-// La pestaña va en la dirección (#coleccion, #mazos) para que al recargar se quede en la misma.
-const VIEW_HASH = { scan: '', collection: 'coleccion', decks: 'mazos' };
+// La pestaña va en la dirección (#coleccion, #mazos…) para que al recargar se quede en la misma.
+const VIEW_HASH = { scan: '', collection: 'coleccion', decks: 'mazos', matches: 'partidas' };
 
 function showView(name) {
   document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.id === `view-${name}`));
@@ -540,6 +541,7 @@ $('#import-json').addEventListener('change', async (e) => {
 
 initDecks({ cards, byId, openCard });
 initImport({ cards, byId, openCard });
+initMatches({ cards, byId, openCard });
 initAccount();
 
 // Lo que hay detrás de la ficha (colección, escaneadas) se actualiza en cuanto cambian copias o

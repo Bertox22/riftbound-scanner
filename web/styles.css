@@ -418,10 +418,116 @@ button.dt-empty:focus-visible { outline: 2px solid var(--text); outline-offset: 
 .pool .toggle { margin-top: 4px; }
 .pool .filter-row input[type=search] { flex: 1 1 160px; max-width: none; min-width: 140px; }
 
+/* Partidas: el resultado en una pastilla de color (verde, rojo, gris) y las dos Leyendas enfrentadas. */
+.match-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.match-row {
+  display: flex; gap: 12px; align-items: center; padding: 10px 14px 10px 10px; background: var(--surface);
+  border-radius: 16px; cursor: pointer; transition: background-color .15s, transform .1s;
+}
+.match-row:hover { background: #1c1c1c; }
+.match-row:active { transform: scale(.99); }
+.match-row strong { font-size: 15px; font-weight: 600; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.match-row .muted { color: var(--faint); }
+.match-result {
+  display: grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: 50%;
+  font-size: 14px; font-weight: 700; background: var(--surface-2); color: var(--muted);
+}
+.match-result.win { background: #153222; color: var(--ok); }
+.match-result.loss { background: #2c1a20; color: #f08a8f; }
+.match-legends { display: flex; flex: none; }
+.match-legends .thumb.small { width: 40px; border-radius: 5px; box-shadow: 0 0 0 2px var(--surface); }
+.match-legends .thumb.small + .thumb.small { margin-left: -12px; }
+.match-row:hover .match-legends .thumb.small { box-shadow: 0 0 0 2px #1c1c1c; }
+
+.match-form { display: flex; flex-direction: column; gap: 16px; }
+.match-field { display: flex; flex-direction: column; gap: 8px; }
+.match-label { font-size: 13px; color: var(--muted); }
+.match-field input, .match-field select { width: 100%; }
+.match-field textarea {
+  width: 100%; font: inherit; color: var(--text); background: var(--surface-2); border: 1px solid transparent;
+  border-radius: 16px; padding: 10px 14px; resize: vertical;
+}
+.match-field textarea:focus { outline: none; border-color: var(--muted); }
+dialog input[type=date] {
+  font: inherit; color: var(--text); background: var(--surface-2); border: 1px solid transparent;
+  border-radius: 999px; min-height: 44px; padding: 0 16px; color-scheme: dark;
+}
+dialog input[type=date]:focus { outline: none; border-color: var(--muted); }
+/* Botones de opción única en fila, como un control segmentado. */
+.segmented { display: flex; flex-wrap: wrap; gap: 6px; }
+.segmented button {
+  flex: 1 1 0; min-width: 56px; min-height: 44px; padding: 0 12px; border: 1px solid #3a3a3a; border-radius: 999px;
+  background: transparent; color: var(--muted); font: inherit; font-size: 14px; font-weight: 500; cursor: pointer;
+  transition: background-color .15s, border-color .15s, color .15s;
+}
+.segmented.cols-3 { display: grid; grid-template-columns: repeat(3, 1fr); }
+.segmented button:hover { background: #1c1c1c; color: var(--text); }
+.segmented button[aria-checked=true] { background: var(--text); border-color: transparent; color: #000; font-weight: 600; }
+.segmented button.win[aria-checked=true] { background: var(--ok); }
+.segmented button.loss[aria-checked=true] { background: var(--danger); color: #fff; }
+.segmented button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.legend-pick {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 8px 16px 8px 8px;
+  border: 0; border-radius: 16px; background: var(--surface-2); color: var(--text); font: inherit; text-align: left; cursor: pointer;
+}
+.legend-pick:hover { background: #2e2e2e; }
+.legend-pick.empty-pick { padding-left: 16px; color: var(--muted); }
+.legend-pick .thumb.small { width: 40px; border-radius: 5px; }
+.legend-choose { display: flex; flex-direction: column; gap: 8px; }
+.legend-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; max-height: 320px; overflow: auto; padding: 2px; }
+.legend-opt {
+  display: flex; flex-direction: column; gap: 4px; padding: 4px; border: 0; border-radius: 10px; background: transparent;
+  color: var(--muted); font: inherit; font-size: 11px; text-align: center; cursor: pointer;
+}
+.legend-opt:hover { background: var(--surface-2); color: var(--text); }
+.legend-opt.selected { box-shadow: 0 0 0 2px var(--text); color: var(--text); }
+.legend-opt .thumb { border-radius: 6px; }
+/* Puntos: dos casillas por juego, tú – rival. */
+.points-list { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.points-row { display: flex; align-items: center; gap: 8px; }
+.points-game { width: 56px; flex: none; }
+.points-row input[type=number] {
+  width: 72px; min-height: 44px; padding: 0 12px; border: 1px solid transparent; border-radius: 999px;
+  background: var(--surface-2); color: var(--text); font: inherit; font-size: 18px; font-weight: 600;
+  text-align: center; font-variant-numeric: tabular-nums; appearance: textfield; -moz-appearance: textfield;
+}
+.points-row input[type=number]::-webkit-inner-spin-button, .points-row input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.points-row input[type=number]:focus { outline: none; border-color: var(--muted); }
+.points-sep { color: var(--muted); font-weight: 600; }
+.points-add { font-size: 13px; }
+.match-more summary { cursor: pointer; color: var(--muted); font-size: 14px; }
+.match-more[open] { display: flex; flex-direction: column; gap: 16px; }
+.match-actions { margin-top: 4px; }
+
+/* Estadísticas de partidas: tres cifras grandes y listas con barra de porcentaje (en dorado: es dato). */
+.match-stats { display: flex; flex-direction: column; gap: 12px; margin-bottom: 8px; }
+.match-stats:empty { display: none; }
+.stats-filter select { width: 100%; max-width: 320px; }
+.stats-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stats-big { display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; border-radius: 16px; background: var(--surface); min-width: 0; }
+.stats-big strong { font-size: 26px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stats-big:first-child strong { color: var(--accent); }
+.stats-first { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stats-first > div { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; padding: 10px 14px; border-radius: 14px; background: var(--surface); }
+.stats-first > div > :first-child { flex-basis: 100%; }
+.stats-first strong { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.stats-title { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin: 16px 0 0; }
+#match-history-head { margin: 24px 0 12px; }
+.stat-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.stat-row { display: flex; align-items: center; gap: 12px; padding: 8px 14px 8px 8px; border-radius: 14px; background: var(--surface); }
+.stat-row .thumb.small { width: 36px; border-radius: 5px; }
+.stat-row-top { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; }
+.stat-row-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stat-row-rate { font-weight: 600; font-variant-numeric: tabular-nums; flex: none; }
+.stat-row .muted { color: var(--faint); }
+.rate-bar { height: 4px; border-radius: 99px; background: var(--surface-2); margin: 6px 0 4px; overflow: hidden; }
+.rate-bar span { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+@media (max-width: 400px) { .stats-big { padding: 12px; } .stats-big strong { font-size: 22px; } }
+
 /* Barra inferior */
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
-  display: grid; grid-template-columns: repeat(3, 1fr);
+  display: grid; grid-template-columns: repeat(4, 1fr);
   height: calc(var(--tab-h) + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom);
   background: var(--bg); border-top: 1px solid #1a1a1a;
 }

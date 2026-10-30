@@ -1,7 +1,7 @@
-// Estado persistente en localStorage: colección, mazos y ajustes.
+// Estado persistente en localStorage: colección, mazos, partidas y ajustes.
 // Colección: { [cardId]: { n: copias normales, f: copias foil } }
 
-const KEYS = { collection: 'rb.collection.v1', decks: 'rb.decks.v1', settings: 'rb.settings.v1' };
+const KEYS = { collection: 'rb.collection.v1', decks: 'rb.decks.v1', matches: 'rb.matches.v1', settings: 'rb.settings.v1' };
 
 function read(key, fallback) {
   try {
@@ -24,6 +24,7 @@ const listeners = new Set();
 export const store = {
   collection: read(KEYS.collection, {}),
   decks: read(KEYS.decks, []),
+  matches: read(KEYS.matches, []), // la más reciente primero
   settings: read(KEYS.settings, {}),
 
   onChange(fn) {
@@ -60,6 +61,11 @@ export const store = {
     this.emit('decks');
   },
 
+  saveMatches() {
+    write(KEYS.matches, this.matches);
+    this.emit('matches');
+  },
+
   saveSettings() {
     write(KEYS.settings, this.settings);
   },
@@ -73,7 +79,7 @@ export const store = {
   },
 
   exportData() {
-    return { app: 'riftbound-scanner', version: 1, exported: new Date().toISOString(), collection: this.collection, decks: this.decks };
+    return { app: 'riftbound-scanner', version: 1, exported: new Date().toISOString(), collection: this.collection, decks: this.decks, matches: this.matches };
   },
 
   importData(data, mode = 'replace') {
@@ -85,14 +91,20 @@ export const store = {
       }
       const ids = new Set(this.decks.map((d) => d.id));
       this.decks.push(...(data.decks || []).filter((d) => !ids.has(d.id)));
+      const seen = new Set(this.matches.map((m) => m.id));
+      this.matches.push(...(data.matches || []).filter((m) => !seen.has(m.id)));
+      this.matches.sort((a, b) => b.at - a.at);
     } else {
       this.collection = data.collection;
       this.decks = data.decks || [];
+      this.matches = data.matches || [];
     }
     write(KEYS.collection, this.collection);
     write(KEYS.decks, this.decks);
+    write(KEYS.matches, this.matches);
     this.emit('collection');
     this.emit('decks');
+    this.emit('matches');
   },
 
   /** Solo la colección (desde Excel/CSV): "merge" suma, "replace" la sustituye. Los mazos no se tocan. */
