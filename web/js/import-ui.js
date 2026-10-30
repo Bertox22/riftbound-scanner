@@ -4,7 +4,7 @@
 import { store } from './store.js';
 import { $, el, toast, cardImg, cardCode } from './ui.js';
 import { ROLES, readFile, parseList, parseDeckText, splitHeader, guessMapping, buildIndex, matchRows, searchCards, assembleDeck } from './importer.js';
-import { validate, openEditor } from './decks.js';
+import { validate, openEditor, canAddDeck } from './decks.js';
 
 const STATUS = {
   exact: { icon: '✓', text: 'Exacta (código o set + nº)', cls: 'ok' },
@@ -231,6 +231,7 @@ function deckFooter({ deck, notes }) {
     el('button', {
       class: 'btn primary', disabled: !legend && !Object.keys(deck.main).length,
       onclick: () => {
+        if (!canAddDeck()) return;
         full.name = nameInput.value.trim() || 'Mazo importado';
         store.decks.unshift(full);
         store.saveDecks();

@@ -18,6 +18,15 @@ import { unitPrice, eur } from './prices.js';
 
 const MAIN_TYPES = new Set(['Unit', 'Spell', 'Gear']);
 const MAIN_SIZE = 40, RUNES = 12, BATTLEFIELDS = 3, MAX_COPIES = 3, MAX_SIGNATURE = 3, SIDEBOARD = 10;
+/** Mazos por cuenta (la base de datos tampoco admite más: supabase/05_limite_mazos.sql). */
+export const MAX_DECKS = 15;
+
+/** ¿Cabe otro mazo? Si no, avisa. */
+export function canAddDeck() {
+  if (store.decks.length < MAX_DECKS) return true;
+  toast(`Como máximo ${MAX_DECKS} mazos. Borra uno para crear otro.`, 3500);
+  return false;
+}
 
 let ctx; // { cards, byId, openCard }
 let current = null; // mazo en edición
@@ -230,6 +239,7 @@ async function runExport(button, fn) {
 function renderList() {
   const list = $('#deck-list');
   list.replaceChildren();
+  $('#deck-count').textContent = `${store.decks.length}/${MAX_DECKS}`;
   $('#deck-export-all').hidden = !store.decks.length;
   if (!store.decks.length) {
     list.append(el('li', { class: 'empty' }, 'Aún no tienes mazos. Escanea tus cartas y crea uno.'));
@@ -594,7 +604,7 @@ function picker(title, cards, onPick) {
 
 export function initDecks(context) {
   ctx = context;
-  $('#btn-new-deck').addEventListener('click', () => openEditor(newDeck()));
+  $('#btn-new-deck').addEventListener('click', () => canAddDeck() && openEditor(newDeck()));
   $('#btn-decks-excel').addEventListener('click', (e) => runExport(e.target, () => exportAllDecksExcel(store.decks, exportCtx())));
   $('#btn-decks-csv').addEventListener('click', (e) => runExport(e.target, () => exportAllDecksCsv(store.decks, exportCtx())));
   $('#btn-decks-txt').addEventListener('click', () => exportAllDecksText(store.decks, exportText));

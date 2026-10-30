@@ -91,6 +91,7 @@ function authMessage(error) {
   const m = error?.message ?? String(error);
   if (/already registered|already exists/i.test(m)) return 'Ese usuario ya existe. Elige otro o entra con él.';
   if (/invalid login credentials/i.test(m)) return 'Usuario o contraseña incorrectos.';
+  if (/LIMITE_MAZOS/.test(m)) return 'Tu cuenta ya tiene 15 mazos: borra alguno para que se sincronicen los demás.';
   if (/signups? (are|is) disabled|signup.*not allowed/i.test(m)) return 'Ahora mismo no se pueden crear cuentas nuevas (está desactivado en Supabase).';
   if (/password.*(6|characters|short)/i.test(m)) return 'La contraseña debe tener al menos 6 caracteres.';
   if (/failed to fetch|network/i.test(m)) return 'No hay conexión con la nube. Inténtalo de nuevo.';
