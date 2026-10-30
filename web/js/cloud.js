@@ -191,9 +191,20 @@ export async function syncNow() {
   setState('syncing');
   try {
     let done = true;
+    let repaired = false;
     do {
       again = false;
-      done = await runSync();
+      try {
+        done = await runSync();
+      } catch (err) {
+        // La cuenta existe pero le falta el perfil (al que apuntan colección y mazos): se crea y se
+        // repite una vez. Si la cuenta ya no existe, ensure_profile no crea nada y el error vuelve.
+        if (repaired || !/user_id_fkey/i.test(err?.message ?? '')) throw err;
+        repaired = true;
+        const { error } = await client.rpc('ensure_profile');
+        if (error) throw error;
+        again = true;
+      }
     } while (again && done);
     if (done) {
       cloud.lastSync = new Date();
@@ -204,8 +215,9 @@ export async function syncNow() {
   } catch (err) {
     console.error(err);
     // La cuenta se ha borrado mientras este dispositivo tenía la sesión abierta: se cierra aquí
-    // (los datos se quedan en el dispositivo) en vez de reintentar para siempre.
-    if (/user_id_fkey|sub claim in JWT does not exist|user not found/i.test(err?.message ?? '')) {
+    // (los datos se quedan en el dispositivo) en vez de reintentar para siempre. Se pregunta al
+    // servidor antes: un fallo de perfil no basta para cerrar la sesión de una cuenta que existe.
+    if (/user_id_fkey|sub claim in JWT does not exist|user not found/i.test(err?.message ?? '') && await accountGone()) {
       running = false;
       try { localStorage.removeItem(SYNC_KEY); } catch { /* sin almacenamiento */ }
       await client?.auth.signOut({ scope: 'local' }).catch(() => {});
@@ -216,6 +228,12 @@ export async function syncNow() {
   } finally {
     running = false;
   }
+}
+
+/** ¿Dice el servidor que la cuenta de esta sesión ya no existe? */
+async function accountGone() {
+  const res = await client?.auth.getUser().catch(() => null);
+  return /sub claim in JWT does not exist|user not found/i.test(res?.error?.message ?? '');
 }
 
 function readSnap() {
