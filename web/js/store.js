@@ -70,12 +70,14 @@ export const store = {
     write(KEYS.settings, this.settings);
   },
 
-  /** Guarda colección y mazos tal como están (p. ej. tras traerlos de la nube) y avisa. */
+  /** Guarda colección, mazos y partidas tal como están (p. ej. tras traerlos de la nube) y avisa. */
   persist() {
     write(KEYS.collection, this.collection);
     write(KEYS.decks, this.decks);
+    write(KEYS.matches, this.matches);
     this.emit('collection');
     this.emit('decks');
+    this.emit('matches');
   },
 
   exportData() {

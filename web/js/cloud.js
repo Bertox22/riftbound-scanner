@@ -6,7 +6,9 @@
 //
 // Para saber qué subir se guarda una "foto" de lo que hay en la nube (rb.sync.v1) y se compara con
 // lo local: lo que difiere se sube. Así no hace falta tocar cada sitio donde cambian los datos.
-// Si una misma carta o mazo cambia en dos dispositivos sin conexión, gana el último que sube.
+// Si una misma carta, mazo o partida cambia en dos dispositivos sin conexión, gana el último que sube.
+// Las partidas tienen su propia marca de "bajado hasta" (matchPull): las fotos de antes de que se
+// sincronizaran no las tienen, y la primera vez se bajan todas y se juntan con las de aquí.
 
 import { store } from './store.js';
 
@@ -250,6 +252,10 @@ function canon(value) {
   return JSON.stringify(value ?? null);
 }
 const deckKey = (d) => canon({ name: d.name, legend: d.legend, champion: d.champion, main: d.main, runes: d.runes, battlefields: d.battlefields, sideboard: d.sideboard ?? {} });
+const matchKey = (m) => canon({
+  at: m.at, deck: m.deck ?? null, my: m.my ?? null, opp: m.opp ?? null, oppName: m.oppName ?? '', result: m.result,
+  score: m.score ?? null, points: m.points ?? [], first: m.first ?? null, event: m.event ?? '', notes: m.notes ?? '',
+});
 
 function toRow(uid, d) {
   return {
@@ -266,6 +272,31 @@ function fromRow(r) {
     updated: Date.parse(r.updated_at),
   };
 }
+
+/** El mazo solo se enlaza si ya está en la nube (la base de datos lo exige). */
+function toMatchRow(uid, m, snap) {
+  const [won, lost] = m.score ? m.score.split('-').map(Number) : [null, null];
+  return {
+    user_id: uid, id: m.id, played_at: new Date(m.at).toISOString(),
+    deck_id: m.deck && snap.decks[m.deck] ? m.deck : null,
+    my_legend_id: m.my ?? null, opponent_legend_id: m.opp ?? null,
+    opponent_name: (m.oppName || '').slice(0, 40) || null,
+    result: m.result, games_won: won, games_lost: lost, went_first: m.first ?? null,
+    event: (m.event || '').slice(0, 80) || null, notes: (m.notes || '').slice(0, 500) || null,
+    points: m.points?.length ? m.points : null,
+    deleted_at: null,
+  };
+}
+function fromMatchRow(r) {
+  return {
+    id: r.id, at: Date.parse(r.played_at), deck: r.deck_id, my: r.my_legend_id, opp: r.opponent_legend_id,
+    oppName: r.opponent_name ?? '', result: r.result,
+    score: r.games_won != null && r.games_lost != null ? `${r.games_won}-${r.games_lost}` : null,
+    points: r.points ?? [], first: r.went_first, event: r.event ?? '', notes: r.notes ?? '',
+    updated: Date.parse(r.updated_at),
+  };
+}
+const byDate = (a, b) => b.at - a.at;
 
 /** Todas las filas de una consulta, de mil en mil. */
 async function selectAll(build) {
@@ -301,6 +332,7 @@ async function firstSync(uid) {
   const sb = await getClient();
   const colRows = await selectAll(() => sb.from('collection_items').select('card_id,normal,foil,updated_at').eq('user_id', uid).order('card_id'));
   const deckRows = await selectAll(() => sb.from('decks').select('*').eq('user_id', uid).order('id'));
+  const matchRows = await selectAll(() => sb.from('matches').select('*').eq('user_id', uid).order('id'));
 
   const remoteCol = {};
   let stamp = null;
@@ -313,18 +345,26 @@ async function firstSync(uid) {
     stamp = maxStamp(stamp, r.updated_at);
     if (!r.deleted_at) remoteDecks.push(fromRow(r));
   }
+  let matchStamp = null;
+  const remoteMatches = [];
+  for (const r of matchRows) {
+    matchStamp = maxStamp(matchStamp, r.updated_at);
+    if (!r.deleted_at) remoteMatches.push(fromMatchRow(r));
+  }
 
-  const count = (col, decks) => ({ cards: Object.values(col).reduce((a, e) => a + e.n + e.f, 0), decks: decks.length });
-  const local = count(store.collection, store.decks);
-  const remote = count(remoteCol, remoteDecks);
+  const count = (col, decks, matches) => ({ cards: Object.values(col).reduce((a, e) => a + e.n + e.f, 0), decks: decks.length, matches: matches.length });
+  const local = count(store.collection, store.decks, store.matches);
+  const remote = count(remoteCol, remoteDecks, remoteMatches);
+  const any = (c) => c.cards || c.decks || c.matches;
   let choice = 'device';
-  if ((local.cards || local.decks) && (remote.cards || remote.decks)) choice = await askChoice({ local, remote });
-  else if (remote.cards || remote.decks) choice = 'cloud';
+  if (any(local) && any(remote)) choice = await askChoice({ local, remote });
+  else if (any(remote)) choice = 'cloud';
   if (!choice) return null;
 
   if (choice === 'cloud') {
     store.collection = structuredClone(remoteCol);
     store.decks = structuredClone(remoteDecks);
+    store.matches = structuredClone(remoteMatches).sort(byDate);
   } else if (choice === 'merge') {
     for (const [id, e] of Object.entries(remoteCol)) {
       const cur = store.collection[id] || { n: 0, f: 0 };
@@ -332,6 +372,9 @@ async function firstSync(uid) {
     }
     const ids = new Set(store.decks.map((d) => d.id));
     store.decks.push(...structuredClone(remoteDecks.filter((d) => !ids.has(d.id))));
+    const matchIds = new Set(store.matches.map((m) => m.id));
+    store.matches.push(...structuredClone(remoteMatches.filter((m) => !matchIds.has(m.id))));
+    store.matches.sort(byDate);
   }
   // 'device': lo local se queda y el siguiente paso lo sube (y borra en la nube lo que no está aquí).
 
@@ -340,6 +383,8 @@ async function firstSync(uid) {
     lastPull: stamp,
     collection: remoteCol,
     decks: Object.fromEntries(remoteDecks.map((d) => [d.id, deckKey(d)])),
+    matchPull: matchStamp,
+    matches: Object.fromEntries(remoteMatches.map((m) => [m.id, matchKey(m)])),
   };
   writeSnap(snap);
   if (choice !== 'device') store.persist();
@@ -383,6 +428,25 @@ async function push(uid, snap) {
     for (const id of gone) delete snap.decks[id];
     writeSnap(snap);
   }
+
+  snap.matches ??= {}; // foto de antes de sincronizar partidas
+  const changedMatches = store.matches.filter((m) => snap.matches[m.id] !== matchKey(m));
+  for (let i = 0; i < changedMatches.length; i += 500) {
+    const chunk = changedMatches.slice(i, i + 500);
+    const { error } = await sb.from('matches').upsert(chunk.map((m) => toMatchRow(uid, m, snap)), { onConflict: 'id' });
+    if (error) throw error;
+    for (const m of chunk) snap.matches[m.id] = matchKey(m);
+    writeSnap(snap);
+  }
+
+  const localMatchIds = new Set(store.matches.map((m) => m.id));
+  const goneMatches = Object.keys(snap.matches).filter((id) => !localMatchIds.has(id));
+  if (goneMatches.length) {
+    const { error } = await sb.from('matches').update({ deleted_at: new Date().toISOString() }).eq('user_id', uid).in('id', goneMatches);
+    if (error) throw error;
+    for (const id of goneMatches) delete snap.matches[id];
+    writeSnap(snap);
+  }
 }
 
 /** Baja lo que ha cambiado en la nube desde la última vez (incluidos los cambios de otros dispositivos). */
@@ -418,6 +482,29 @@ async function pull(uid, snap) {
     if (i < 0) { store.decks.unshift(deck); changed = true; }
     else if (deckKey(store.decks[i]) !== snap.decks[r.id]) { store.decks[i] = deck; changed = true; }
   }
+
+  // Partidas, con su propia marca: sin ella (foto antigua) se bajan todas.
+  const matchSince = snap.matchPull;
+  const matchRows = await selectAll(() => {
+    const q = sb.from('matches').select('*').eq('user_id', uid);
+    return (matchSince ? q.gt('updated_at', matchSince) : q).order('updated_at').order('id');
+  });
+  for (const r of matchRows) {
+    snap.matchPull = maxStamp(snap.matchPull, r.updated_at);
+    const i = store.matches.findIndex((m) => m.id === r.id);
+    if (r.deleted_at) {
+      delete snap.matches[r.id];
+      if (i >= 0) { store.matches.splice(i, 1); changed = true; }
+      continue;
+    }
+    const match = fromMatchRow(r);
+    // El mazo que la nube no enlaza (no estaba subido) se conserva si aquí sí lo tenemos.
+    if (!match.deck && i >= 0) match.deck = store.matches[i].deck;
+    snap.matches[r.id] = matchKey(match);
+    if (i < 0) { store.matches.push(match); changed = true; }
+    else if (matchKey(store.matches[i]) !== snap.matches[r.id]) { store.matches[i] = match; changed = true; }
+  }
+  if (changed) store.matches.sort(byDate);
   writeSnap(snap);
   if (changed) store.persist(); // avisa a la app; la comparación con la foto ya no ve nada que subir
 }

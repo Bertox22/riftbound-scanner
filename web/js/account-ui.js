@@ -170,14 +170,14 @@ function signedInView() {
 
 function choiceView() {
   const { local, remote } = choice;
-  const what = ({ cards, decks }) => `${cards} carta${cards === 1 ? '' : 's'} y ${decks} mazo${decks === 1 ? '' : 's'}`;
+  const what = ({ cards, decks, matches }) => `${cards} carta${cards === 1 ? '' : 's'}, ${decks} mazo${decks === 1 ? '' : 's'} y ${matches} partida${matches === 1 ? '' : 's'}`;
   const option = (key, label, hint) => el('button', { class: 'export-option', onclick: () => answer(key) },
     el('strong', { text: label }), el('span', { class: 'muted small', text: hint }));
   return [
     el('p', { text: 'Este dispositivo y tu cuenta tienen datos distintos. ¿Qué hacemos?' }),
     el('p', { class: 'muted small', text: `Aquí: ${what(local)}. En tu cuenta: ${what(remote)}.` }),
     el('div', { class: 'export-options' },
-      option('merge', 'Juntar las dos', 'Suma las copias de cada carta y conserva todos los mazos.'),
+      option('merge', 'Juntar las dos', 'Suma las copias de cada carta y conserva todos los mazos y partidas.'),
       option('cloud', 'Quedarme con lo de la cuenta', 'Este dispositivo pasa a tener lo mismo que tu cuenta.'),
       option('device', 'Subir lo de este dispositivo', 'Tu cuenta pasa a tener lo mismo que este dispositivo.')),
   ];
