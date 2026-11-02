@@ -3,7 +3,7 @@
 // primera vez que una cuenta con datos entra en un dispositivo con datos.
 
 import { $, el, toast } from './ui.js';
-import { cloud, onCloudChange, initCloud, signIn, signUp, signOut, syncNow, resetPassword, updatePassword, USERNAME_RE, EMAIL_RE } from './cloud.js';
+import { cloud, onCloudChange, initCloud, signIn, signUp, signOut, syncNow, resetPassword, updatePassword, loadProfile, saveProfile, USERNAME_RE, EMAIL_RE } from './cloud.js';
 
 const dlg = () => $('#account-dialog');
 let choice = null; // { local, remote, resolve } mientras se pregunta qué hacer con los datos
@@ -12,6 +12,7 @@ let busy = false;
 let mode = 'in'; // in (entrar) · up (crear cuenta) · forgot (recuperar) · sent (correo enviado) · recovery (nueva contraseña)
 let sentTo = '';
 let draft = { id: '', username: '', email: '', password: '' }; // lo escrito, para no perderlo al repintar
+let editing = null; // borrador del perfil mientras se edita
 
 const STATUS = {
   off: 'Sin sesión: los datos solo están en este dispositivo.',
@@ -157,9 +158,50 @@ function recoveryView() {
 
 const SIGNED_OUT = { in: ['Tu cuenta', signInView], up: ['Crear cuenta', signUpView], forgot: ['Recuperar contraseña', forgotView], sent: ['Revisa tu correo', sentView] };
 
+/** Perfil: nombre visible, ciudad, bio y si lo pueden ver otros. */
+function profileView() {
+  const p = cloud.profile;
+  if (!p) return el('p', { class: 'muted small', text: 'Cargando tu perfil…' });
+  if (!editing) {
+    return el('div', { class: 'profile-box' },
+      el('div', { class: 'profile-top' },
+        el('div', { class: 'grow' },
+          el('strong', { text: p.display_name || p.username }),
+          el('div', { class: 'muted small', text: [`@${p.username}`, p.city].filter(Boolean).join(' · ') })),
+        el('span', { class: `profile-badge${p.is_public ? ' on' : ''}`, text: p.is_public ? 'Público' : 'Privado' })),
+      p.bio && el('p', { class: 'profile-bio', text: p.bio }),
+      el('button', { class: 'btn ghost small', type: 'button', onclick: () => { editing = { ...p }; error = ''; render(); } }, 'Editar perfil'));
+  }
+  // Lo escrito se guarda en el borrador al momento: la hoja se repinta cuando cambia la sincronización.
+  const read = (f) => ({ display_name: f.display_name.value, city: f.city.value, bio: f.bio.value, is_public: f.is_public.checked });
+  const f = form((f) => {
+    editing = read(f);
+    run(async () => {
+      await saveProfile(editing);
+      editing = null;
+      toast('Perfil guardado');
+    });
+  },
+  field('Nombre visible', { name: 'display_name', value: editing.display_name ?? '', maxlength: 40, autocomplete: 'off', placeholder: cloud.profile.username }),
+  field('Ciudad', { name: 'city', value: editing.city ?? '', maxlength: 60, autocomplete: 'address-level2', placeholder: 'Para quedar a jugar o cambiar cartas' }),
+  el('label', {}, el('span', { text: 'Sobre ti' }), el('textarea', { name: 'bio', rows: 3, maxlength: 280, placeholder: 'Qué juegas, dónde sueles jugar…' }, editing.bio ?? '')),
+  el('label', { class: 'toggle' },
+    el('input', { type: 'checkbox', name: 'is_public', checked: !!editing.is_public }),
+    el('span', { text: 'Perfil público' })),
+  el('p', { class: 'muted small', text: 'Con el perfil público, cualquiera con tu enlace ve tu colección, tus mazos y tus estadísticas de partidas. Sin él, solo los mazos que compartas uno a uno.' }),
+  errorBox(),
+  el('div', { class: 'actions' },
+    el('button', { class: 'btn primary small', type: 'submit', disabled: busy }, busy ? 'Un momento…' : 'Guardar'),
+    el('button', { class: 'btn ghost small', type: 'button', disabled: busy, onclick: () => { editing = null; error = ''; render(); } }, 'Cancelar')));
+  f.addEventListener('input', () => { editing = read(f); });
+  return f;
+}
+
 function signedInView() {
   return [
-    el('p', {}, 'Conectado como ', el('strong', { text: cloud.username })),
+    el('h3', { class: 'account-section first', text: 'Tu perfil' }),
+    profileView(),
+    el('h3', { class: 'account-section', text: 'Sincronización' }),
     el('p', { class: `sync-status ${cloud.state}`, role: 'status', text: statusText() }),
     el('p', { class: 'muted small', text: 'Tu colección y tus mazos se sincronizan solos en todos los dispositivos donde entres. Si sales, se quedan también en este.' }),
     el('div', { class: 'actions' },
@@ -194,7 +236,7 @@ function render() {
   const d = dlg();
   if (choice) d.replaceChildren(head('Juntar datos'), ...choiceView());
   else if (mode === 'recovery') d.replaceChildren(head('Contraseña nueva'), ...recoveryView());
-  else if (cloud.username) d.replaceChildren(head('Tu cuenta'), ...signedInView());
+  else if (cloud.username) d.replaceChildren(head('Tu cuenta'), ...signedInView().filter(Boolean));
   else {
     const [title, view] = SIGNED_OUT[mode] ?? SIGNED_OUT.in;
     d.replaceChildren(head(title), ...view());
@@ -204,6 +246,8 @@ function render() {
 function open() {
   error = '';
   if (mode === 'sent' || (cloud.username && mode !== 'recovery')) mode = 'in';
+  editing = null;
+  if (cloud.username && !cloud.profile) loadProfile().catch((err) => console.error(err));
   render();
   if (!dlg().open) dlg().showModal();
 }

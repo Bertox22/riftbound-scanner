@@ -16,6 +16,7 @@ import { $, el, toast, cardImg, cardCode, baseName, download, matchesType, DOMAI
 import { exportDeckExcel, exportDeckCsv, exportAllDecksExcel, exportAllDecksCsv, exportAllDecksText } from './export.js';
 import { unitPrice, eur } from './prices.js';
 import { deckRecord, newMatch } from './matches.js';
+import { cloud } from './cloud.js';
 
 const MAIN_TYPES = new Set(['Unit', 'Spell', 'Gear']);
 const MAIN_SIZE = 40, RUNES = 12, BATTLEFIELDS = 3, MAX_COPIES = 3, MAX_SIGNATURE = 3, SIDEBOARD = 10;
@@ -500,6 +501,11 @@ function renderEditor() {
       ),
     ),
     el('input', { class: 'deck-name', value: current.name, oninput: (e) => { current.name = e.target.value || 'Mazo'; save(); } }),
+    // Compartir solo tiene sentido con cuenta: el mazo se ve desde la nube.
+    cloud.username ? el('label', { class: 'toggle deck-share' },
+      el('input', { type: 'checkbox', checked: !!current.shared, onchange: (e) => { current.shared = e.target.checked; save(); toast(current.shared ? 'Mazo compartido' : 'El mazo ya no se comparte'); } }),
+      el('span', { text: 'Compartir este mazo' }),
+      el('span', { class: 'muted small', text: current.shared ? 'Lo ve cualquiera con el enlace de tu perfil.' : 'Solo lo ves tú (salvo con el perfil público).' })) : '',
     el('div', { class: 'deck-stats' },
       stat('Principal', v.mainCount, MAIN_SIZE),
       stat('Runas', v.runeCount, RUNES),

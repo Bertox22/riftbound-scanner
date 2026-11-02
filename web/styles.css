@@ -83,6 +83,15 @@ dialog :is(input[type=search], input[type=password], input[type=email], input:no
 .account-form label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--muted); }
 .account-form input { width: 100%; color: var(--text); }
 .account-form .actions { margin-top: 4px; }
+.account-form label.toggle { flex-direction: row; color: var(--text); }
+.account-section { margin: 18px 0 8px; font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.account-section.first { margin-top: 4px; }
+.profile-box { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 16px; background: var(--surface-2); }
+.profile-top { display: flex; gap: 12px; align-items: center; width: 100%; }
+.profile-top strong { font-size: 16px; }
+.profile-bio { margin: 0; font-size: 14px; white-space: pre-line; }
+.profile-badge { flex: none; padding: 3px 10px; border-radius: 999px; font-size: 12px; background: var(--surface); color: var(--muted); }
+.profile-badge.on { color: var(--ok); }
 .account-links { margin: 0; }
 .account-links .link.small { font-size: 13px; }
 .form-error { margin: 0; padding: 10px 14px; border-radius: 12px; background: #2c1a20; color: #f08a8f; font-size: 14px; }
@@ -351,6 +360,7 @@ dialog::backdrop { background: rgba(0, 0, 0, .7); }
 .export-option:disabled { opacity: .5; }
 .export-option strong { font-weight: 600; }
 .deck-name { width: 100%; font-size: 20px; font-weight: 600; margin: 4px 0 12px; background: transparent; }
+.deck-share { flex-wrap: wrap; column-gap: 10px; row-gap: 0; margin: -6px 0 10px; }
 .deck-name:hover { background: var(--surface); }
 /* Las cuatro cifras del mazo en una sola franja dividida. */
 .deck-stats { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--surface); border-radius: 16px; }
@@ -444,11 +454,11 @@ button.dt-empty:focus-visible { outline: 2px solid var(--text); outline-offset: 
 .match-field { display: flex; flex-direction: column; gap: 8px; }
 .match-label { font-size: 13px; color: var(--muted); }
 .match-field input, .match-field select { width: 100%; }
-.match-field textarea {
+.match-field textarea, .account-form textarea {
   width: 100%; font: inherit; color: var(--text); background: var(--surface-2); border: 1px solid transparent;
   border-radius: 16px; padding: 10px 14px; resize: vertical;
 }
-.match-field textarea:focus { outline: none; border-color: var(--muted); }
+.match-field textarea:focus, .account-form textarea:focus { outline: none; border-color: var(--muted); }
 dialog input[type=date] {
   font: inherit; color: var(--text); background: var(--surface-2); border: 1px solid transparent;
   border-radius: 999px; min-height: 44px; padding: 0 16px; color-scheme: dark;

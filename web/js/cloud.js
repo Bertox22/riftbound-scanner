@@ -28,6 +28,7 @@ export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 export const cloud = {
   state: 'off',
   username: null,
+  profile: null, // { username, display_name, bio, city, is_public } cuando se ha leído
   lastSync: null,
   error: null,
 };
@@ -62,6 +63,7 @@ async function getClient() {
 
 function setSession(s) {
   session = s;
+  cloud.profile = null;
   if (!s) {
     cloud.username = null;
     setState('off');
@@ -69,6 +71,36 @@ function setSession(s) {
   }
   cloud.username = s.user.user_metadata?.username ?? s.user.email.split('@')[0];
   syncNow();
+  loadProfile().catch((err) => console.error(err));
+}
+
+// ---------- Perfil ----------
+// El usuario no se cambia desde la app: las cuentas antiguas entran con él.
+
+const PROFILE_COLUMNS = 'username,display_name,bio,city,is_public';
+
+/** Lee el perfil propio. El usuario de verdad es el de la tabla (los metadatos del alta no cambian). */
+export async function loadProfile() {
+  if (!session) return null;
+  const sb = await getClient();
+  const { data, error } = await sb.from('profiles').select(PROFILE_COLUMNS).eq('id', session.user.id).maybeSingle();
+  if (error) throw error;
+  cloud.profile = data;
+  if (data) cloud.username = data.username;
+  listeners.forEach((fn) => fn(cloud));
+  return data;
+}
+
+/** Guarda nombre visible, bio, ciudad y si el perfil es público. */
+export async function saveProfile({ display_name, bio, city, is_public }) {
+  check(session, 'Inicia sesión para editar tu perfil.');
+  const clean = (s, max) => (s ?? '').trim().slice(0, max) || null;
+  const row = { display_name: clean(display_name, 40), bio: clean(bio, 280), city: clean(city, 60), is_public: !!is_public };
+  const sb = await getClient();
+  const { data, error } = await sb.from('profiles').update(row).eq('id', session.user.id).select(PROFILE_COLUMNS).single();
+  if (error) throw new Error(authMessage(error));
+  cloud.profile = data;
+  listeners.forEach((fn) => fn(cloud));
 }
 
 /** ¿Viene la página de un enlace del correo (confirmar cuenta o nueva contraseña)? */
@@ -251,7 +283,7 @@ function canon(value) {
   if (value && typeof value === 'object') return `{${Object.keys(value).sort().map((k) => `${JSON.stringify(k)}:${canon(value[k])}`).join(',')}}`;
   return JSON.stringify(value ?? null);
 }
-const deckKey = (d) => canon({ name: d.name, legend: d.legend, champion: d.champion, main: d.main, runes: d.runes, battlefields: d.battlefields, sideboard: d.sideboard ?? {} });
+const deckKey = (d) => canon({ name: d.name, legend: d.legend, champion: d.champion, main: d.main, runes: d.runes, battlefields: d.battlefields, sideboard: d.sideboard ?? {}, shared: !!d.shared });
 const matchKey = (m) => canon({
   at: m.at, deck: m.deck ?? null, my: m.my ?? null, opp: m.opp ?? null, oppName: m.oppName ?? '', result: m.result,
   score: m.score ?? null, points: m.points ?? [], first: m.first ?? null, event: m.event ?? '', notes: m.notes ?? '',
@@ -262,14 +294,14 @@ function toRow(uid, d) {
     user_id: uid, id: d.id, name: (d.name || 'Mazo').slice(0, 80),
     legend_id: d.legend ?? null, champion_id: d.champion ?? null,
     main: d.main ?? {}, runes: d.runes ?? {}, battlefields: d.battlefields ?? [], sideboard: d.sideboard ?? {},
-    deleted_at: null,
+    is_public: !!d.shared, deleted_at: null,
   };
 }
 function fromRow(r) {
   return {
     id: r.id, name: r.name, legend: r.legend_id, champion: r.champion_id,
     main: r.main ?? {}, runes: r.runes ?? {}, battlefields: r.battlefields ?? [], sideboard: r.sideboard ?? {},
-    updated: Date.parse(r.updated_at),
+    shared: !!r.is_public, updated: Date.parse(r.updated_at),
   };
 }
 
