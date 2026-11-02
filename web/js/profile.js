@@ -3,6 +3,7 @@
 // mazos compartidos y tamaño de la colección (estas dos últimas, si el perfil es público).
 
 import { $, el, toast, cardImg, DOMAIN_ES } from './ui.js';
+import { store } from './store.js';
 import { cloud, onCloudChange, fetchProfilePage } from './cloud.js';
 import { followButton } from './friends.js';
 import { record, recordText, rateText, groupBy, statRow, legendThumb, legendChamp, canonicalLegend } from './matches.js';
@@ -55,6 +56,17 @@ function header({ profile, own }) {
       profile.is_public ? 'Así ven tu perfil los demás.' : 'Así ven tu perfil los demás: es privado, así que solo se ven los mazos que compartes.'));
 }
 
+/** Tú contra esta cuenta, con las partidas de tu historial en las que es tu rival con cuenta. */
+function headToHead(profile) {
+  const games = store.matches.filter((m) => m.rival === profile.id);
+  if (!games.length) return null;
+  const r = record(games);
+  return el('div', { class: 'head-to-head' },
+    el('span', { class: 'muted small', text: `Tú contra ${profile.display_name || profile.username}` }),
+    el('strong', { text: recordText(r) }),
+    el('span', { class: 'muted small', text: `${rateText(r)} · ${r.games} partida${r.games === 1 ? '' : 's'}` }));
+}
+
 function stats(matches) {
   if (!matches.length) return null;
   const all = record(matches);
@@ -96,6 +108,7 @@ function render() {
   root.replaceChildren(...[
     el('div', { class: 'section-head' }, back),
     header(page),
+    !page.own && headToHead(profile),
     ...(stats(matches) ?? []),
     el('h3', { class: 'stats-title', text: decks.length ? `Mazos (${decks.length})` : 'Mazos' }),
     decks.length

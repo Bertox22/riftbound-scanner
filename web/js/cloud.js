@@ -190,6 +190,53 @@ export async function unfollow(id) {
   await loadPeople();
 }
 
+// ---------- Partida espejo ----------
+// Un amigo apunta una partida con tu cuenta de rival: te llega para guardarla en tu historial (una
+// partida tuya con mirrorOf = la suya) o descartarla (la misma copia, pero ya borrada). La copia tiene
+// un id fijo sacado de la original, así que aceptarla en dos dispositivos no la duplica.
+
+/** Id de la copia de una partida en esta cuenta (un uuid derivado de la original y de la cuenta). */
+export async function mirrorId(originalId) {
+  const bytes = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`espejo:${originalId}:${session.user.id}`))).slice(0, 16);
+  bytes[6] = (bytes[6] & 0x0f) | 0x50; // versión 5 (por nombre)
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+/**
+ * Partidas que otros han apuntado contra ti y aún no has guardado ni descartado, de la más nueva a
+ * la más antigua: [{ match (formato de la app, desde su lado), author: { id, username, display_name } }].
+ */
+export async function fetchIncoming() {
+  if (!session) return [];
+  const sb = await getClient();
+  const me = session.user.id;
+  const [{ data: rows, error }, { data: mine, error: err2 }] = await Promise.all([
+    sb.from('matches').select('*').eq('opponent_id', me).neq('user_id', me).is('mirror_of', null).is('deleted_at', null).order('played_at', { ascending: false }).limit(50),
+    sb.from('matches').select('mirror_of').eq('user_id', me).not('mirror_of', 'is', null),
+  ]);
+  if (error || err2) throw new Error(authMessage(error ?? err2));
+  const done = new Set(mine.map((r) => r.mirror_of));
+  const pending = rows.filter((r) => !done.has(r.id));
+  if (!pending.length) return [];
+  const { data: authors, error: err3 } = await sb.from('profiles').select('id,username,display_name').in('id', [...new Set(pending.map((r) => r.user_id))]);
+  if (err3) throw new Error(authMessage(err3));
+  const byId = new Map(authors.map((a) => [a.id, a]));
+  return pending.map((r) => ({ match: fromMatchRow(r), author: byId.get(r.user_id) ?? { id: r.user_id, username: '?' } }));
+}
+
+/** "No es mía": guarda la copia ya borrada para que deje de salir. */
+export async function dismissIncoming(original) {
+  const sb = await getClient();
+  const { error } = await sb.from('matches').upsert({
+    id: await mirrorId(original.id), user_id: session.user.id, mirror_of: original.id,
+    played_at: new Date(original.at).toISOString(), result: { win: 'loss', loss: 'win', draw: 'draw' }[original.result],
+    deleted_at: new Date().toISOString(),
+  }, { onConflict: 'id' });
+  if (error) throw new Error(authMessage(error));
+}
+
 /** Guarda nombre visible, bio, ciudad y si el perfil es público. */
 export async function saveProfile({ display_name, bio, city, is_public }) {
   check(session, 'Inicia sesión para editar tu perfil.');
@@ -386,6 +433,7 @@ const deckKey = (d) => canon({ name: d.name, legend: d.legend, champion: d.champ
 const matchKey = (m) => canon({
   at: m.at, deck: m.deck ?? null, my: m.my ?? null, opp: m.opp ?? null, oppName: m.oppName ?? '', result: m.result,
   score: m.score ?? null, points: m.points ?? [], first: m.first ?? null, event: m.event ?? '', notes: m.notes ?? '',
+  rival: m.rival ?? null, mirrorOf: m.mirrorOf ?? null,
 });
 
 function toRow(uid, d) {
@@ -415,6 +463,7 @@ function toMatchRow(uid, m, snap) {
     result: m.result, games_won: won, games_lost: lost, went_first: m.first ?? null,
     event: (m.event || '').slice(0, 80) || null, notes: (m.notes || '').slice(0, 500) || null,
     points: m.points?.length ? m.points : null,
+    opponent_id: m.rival ?? null, mirror_of: m.mirrorOf ?? null,
     deleted_at: null,
   };
 }
@@ -424,6 +473,7 @@ function fromMatchRow(r) {
     oppName: r.opponent_name ?? '', result: r.result,
     score: r.games_won != null && r.games_lost != null ? `${r.games_won}-${r.games_lost}` : null,
     points: r.points ?? [], first: r.went_first, event: r.event ?? '', notes: r.notes ?? '',
+    rival: r.opponent_id ?? null, mirrorOf: r.mirror_of ?? null,
     updated: Date.parse(r.updated_at),
   };
 }
@@ -564,7 +614,16 @@ async function push(uid, snap) {
   const changedMatches = store.matches.filter((m) => snap.matches[m.id] !== matchKey(m));
   for (let i = 0; i < changedMatches.length; i += 500) {
     const chunk = changedMatches.slice(i, i + 500);
-    const { error } = await sb.from('matches').upsert(chunk.map((m) => toMatchRow(uid, m, snap)), { onConflict: 'id' });
+    const upsert = () => sb.from('matches').upsert(chunk.map((m) => toMatchRow(uid, m, snap)), { onConflict: 'id' });
+    let { error } = await upsert();
+    // El rival con cuenta ya no es amigo (la base de datos solo deja poner amigos): la partida se
+    // queda con su nombre, sin el enlace a su cuenta.
+    if (error && /RIVAL_NO_AMIGO/.test(error.message)) {
+      const friends = new Set((await loadPeople()).filter((p) => p.friend).map((p) => p.id));
+      for (const m of chunk) if (m.rival && !friends.has(m.rival)) m.rival = null;
+      store.persist();
+      ({ error } = await upsert());
+    }
     if (error) throw error;
     for (const m of chunk) snap.matches[m.id] = matchKey(m);
     writeSnap(snap);

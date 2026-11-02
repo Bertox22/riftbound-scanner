@@ -3,12 +3,14 @@
 // Partida: { id, at (fecha, ms), deck (id del mazo o null), my y opp (Leyendas), oppName,
 //            result ('win' | 'loss' | 'draw'), score ('2-1'… o null), points (puntos de cada juego:
 //            [[8, 7], [5, 8]], tuyos y del rival), first (true: empecé yo, false: el rival, null: sin
-//            apuntar), event, notes, updated }
+//            apuntar), event, notes, rival (id de la cuenta del rival, si es un amigo), mirrorOf (si es
+//            la copia de una partida que apuntó el rival), updated }
 // Las Leyendas se guardan con un id "canónico" por Leyenda (no por impresión), para que la foil,
 // la Metal o la Signature cuenten como la misma al sacar estadísticas.
 
 import { store } from './store.js';
 import { $, el, toast, cardImg } from './ui.js';
+import { cloud, onCloudChange, fetchIncoming, dismissIncoming, mirrorId } from './cloud.js';
 
 const RESULTS = { win: 'Victoria', loss: 'Derrota', draw: 'Empate' };
 const RESULT_SHORT = { win: 'V', loss: 'D', draw: 'E' };
@@ -57,7 +59,7 @@ const deckById = (id) => store.decks.find((d) => d.id === id);
 const lastDeck = () => store.matches.find((m) => m.deck && deckById(m.deck))?.deck ?? store.decks[0]?.id ?? null;
 
 function blankMatch() {
-  return { id: crypto.randomUUID?.() ?? String(Date.now()), at: Date.now(), deck: lastDeck(), my: null, opp: null, oppName: '', result: null, score: null, points: [[null, null]], first: null, event: '', notes: '' };
+  return { id: crypto.randomUUID?.() ?? String(Date.now()), at: Date.now(), deck: lastDeck(), my: null, opp: null, oppName: '', result: null, score: null, points: [[null, null]], first: null, event: '', notes: '', rival: null, mirrorOf: null };
 }
 
 // ---------- Puntos ----------
@@ -233,6 +235,7 @@ function renderStats(list) {
 }
 
 function render() {
+  renderIncoming();
   if (deckFilter && !store.matches.some((m) => (m.deck ?? 'none') === deckFilter)) deckFilter = '';
   const list = filtered();
   renderStats(list);
@@ -254,10 +257,112 @@ function segmented(name, options, value, onpick, cls = '') {
     }, label)));
 }
 
-function openSheet(existing, deckId = null) {
+/**
+ * Rival con cuenta: uno de tus amigos. La partida le llega para que la guarde en su historial con el
+ * resultado al revés. Solo sale si tienes amigos (o si la partida ya lleva uno).
+ */
+function rivalField(m, draw) {
+  const friends = (cloud.people ?? []).filter((p) => p.friend);
+  const options = friends.map((p) => [p.id, p.display_name || p.username, p.username]);
+  if (m.rival && !options.some(([id]) => id === m.rival)) options.push([m.rival, m.oppName || 'Rival', m.oppName]);
+  if (!options.length) return null;
+  const chosen = options.find(([id]) => id === m.rival);
+  return el('div', { class: 'match-field' },
+    el('span', { class: 'match-label', text: 'Contra un amigo (opcional)' }),
+    segmented('Rival con cuenta', [[null, 'Ninguno'], ...options.map(([id, label]) => [id, label])], m.rival ?? null, (v) => {
+      // El nombre del rival sigue al amigo elegido, salvo que se haya escrito otro a mano.
+      const prev = options.find(([id]) => id === m.rival);
+      if (prev && m.oppName === prev[2]) m.oppName = '';
+      m.rival = v;
+      const next = options.find(([id]) => id === v);
+      if (next && !m.oppName) m.oppName = next[2];
+      draw();
+    }),
+    chosen && el('p', { class: 'muted small', text: m.mirrorOf ? `Copia de la partida que apuntó ${chosen[1]}.` : `Le llegará a ${chosen[1]} para que la guarde en su historial.` }));
+}
+
+// ---------- Partidas que te han apuntado (partida espejo) ----------
+
+let incoming = []; // [{ match, author }], la partida tal como la apuntó el otro
+let incomingAt = 0;
+
+const flip = { win: 'loss', loss: 'win', draw: 'draw' };
+
+/** La partida de tu amigo vista desde tu lado: resultado, marcador, puntos, Leyendas y quién empezó al revés. */
+async function mirrored({ match: o, author }) {
+  const isFriend = cloud.people?.some((p) => p.id === author.id && p.friend);
+  return {
+    ...blankMatch(),
+    id: await mirrorId(o.id), at: o.at, my: o.opp, opp: o.my, result: flip[o.result],
+    score: o.score ? o.score.split('-').reverse().join('-') : null,
+    points: o.points?.length ? o.points.map(([a, b]) => [b, a]) : [[null, null]],
+    first: o.first == null ? null : !o.first, event: o.event ?? '',
+    oppName: author.username, rival: isFriend ? author.id : null, mirrorOf: o.id,
+  };
+}
+
+async function refreshIncoming(force = false) {
+  if (!cloud.username || (!force && Date.now() - incomingAt < 60_000)) return;
+  incomingAt = Date.now();
+  try {
+    incoming = await fetchIncoming();
+  } catch (err) {
+    console.error(err);
+    return;
+  }
+  render();
+}
+
+function incomingCard(item) {
+  const { match: o, author } = item;
+  const name = author.display_name || author.username;
+  const mine = ctx.byId.get(o.opp), theirs = ctx.byId.get(o.my);
+  const res = flip[o.result];
+  const what = [
+    res === 'draw' ? 'Empate' : res === 'win' ? 'Ganaste tú' : `Ganó ${name}`,
+    o.score && o.score.split('-').sort((a, b) => b - a).join('–'), // el ganador primero: "2–1"
+  ].filter(Boolean).join(' ');
+  const legends = [mine && `tú con ${legendChamp(mine)}`, theirs && `${name} con ${legendChamp(theirs)}`].filter(Boolean).join(', ');
+  return el('li', { class: 'incoming-row' },
+    el('span', { class: `match-result ${res}`, title: RESULTS[res], 'aria-label': RESULTS[res] }, RESULT_SHORT[res]),
+    el('div', { class: 'grow' },
+      el('strong', { text: `${name} apuntó una partida contra ti` }),
+      el('div', { class: 'muted small', text: [what, legends, fmtDay(o.at), o.event].filter(Boolean).join(' · ') }),
+      el('div', { class: 'actions' },
+        el('button', { class: 'btn primary small', onclick: async () => openSheet(null, null, await mirrored(item)) }, 'Guardar en mi historial'),
+        el('button', {
+          class: 'btn ghost small',
+          onclick: async (e) => {
+            const btn = e.currentTarget;
+            btn.disabled = true;
+            try {
+              await dismissIncoming(o);
+              incoming = incoming.filter((x) => x !== item);
+              render();
+            } catch (err) {
+              toast(err.message);
+              btn.disabled = false;
+            }
+          },
+        }, 'Descartar'))));
+}
+
+function renderIncoming() {
+  const box = $('#match-incoming');
+  // Las que ya están en tu historial (también las guardadas en otro dispositivo) no se vuelven a ofrecer.
+  const have = new Set(store.matches.map((m) => m.mirrorOf).filter(Boolean));
+  const list = incoming.filter((x) => !have.has(x.match.id));
+  box.replaceChildren(...(list.length ? [
+    el('h3', { class: 'stats-title', text: list.length === 1 ? 'Te han apuntado una partida' : `Te han apuntado ${list.length} partidas` }),
+    el('ul', { class: 'incoming-list' }, ...list.map(incomingCard)),
+  ] : []));
+}
+
+/** existing: partida a editar. draft: partida nueva ya rellena (la copia de una partida espejo). */
+function openSheet(existing, deckId = null, draft = null) {
   const dlg = $('#match-dialog');
   const editing = !!existing;
-  const m = existing ? structuredClone(existing) : blankMatch();
+  const m = existing ? structuredClone(existing) : draft ?? blankMatch();
   if (deckId) m.deck = deckId;
   if (!m.points?.length) m.points = [[null, null]];
   let choosing = false; // mostrando la cuadrícula de Leyendas
@@ -320,7 +425,7 @@ function openSheet(existing, deckId = null) {
     const decks = store.decks;
     dlg.replaceChildren(
       el('div', { class: 'dialog-head' },
-        el('h2', { text: editing ? 'Editar partida' : 'Apuntar partida' }),
+        el('h2', { text: editing ? 'Editar partida' : draft ? 'Guardar en tu historial' : 'Apuntar partida' }),
         el('button', { class: 'icon-btn', type: 'button', title: 'Cerrar', 'aria-label': 'Cerrar', onclick: () => dlg.close() }, '✕')),
       el('form', {
         class: 'match-form',
@@ -329,7 +434,7 @@ function openSheet(existing, deckId = null) {
           if (!m.result) return toast('Elige el resultado.');
           saveMatch(m);
           dlg.close();
-          toast(editing ? 'Partida guardada' : `${RESULTS[m.result]} apuntada`);
+          toast(editing || draft ? 'Partida guardada' : `${RESULTS[m.result]} apuntada`);
         },
       },
         el('div', { class: 'match-field' },
@@ -353,6 +458,7 @@ function openSheet(existing, deckId = null) {
           }, opp ? cardImg(opp, 'thumb small') : null,
           el('span', { class: 'grow' }, opp ? legendTitle(opp) : 'Elegir Leyenda'),
           el('span', { class: 'muted small', text: opp ? 'Cambiar' : '' }))),
+        rivalField(m, draw),
         el('label', { class: 'match-field' },
           el('span', { class: 'match-label', text: 'Nombre del rival (opcional)' }),
           el('input', { value: m.oppName, maxlength: 40, autocomplete: 'off', oninput: (e) => { m.oppName = e.target.value; } })),
@@ -415,5 +521,7 @@ export function initMatches(context) {
   buildLegends();
   $('#btn-new-match').addEventListener('click', () => openSheet(null));
   store.onChange((what) => (what === 'matches' || what === 'decks') && render());
+  // Las partidas espejo se miran al abrir la app y, como mucho, una vez por minuto al sincronizar.
+  onCloudChange(() => cloud.state === 'idle' && refreshIncoming());
   render();
 }
