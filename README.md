@@ -1,25 +1,49 @@
 # Riftbound Scanner
 
-Aplicación web para registrar tu colección de cartas de **Riftbound** con la cámara del móvil
-y armar mazos con las cartas que tienes.
+Aplicación web para registrar tu colección de cartas de **Riftbound** con la cámara del móvil,
+armar mazos con las cartas que tienes y apuntar tus partidas. Con una cuenta, todo se sincroniza
+entre tus dispositivos.
 
 **App:** https://bertox22.github.io/riftbound-scanner/
 
 - **Escanear:** pones cada carta dentro del recuadro y se añade sola en cuanto la reconoce (con
   vibración y pitido). Si duda, te enseña las candidatas para que toques la correcta. Para añadir
   varias copias iguales seguidas basta con retirar la carta del recuadro y poner la siguiente.
-- **Colección:** filtros por set, tipo y dominio, cantidades normales/foil, exportación a Excel/CSV y
-  copia de seguridad en JSON.
+  Cada carta escaneada tiene su fila con − n + (suma o quita copias de la colección al momento; con
+  0 desaparece) y al tocarla se abre una hoja con copias normales y foil, la versión, la ficha y
+  "Quitar".
+- **Colección:** filtros por set, tipo (incluido "Campeón", que son las unidades Campeón) y dominio,
+  cantidades normales/foil, exportación a Excel/CSV y copia de seguridad en JSON.
 - **Importar:** cualquier Excel o CSV (o una lista pegada tipo "3x Arena Kingpin"). La app adivina
   las columnas (código, set, nº, nombre, copias, foil), busca cada carta por código, por nombre o
   por nombre aproximado, y enseña todo para revisarlo antes de sumar o reemplazar la colección.
 - **Mazos:** Leyenda, Campeón, mazo principal (40), Runas (12), Campos de batalla (3) y sideboard
   (hasta 10 cartas, que cuentan para el máximo de 3 copias; se pasan cartas 1 por 1 entre mazo y
-  sideboard), con
-  validación de reglas (dominios, máximo 3 copias, cartas de firma) y aviso de las cartas que te faltan.
-  Cada mazo se exporta como lista de texto, Excel (con resumen: curva, avisos, cartas que faltan) o
-  CSV, y también todos a la vez. Se pueden importar listas de cualquier web (secciones Legend/Champion/Main Deck/Runes/Battlefields
-  opcionales: lo que no tenga sección se coloca por tipo de carta) o archivos .txt, CSV y Excel.
+  sideboard), con validación de reglas (dominios, máximo 3 copias, cartas de firma) y aviso de las
+  cartas que te faltan. Como máximo 15 mazos (la lista muestra el contador x/15).
+  - El editor es un tablero visual: Leyenda y Campeón | principal; debajo Runas | Campos de
+    batalla; y el sideboard en su propia fila. Cada carta lleva su cantidad (− n +), la flecha para
+    pasarla entre mazo y sideboard y las copias que te faltan como "-n" (también los campos).
+  - Las casillas "+ Añadir…" abren una hoja para añadir varias cartas seguidas, con su propio filtro
+    "Solo las que tengo". Las runas se limitan a los dominios de la Leyenda.
+  - Cada mazo se exporta desde su botón en "Mis mazos" (sin entrar en el editor) como lista de
+    texto, Excel o CSV, o se copia la lista. El Excel abre con la hoja "Mazo" (la lista completa por
+    secciones con copias, código, tipo, coste, si la tienes y precio) y detrás el resumen (curva,
+    avisos, cartas que faltan) y la tabla detallada. También se exportan todos a la vez.
+  - Se pueden importar listas de cualquier web (secciones Legend/Champion/Main Deck/Runes/Battlefields
+    opcionales: lo que no tenga sección se coloca por tipo de carta) o archivos .txt, CSV y Excel.
+- **Partidas:** al acabar una partida apuntas el resultado, tu mazo, la Leyenda del rival (cada
+  Leyenda sale una vez aunque tenga versión foil, Metal o Signature), los puntos de cada juego
+  (8–7, o hasta 3 juegos al mejor de 3: el resultado y el marcador se marcan solos), quién empezó,
+  el evento, la fecha y notas. Las estadísticas muestran el porcentaje de victorias (sin contar
+  empates), el balance V–D–E, cómo te va empezando tú o el rival, y los resultados por mazo y contra
+  cada Leyenda, con un filtro por mazo.
+- **Cuenta (opcional):** el botón de la barra superior abre la cuenta. Con ella, colección, mazos y
+  partidas se guardan en la nube y aparecen en todos tus dispositivos. Sin cuenta la app funciona
+  igual, solo en el dispositivo. Ver [Cuentas y sincronización](#cuentas-y-sincronización).
+
+La pestaña abierta se guarda en la dirección (`#coleccion`, `#mazos`, `#partidas`), así que al
+recargar se vuelve a ella.
 
 **Precios:** cada noche se descargan los precios de Cardmarket (€) y TCGplayer ($) de riftbound.gg.
 La colección muestra el precio de cada carta y el valor total, se puede ordenar por precio, el escáner
@@ -33,6 +57,39 @@ escanearlas, la ficha muestra también el texto impreso y la exportación lleva 
 
 Incluye todos los sets publicados: Origins, Proving Grounds, Spiritforged, Unleashed, Vendetta,
 Radiance y las cartas promocionales.
+
+## Cuentas y sincronización
+
+Las cuentas van con [Supabase](https://supabase.com) (plan gratuito). El esquema y la puesta en
+marcha están en [`supabase/README.md`](supabase/README.md).
+
+- **Crear cuenta:** usuario (el nombre que verán los demás), correo y contraseña. Supabase envía un
+  enlace para confirmar el correo y al abrirlo se vuelve a la app con la sesión iniciada. Los
+  correos salen por SMTP de Brevo.
+- **Entrar** con el correo (las cuentas antiguas, de antes de pedir correo, entran con su usuario).
+  "¿Has olvidado la contraseña?" envía un enlace y la app pide la nueva.
+- **Sincronización:** el `localStorage` sigue siendo la copia de trabajo. Con la sesión iniciada,
+  cada cambio se sube a los pocos segundos y al abrir la app o volver a ella se baja lo que haya
+  cambiado en otros dispositivos. Sin conexión sigue funcionando y sube lo pendiente al volver. El
+  punto del botón de cuenta indica el estado.
+- La app compara lo local con una "foto" de lo que hay en la nube (`rb.sync.v1`) y sube solo lo
+  que difiere. Si la misma carta, mazo o partida cambia en dos dispositivos sin conexión, gana el
+  último que sube. Los mazos y partidas borrados se marcan (`deleted_at`) para que el borrado llegue
+  a los demás dispositivos.
+- **La primera vez** que una cuenta con datos entra en un dispositivo con datos, la app pregunta si
+  juntarlos, quedarse con los de la cuenta o subir los del dispositivo.
+- Si a una cuenta le falta su perfil, la app lo repara sola (`ensure_profile()`) y solo cierra la
+  sesión si Supabase confirma que la cuenta ya no existe.
+- Sin sesión no se carga Supabase. En la web solo va la clave pública (publishable); la clave
+  secreta no se pone nunca en la app.
+
+## Diseño
+
+Negro neutro con capas por luminosidad y tipografía Inter con cifras tabulares. El dorado queda
+para los datos (copias, precios, la carta reconocida, el porcentaje de victorias). Botones en
+pastilla (el principal en blanco), casillas como interruptores, diálogos como hoja inferior en el
+móvil y animaciones que respetan "reducir movimiento". El recuadro guía del escáner no cambia de
+tamaño ni de posición: `scanner.js` recorta con él.
 
 ## Cómo funciona el reconocimiento
 
@@ -49,7 +106,10 @@ la cámara: se propone la edición normal y puedes cambiar la versión en la lis
 
 ```
 web/                 la app (estática, se puede publicar tal cual)
-  index.html, styles.css, js/
+  index.html, styles.css
+  js/                app.js (escáner y colección), decks.js, matches.js (partidas),
+                     cloud.js y account-ui.js (cuenta y sincronización), store.js (localStorage),
+                     import-ui.js, importer.js, export.js, prices.js, recognizer.js, scanner.js
   data/cards.json    datos de las cartas
   data/index.*       embeddings de referencia
   models/            modelo ONNX
@@ -60,6 +120,7 @@ tools/
   build_index.py     calcula los embeddings de referencia
   calibrate.py       mide la precisión y propone umbrales
   eval_models.py     comparativa de modelos (usada para elegir DINOv2)
+supabase/            esquema de la base de datos (scripts SQL por fases) y su README
 ```
 
 ## Probar en el PC
@@ -84,8 +145,10 @@ la web se sirva por **HTTPS** (los navegadores no dejan usar la cámara en http)
    `https://<tu-usuario>.github.io/riftbound-scanner/`. Ábrela en el móvil y usa
    "Añadir a pantalla de inicio" para tenerla como una app.
 
-La colección se guarda en el navegador del móvil (localStorage). Usa **Colección → Exportar copia**
-de vez en cuando para no perderla si borras los datos del navegador.
+Sin cuenta, la colección, los mazos y las partidas se guardan solo en el navegador (localStorage:
+`rb.collection.v1`, `rb.decks.v1`, `rb.matches.v1`). Usa **Colección → Exportar copia** de vez en
+cuando para no perderlos si borras los datos del navegador, o crea una cuenta para tenerlos en la
+nube. La copia JSON incluye colección, mazos y partidas.
 
 ## Actualización automática (diaria)
 

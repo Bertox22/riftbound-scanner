@@ -20,14 +20,18 @@ de la carta (`ven-116-166`) y la app lo cruza con ese archivo, como hace hoy con
 ## Puesta en marcha
 
 1. Crear un proyecto en [supabase.com](https://supabase.com) (plan gratuito).
-2. **Authentication → Sign In / Providers → Email:** activado, y **"Confirm email" desactivado**
-   (el inicio de sesión será con usuario y contraseña; la app convierte el usuario en un correo
-   interno que no recibe nada).
+2. **Authentication → Sign In / Providers → Email:** activado, con **"Confirm email" activado**
+   (la cuenta se confirma con un enlace al correo; así no se pueden crear cuentas sin límite).
+   **Authentication → Emails → SMTP Settings:** un SMTP propio para que los correos lleguen (se usa
+   Brevo: `smtp-relay.brevo.com`, puerto 587, con su usuario y clave SMTP; en Brevo, sin bloqueo de
+   IP para las claves SMTP). El SMTP de prueba de Supabase solo envía a los miembros del proyecto.
 3. **SQL Editor:** pegar y ejecutar `01_cuentas.sql`, luego `02` a `07`, en orden. Se pueden repetir sin problema.
 4. **Project Settings → API:** copiar la *Project URL* y la clave *anon / publishable*. Son las únicas
    que van en la web. La clave *service_role / secret* no se pone nunca en la web.
-5. **Authentication → URL Configuration:** añadir las direcciones desde las que se usa la app
-   (`https://bertox22.github.io` y `http://localhost:8000`).
+5. **Authentication → URL Configuration:** *Site URL* `https://bertox22.github.io/riftbound-scanner/`
+   y en *Redirect URLs* las direcciones desde las que se usa la app
+   (`https://bertox22.github.io/riftbound-scanner/` y `http://localhost:8000/`): los enlaces de
+   confirmar cuenta y de nueva contraseña vuelven ahí.
 
 ## Seguridad
 
@@ -38,4 +42,7 @@ de la carta (`ven-116-166`) y la app lo cruza con ese archivo, como hace hoy con
   con quién cambiar.
 - El estado de un intercambio solo cambia con `set_trade_status()`, que comprueba quién puede hacer
   qué (quien recibe acepta o rechaza; quien propone puede cancelar).
-- El nombre de usuario no se puede cambiar desde la web, porque es con lo que se inicia sesión.
+- El nombre de usuario no se puede cambiar desde la web (las cuentas antiguas inician sesión con él).
+- El perfil (`profiles`) lo crea el alta. No hay que borrar filas de `profiles` a mano: se borran
+  en cascada la colección, los mazos y las partidas de esa cuenta. Si falta, `ensure_profile()` lo
+  vuelve a crear (vacío).
