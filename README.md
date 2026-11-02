@@ -30,6 +30,8 @@ entre tus dispositivos.
     texto, Excel o CSV, o se copia la lista. El Excel abre con la hoja "Mazo" (la lista completa por
     secciones con copias, código, tipo, coste, si la tienes y precio) y detrás el resumen (curva,
     avisos, cartas que faltan) y la tabla detallada. También se exportan todos a la vez.
+  - En "Mis mazos" cada mazo con partidas muestra su balance (p. ej. "7–3 · 70 %") y el botón del
+    trofeo apunta una partida con ese mazo ya elegido.
   - Se pueden importar listas de cualquier web (secciones Legend/Champion/Main Deck/Runes/Battlefields
     opcionales: lo que no tenga sección se coloca por tipo de carta) o archivos .txt, CSV y Excel.
 - **Partidas:** al acabar una partida apuntas el resultado, tu mazo, la Leyenda del rival (cada

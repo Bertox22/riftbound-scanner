@@ -396,6 +396,17 @@ function openSheet(existing, deckId = null) {
   dlg.showModal();
 }
 
+/** Balance de un mazo para la lista de mazos ("7–3 · 70 %"), o null si aún no tiene partidas. */
+export function deckRecord(deckId) {
+  const list = store.matches.filter((m) => m.deck === deckId);
+  if (!list.length) return null;
+  const r = record(list);
+  return {
+    text: `${recordText(r)}${r.rate == null ? '' : ` · ${rateText(r)}`}`,
+    title: `${r.games} partida${r.games === 1 ? '' : 's'}: ${r.win} V, ${r.loss} D${r.draw ? `, ${r.draw} E` : ''}`,
+  };
+}
+
 /** Abre la hoja para apuntar una partida (con un mazo ya elegido, si se pasa). */
 export const newMatch = (deckId) => openSheet(null, deckId);
 

@@ -337,6 +337,7 @@ dialog::backdrop { background: rgba(0, 0, 0, .7); }
 .deck-row .muted { color: var(--faint); }
 .deck-row .deck-export { background: transparent; color: var(--muted); }
 .deck-row .deck-export:hover { background: var(--surface-2); color: var(--text); }
+.deck-row .deck-record { color: var(--accent); font-variant-numeric: tabular-nums; font-weight: 600; font-size: 13px; margin-top: 2px; }
 /* Hoja "Exportar": una opción por formato, con lo que contiene debajo. */
 .export-options { display: flex; flex-direction: column; gap: 8px; }
 .export-option {

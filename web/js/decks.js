@@ -15,6 +15,7 @@ import { store } from './store.js';
 import { $, el, toast, cardImg, cardCode, baseName, download, matchesType, DOMAIN_ES, TYPE_ES } from './ui.js';
 import { exportDeckExcel, exportDeckCsv, exportAllDecksExcel, exportAllDecksCsv, exportAllDecksText } from './export.js';
 import { unitPrice, eur } from './prices.js';
+import { deckRecord, newMatch } from './matches.js';
 
 const MAIN_TYPES = new Set(['Unit', 'Spell', 'Gear']);
 const MAIN_SIZE = 40, RUNES = 12, BATTLEFIELDS = 3, MAX_COPIES = 3, MAX_SIGNATURE = 3, SIDEBOARD = 10;
@@ -248,6 +249,7 @@ function renderList() {
   for (const deck of store.decks) {
     const legend = ctx.byId.get(deck.legend);
     const { issues, missing, sideCount } = validate(deck);
+    const rec = deckRecord(deck.id);
     list.append(
       el('li', { class: 'deck-row', onclick: () => openEditor(deck) },
         legend ? cardImg(legend, 'thumb small') : el('div', { class: 'thumb small placeholder' }, '?'),
@@ -255,7 +257,12 @@ function renderList() {
           el('strong', { text: deck.name }),
           el('div', { class: 'muted', text: (legend ? `${champTag(legend)} · ${legend.domain.map((d) => DOMAIN_ES[d] || d).join(' / ')}` : 'Sin leyenda') + (sideCount ? ` · sideboard ${sideCount}` : '') }),
           el('div', { class: issues.length ? 'warn' : 'ok', text: issues.length ? `${issues.length} pendiente(s)` : 'Mazo válido' + (missing.length ? ` · faltan ${missing.reduce((a, [, n]) => a + n, 0)} cartas` : '') }),
+          rec && el('div', { class: 'deck-record', title: rec.title, text: rec.text }),
         ),
+        el('button', {
+          class: 'icon-btn deck-export', title: 'Apuntar partida con este mazo', 'aria-label': `Apuntar partida con ${deck.name}`,
+          onclick: (e) => { e.stopPropagation(); newMatch(deck.id); },
+        }, icon('trophy')),
         el('button', {
           class: 'icon-btn deck-export', title: 'Exportar este mazo', 'aria-label': `Exportar ${deck.name}`,
           onclick: (e) => { e.stopPropagation(); exportSheet(deck); },
@@ -286,6 +293,7 @@ const ICONS = {
   up: '<path d="M12 19V5M6 11l6-6 6 6"/>',
   x: '<path d="M6 6l12 12M18 6 6 18"/>',
   download: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
+  trophy: '<path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5.5v1.5A2.5 2.5 0 0 0 8 10M16 6h2.5v1.5A2.5 2.5 0 0 1 16 10M12 13v4M8.5 20h7M10 17h4v3h-4z"/>',
 };
 function icon(name) {
   const span = el('span', { class: 'icon', 'aria-hidden': 'true' });
