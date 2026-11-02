@@ -545,6 +545,25 @@ function missingCost(missing) {
   return missing.reduce((a, [c, n]) => a + (unitPrice(c.id) ?? 0) * n, 0);
 }
 
+/** Lo que te falta de tu colección para un mazo (también de otro jugador): { missing: [[carta, n]], count, cost }. */
+export function missingFor(deck) {
+  const { missing } = validate(deck);
+  return { missing, count: missing.reduce((a, [, n]) => a + n, 0), cost: missingCost(missing) };
+}
+
+/** Copia el mazo de otro jugador a tus mazos y lo abre en el editor. Devuelve false si no cabe. */
+export function copyToMyDecks(deck, owner) {
+  if (!canAddDeck()) return false;
+  const copy = {
+    ...newDeck(), name: `${deck.name} (de ${owner})`.slice(0, 80), legend: deck.legend, champion: deck.champion,
+    main: structuredClone(deck.main), runes: structuredClone(deck.runes), battlefields: [...deck.battlefields], sideboard: structuredClone(deck.sideboard ?? {}),
+  };
+  store.decks.unshift(copy);
+  store.saveDecks();
+  openEditor(copy);
+  return true;
+}
+
 function stat(label, n, target) {
   // Principal: al menos 40. Sideboard: hasta 10 (vacío también vale). El resto: exacto.
   const ok = label === 'Principal' ? n >= target : label === 'Sideboard' ? n <= target : n === target;

@@ -43,8 +43,21 @@ entre tus dispositivos.
 - **Cuenta (opcional):** el botón de la barra superior abre la cuenta. Con ella, colección, mazos y
   partidas se guardan en la nube y aparecen en todos tus dispositivos. Sin cuenta la app funciona
   igual, solo en el dispositivo. Ver [Cuentas y sincronización](#cuentas-y-sincronización).
+- **Perfil y amigos (con cuenta):**
+  - En la cuenta editas tu perfil (nombre visible, ciudad, «Sobre ti») y eliges si es público.
+    Cada mazo se puede compartir por separado desde el editor («Compartir este mazo»).
+  - Tu perfil tiene su enlace, `#@usuario` (y `#@usuario/mazo` para un mazo): muestra tus
+    estadísticas, las Leyendas que más juegas y los mazos que compartes. Los perfiles públicos se
+    ven sin cuenta.
+  - En «Amigos» buscas jugadores y los sigues. Si os seguís los dos sois amigos: veis los mazos y
+    las partidas del otro aunque el perfil sea privado.
+  - **Partida espejo:** al apuntar una partida puedes elegir a un amigo como rival. A él le aparece
+    en Partidas para guardarla en su historial con todo al revés (resultado, marcador, puntos,
+    Leyendas y quién empezó) o descartarla. En su perfil ves vuestro cara a cara («Tú contra X»).
+  - **¿Cuánto me falta?:** en el mazo de otro jugador ves qué cartas te faltan de tu colección y lo
+    que costarían en Cardmarket, y puedes copiarlo a tus mazos.
 
-La pestaña abierta se guarda en la dirección (`#coleccion`, `#mazos`, `#partidas`), así que al
+La pestaña abierta se guarda en la dirección (`#coleccion`, `#mazos`, `#partidas`, o `#@usuario` en un perfil), así que al
 recargar se vuelve a ella.
 
 **Precios:** cada noche se descargan los precios de Cardmarket (€) y TCGplayer ($) de riftbound.gg.
@@ -110,7 +123,8 @@ la cámara: se propone la edición normal y puedes cambiar la versión en la lis
 web/                 la app (estática, se puede publicar tal cual)
   index.html, styles.css
   js/                app.js (escáner y colección), decks.js, matches.js (partidas),
-                     cloud.js y account-ui.js (cuenta y sincronización), store.js (localStorage),
+                     cloud.js y account-ui.js (cuenta y sincronización), profile.js (página de
+                     perfil), friends.js (seguir y amigos), store.js (localStorage),
                      import-ui.js, importer.js, export.js, prices.js, recognizer.js, scanner.js
   data/cards.json    datos de las cartas
   data/index.*       embeddings de referencia

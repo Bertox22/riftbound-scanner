@@ -2,7 +2,9 @@
 // demás ven de una cuenta. Datos del perfil, estadísticas de partidas, Leyendas que más juega,
 // mazos compartidos y tamaño de la colección (estas dos últimas, si el perfil es público).
 
-import { $, el, toast, cardImg, DOMAIN_ES } from './ui.js';
+import { $, el, toast, cardImg, cardCode, DOMAIN_ES } from './ui.js';
+import { missingFor, copyToMyDecks } from './decks.js';
+import { unitPrice, eur } from './prices.js';
 import { store } from './store.js';
 import { cloud, onCloudChange, fetchProfilePage } from './cloud.js';
 import { followButton } from './friends.js';
@@ -159,6 +161,15 @@ function group(bag) {
     .sort((a, b) => (a[0].energy ?? 99) - (b[0].energy ?? 99) || a[0].name.localeCompare(b[0].name));
 }
 
+/** ¿Cuánto me falta? Las cartas de este mazo que no tienes en tu colección y lo que costarían. */
+function missingBox(deck) {
+  const { missing, count, cost } = missingFor(deck);
+  if (!count) return el('p', { class: 'ok missing-ok', text: '✓ Tienes todas las cartas de este mazo en tu colección.' });
+  return el('details', { class: 'missing' },
+    el('summary', { text: `Te faltan ${count} carta${count === 1 ? '' : 's'} de tu colección${cost ? ` (≈ ${eur(cost)} en Cardmarket)` : ''}` }),
+    el('ul', {}, missing.map(([c, n]) => el('li', { text: `${n}× ${c.name} (${cardCode(c)})${unitPrice(c.id) != null ? ` · ${eur(unitPrice(c.id) * n)}` : ''}` }))));
+}
+
 function openDeck(deck) {
   const dlg = $('#picker-dialog');
   const { byId } = ctx;
@@ -171,7 +182,15 @@ function openDeck(deck) {
       el('h2', { text: deck.name }),
       el('button', { class: 'icon-btn', title: 'Cerrar', 'aria-label': 'Cerrar', onclick: () => dlg.close() }, '✕')),
     el('p', { class: 'muted small', text: `De @${owner}` }),
+    !page.own && missingBox(deck),
     el('div', { class: 'actions' },
+      !page.own && el('button', {
+        class: 'btn primary small',
+        onclick: () => {
+          ctx.showView('decks');
+          if (copyToMyDecks(deck, owner)) { dlg.close(); toast('Mazo copiado a tus mazos'); }
+        },
+      }, 'Copiar a mis mazos'),
       el('button', { class: 'btn ghost small', onclick: () => copyProfileLink(owner, deck.id) }, 'Copiar enlace del mazo')),
     section('Leyenda y Campeón', heads),
     section(`Principal (${sum(deck.main) + (deck.champion ? 1 : 0)})`, group(deck.main)),

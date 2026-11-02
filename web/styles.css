@@ -123,6 +123,8 @@ dialog :is(input[type=search], input[type=password], input[type=email], input:no
 .profile-empty { padding: 40px 0; text-align: center; }
 .profile-collection { margin-top: 16px; }
 #view-profile .deck-list { margin-bottom: 8px; }
+#picker-dialog .missing, .missing-ok { margin: 4px 0 12px; }
+#picker-dialog .missing { background: var(--surface-2); }
 .account-links { margin: 0; }
 .account-links .link.small { font-size: 13px; }
 .form-error { margin: 0; padding: 10px 14px; border-radius: 12px; background: #2c1a20; color: #f08a8f; font-size: 14px; }
