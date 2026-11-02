@@ -128,6 +128,19 @@ export async function fetchProfilePage(username) {
   };
 }
 
+/**
+ * Cartas que se quitaron del todo (su fila en la nube quedó a 0), las más recientes primero:
+ * [{ id, at }]. Sirve para ver lo quitado antes de que existiera el historial o en otro dispositivo.
+ */
+export async function fetchRemovedCards(limit = 30) {
+  if (!session) return [];
+  const sb = await getClient();
+  const { data, error } = await sb.from('collection_items').select('card_id,updated_at')
+    .eq('user_id', session.user.id).eq('normal', 0).eq('foil', 0).order('updated_at', { ascending: false }).limit(limit);
+  if (error) throw new Error(authMessage(error));
+  return data.map((r) => ({ id: r.card_id, at: Date.parse(r.updated_at) }));
+}
+
 // ---------- Seguir y amigos ----------
 // Amigos = os seguís los dos (la base de datos les deja ver mazos y partidas del otro).
 
@@ -259,7 +272,7 @@ const fromAuthLink = () => /access_token=|error_description=|type=(signup|recove
 export async function initCloud({ ask, recovery }) {
   askChoice = ask;
   onRecovery = recovery;
-  store.onChange(() => schedulePush());
+  store.onChange((what) => what !== 'history' && schedulePush()); // el historial no se sube
   document.addEventListener('visibilitychange', () => document.hidden || syncNow());
   window.addEventListener('online', () => syncNow());
   let saved = false;
@@ -651,6 +664,9 @@ async function pull(uid, snap) {
   for (const r of colRows) {
     snap.lastPull = maxStamp(snap.lastPull, r.updated_at);
     const cur = store.collection[r.card_id];
+    // Lo que se quitó en otro dispositivo también va al historial de este.
+    if (cur && cur.n > r.normal) store.logRemoval(r.card_id, cur.n - r.normal, false, 'otro dispositivo');
+    if (cur && cur.f > r.foil) store.logRemoval(r.card_id, cur.f - r.foil, true, 'otro dispositivo');
     if (r.normal || r.foil) {
       snap.collection[r.card_id] = { n: r.normal, f: r.foil };
       if (cur?.n !== r.normal || cur?.f !== r.foil) { store.collection[r.card_id] = { n: r.normal, f: r.foil }; changed = true; }

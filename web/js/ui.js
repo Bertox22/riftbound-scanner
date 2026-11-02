@@ -17,12 +17,16 @@ export function el(tag, attrs = {}, ...children) {
 }
 
 let toastTimer;
-export function toast(msg, ms = 2200) {
+/** Aviso breve. Con `action` ({ label, onclick }) lleva un botón (p. ej. "Deshacer") y dura más. */
+export function toast(msg, ms = 2200, action = null) {
   const t = $('#toast');
-  t.textContent = msg;
+  const hide = () => t.classList.remove('show', 'has-action');
+  t.replaceChildren(el('span', { text: msg }),
+    action && el('button', { class: 'toast-action', type: 'button', onclick: () => { hide(); action.onclick(); } }, action.label));
   t.classList.add('show');
+  t.classList.toggle('has-action', !!action);
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), ms);
+  toastTimer = setTimeout(hide, action ? Math.max(ms, 5000) : ms);
 }
 
 export function cardImg(card, cls = 'thumb') {

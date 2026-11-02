@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=46">
+  <link rel="stylesheet" href="styles.css?v=47">
   <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.wasm.min.js"></script>
 </head>
 <body>
@@ -86,7 +86,10 @@
           </select>
         </div>
       </div>
-      <p id="col-summary" class="muted"></p>
+      <div class="col-summary-row">
+        <p id="col-summary" class="muted"></p>
+        <button id="btn-col-history" class="btn ghost small" title="Cartas que has quitado de la colección">Historial</button>
+      </div>
       <div id="col-grid" class="grid"></div>
       <div class="section-head">
         <h2>Importar y exportar</h2>

@@ -7,6 +7,7 @@ import { initImport } from './import-ui.js';
 import { initAccount } from './account-ui.js';
 import { initMatches } from './matches.js';
 import { initProfile, routeProfile } from './profile.js';
+import { cloud, fetchRemovedCards } from './cloud.js';
 import { loadPrices, pricesDate, priceInfo, unitPrice, entryValue, eur, usd, VALUABLE_EUR } from './prices.js';
 import { $, el, toast, cardImg, cardCode, baseName, download, matchesType, DOMAIN_ES, TYPE_ES, RARITY_ES } from './ui.js';
 
@@ -114,8 +115,8 @@ function openCard(card) {
           card.printedText && el('details', { class: 'printed' }, el('summary', { text: 'Texto impreso (antiguo)' }), el('p', { class: 'card-text muted', text: readableText(card.printedText) })),
           (card.effect || card.mightBonus != null) && el('p', { class: 'card-text', text: `Unidad equipada: ${[readableText(card.effect), card.mightBonus != null ? `${card.mightBonus >= 0 ? '+' : ''}${card.mightBonus} Might` : ''].filter(Boolean).join(' · ')}` }),
           priceBlock(card),
-          qtyRow('Normales', e.n, (d) => { store.add(card.id, d, false); render(); }),
-          qtyRow('Foil', e.f, (d) => { store.add(card.id, d, true); render(); }),
+          qtyRow('Normales', e.n, (d) => { store.add(card.id, d, false, 'ficha'); render(); }),
+          qtyRow('Foil', e.f, (d) => { store.add(card.id, d, true, 'ficha'); render(); }),
           variants.length > 0 && el('div', {},
             el('h3', { text: 'Otras versiones' }),
             el('div', { class: 'variants' }, variants.map((v) => el('button', { class: 'variant', onclick: () => { card = v; render(); } },
@@ -206,7 +207,7 @@ function addCopy(card, foil) {
 function removeCopy(entry, foil) {
   const k = foil ? 'f' : 'n';
   if (!entry[k]) return;
-  store.add(entry.card.id, -1, foil);
+  store.add(entry.card.id, -1, foil, 'escáner');
   entry[k]--;
   if (!entry.n && !entry.f) {
     session.splice(session.indexOf(entry), 1);
@@ -452,12 +453,97 @@ $('#col-errata').addEventListener('change', (e) => { col.errata = e.target.check
 
 const COL_PAGE = 120;
 let colLimit = COL_PAGE;
+// Cartas que se acaban de quitar del todo con "−": siguen en la cuadrícula (en gris) aunque esté
+// "Solo las que tengo", para que no desaparezcan bajo el dedo. Se olvidan al cambiar el filtro.
+const justEmptied = new Set();
+
+/** "−" en la cuadrícula: quita una copia (la normal antes que la foil) y deja deshacerlo. */
+function removeFromGrid(c, e) {
+  const foil = !e?.n && e?.f > 0;
+  store.add(c.id, -1, foil, 'colección');
+  if (!store.owned(c.id)) justEmptied.add(c.id);
+  renderCollection(true);
+  toast(store.owned(c.id) ? `Quitada una copia de ${c.name}` : `Quitada: ${c.name}`, 5000, {
+    label: 'Deshacer',
+    onclick: () => {
+      const entry = store.history.find((h) => h.id === c.id && h.foil === foil && !h.undone);
+      if (entry) store.undoRemoval(entry, 1); // solo la copia de este "−"
+      else store.add(c.id, 1, foil);
+      renderCollection(true);
+    },
+  });
+}
+
+// ---------- Historial de cartas quitadas ----------
+
+const relTime = new Intl.RelativeTimeFormat('es', { numeric: 'auto' });
+function ago(t) {
+  const s = (Date.now() - t) / 1000;
+  if (s < 60) return 'ahora mismo';
+  if (s < 3600) return relTime.format(-Math.round(s / 60), 'minute');
+  if (s < 86400) return relTime.format(-Math.round(s / 3600), 'hour');
+  if (s < 7 * 86400) return relTime.format(-Math.round(s / 86400), 'day');
+  return new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short', year: 'numeric' }).format(t);
+}
+
+let removedInCloud = null; // null: sin mirar · [] · [{ id, at }]
+
+function historyRow(card, sub, action) {
+  const img = cardImg(card, 'thumb small');
+  img.addEventListener('click', () => openCard(card));
+  return el('li', { class: `history-row${action ? '' : ' undone'}` },
+    img,
+    el('div', { class: 'grow' },
+      el('strong', { text: card.name }),
+      el('span', { class: 'muted small', text: sub })),
+    action || el('span', { class: 'history-done', text: 'Recuperada ✓' }));
+}
+
+function openHistory() {
+  const dlg = $('#picker-dialog');
+  const draw = () => {
+    const local = store.history.filter((h) => byId.has(h.id));
+    // En la nube, las que quedaron a 0 y no están ya en el historial de aquí ni en la colección.
+    const known = new Set(local.map((h) => h.id));
+    const cloudOnly = (removedInCloud ?? []).filter((r) => byId.has(r.id) && !known.has(r.id) && !store.owned(r.id));
+    dlg.replaceChildren(...[
+      el('div', { class: 'dialog-head' },
+        el('h2', { text: 'Cartas quitadas' }),
+        el('button', { class: 'icon-btn', title: 'Cerrar', 'aria-label': 'Cerrar', onclick: () => dlg.close() }, '✕')),
+      local.length
+        ? el('ul', { class: 'history-list' }, ...local.map((h) => {
+          const card = byId.get(h.id);
+          return historyRow(card, `${h.n}×${h.foil ? ' foil' : ''} · ${cardCode(card)} · ${ago(h.at)} · desde ${h.from}`,
+            !h.undone && el('button', { class: 'btn ghost small', onclick: () => { store.undoRemoval(h); toast(`${card.name} vuelve a tu colección`); draw(); } }, 'Deshacer'));
+        }))
+        : el('p', { class: 'muted small', text: 'Aún no has quitado ninguna carta en este dispositivo.' }),
+      cloud.username && el('h3', { class: 'stats-title', text: 'Quitadas del todo (según la nube)' }),
+      cloud.username && el('p', { class: 'muted small', text: 'Cartas de las que te quedaste sin copias, también en otros dispositivos o antes de que existiera el historial. No se sabe cuántas tenías: «Recuperar» añade una.' }),
+      cloud.username && (removedInCloud == null
+        ? el('p', { class: 'muted small', text: 'Mirando en la nube…' })
+        : cloudOnly.length
+          ? el('ul', { class: 'history-list' }, ...cloudOnly.map((r) => {
+            const card = byId.get(r.id);
+            return historyRow(card, `${cardCode(card)} · ${ago(r.at)}`,
+              el('button', { class: 'btn ghost small', onclick: () => { store.add(r.id, 1); toast(`${card.name} vuelve a tu colección`); draw(); } }, 'Recuperar'));
+          }))
+          : el('p', { class: 'muted small', text: 'Ninguna.' })),
+    ].filter(Boolean));
+  };
+  removedInCloud = null;
+  draw();
+  dlg.showModal();
+  if (cloud.username) {
+    fetchRemovedCards().then((rows) => { removedInCloud = rows; }, () => { removedInCloud = []; }).then(() => dlg.open && draw());
+  }
+}
+$('#btn-col-history').addEventListener('click', openHistory);
 
 function renderCollection(keepLimit = false) {
-  if (!keepLimit) colLimit = COL_PAGE;
+  if (!keepLimit) { colLimit = COL_PAGE; justEmptied.clear(); }
   const q = col.q.trim().toLowerCase();
   let list = cards.filter((c) =>
-    (!col.owned || store.owned(c.id) > 0) &&
+    (!col.owned || store.owned(c.id) > 0 || justEmptied.has(c.id)) &&
     (!col.errata || c.errata) &&
     (!col.set || c.set === col.set) &&
     matchesType(c, col.type) &&
@@ -490,7 +576,7 @@ function renderCollection(keepLimit = false) {
         el('span', { class: 'tile-code muted small', text: cardCode(c) }),
         el('span', { class: `tile-price small ${unitPrice(c.id) >= VALUABLE_EUR ? 'price-hot' : 'muted'}`, text: unitPrice(c.id) != null ? eur(unitPrice(c.id)) : ' ' }),
         el('div', { class: 'tile-qty' },
-          el('button', { class: 'icon-btn small', title: 'Quitar una', onclick: () => { store.add(c.id, -1, !e?.n && e?.f > 0); renderCollection(true); }, disabled: !n }, '−'),
+          el('button', { class: 'icon-btn small', title: 'Quitar una', onclick: () => removeFromGrid(c, e), disabled: !n }, '−'),
           el('span', { class: 'qty', text: n }),
           el('button', { class: 'icon-btn small', title: 'Añadir una', onclick: () => { store.add(c.id, 1); renderCollection(true); } }, '+'),
         ),
