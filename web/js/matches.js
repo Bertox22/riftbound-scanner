@@ -45,11 +45,11 @@ function buildLegends() {
 export const canonicalLegend = (id) => (id ? canonicalOf.get(id) ?? id : null);
 
 /** "Jinx · Loose Cannon" */
-function legendTitle(card) {
+export function legendTitle(card) {
   const [champ, title] = card.name.replace(/\s*\([^)]*\)\s*$/, '').replace(/\s+-\s+Starter$/i, '').split(' - ');
   return title ? `${champ} · ${title}` : champ;
 }
-const legendChamp = (card) => legendTitle(card).split(' · ')[0];
+export const legendChamp = (card) => legendTitle(card).split(' · ')[0];
 
 // ---------- Datos ----------
 
@@ -119,7 +119,7 @@ function fromInputDate(value, prev) {
 
 // ---------- Lista ----------
 
-function legendThumb(id) {
+export function legendThumb(id) {
   const card = ctx.byId.get(id);
   return card ? cardImg(card, 'thumb small') : el('div', { class: 'thumb small placeholder', 'aria-hidden': 'true' }, '?');
 }
@@ -149,18 +149,18 @@ function matchRow(m) {
 // ---------- Estadísticas ----------
 // El porcentaje de victorias no cuenta los empates (igual que las vistas de la base de datos).
 
-function record(list) {
+export function record(list) {
   const r = { games: list.length, win: 0, loss: 0, draw: 0 };
   for (const m of list) r[m.result]++;
   const decided = r.win + r.loss;
   r.rate = decided ? Math.round((100 * r.win) / decided) : null;
   return r;
 }
-const recordText = (r) => `${r.win}–${r.loss}${r.draw ? `–${r.draw}` : ''}`;
-const rateText = (r) => (r.rate == null ? '—' : `${r.rate} %`);
+export const recordText = (r) => `${r.win}–${r.loss}${r.draw ? `–${r.draw}` : ''}`;
+export const rateText = (r) => (r.rate == null ? '—' : `${r.rate} %`);
 
 /** Agrupa partidas por una clave y devuelve [clave, récord] de más a menos partidas. */
-function groupBy(list, key) {
+export function groupBy(list, key) {
   const groups = new Map();
   for (const m of list) {
     const k = key(m);
@@ -174,7 +174,7 @@ function rateBar(r) {
   return el('div', { class: 'rate-bar', 'aria-hidden': 'true' }, el('span', { style: `width: ${r.rate ?? 0}%` }));
 }
 
-function statRow(thumb, name, r) {
+export function statRow(thumb, name, r) {
   return el('li', { class: 'stat-row' },
     thumb,
     el('div', { class: 'grow' },

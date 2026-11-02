@@ -48,8 +48,14 @@ let onRecovery = null; // se ha abierto el enlace de "nueva contraseña" del cor
 
 // ---------- Cliente y sesión ----------
 
-async function getClient() {
-  if (client) return client;
+let clientLoading = null; // para que dos llamadas a la vez no creen dos clientes
+
+function getClient() {
+  if (client) return Promise.resolve(client);
+  return (clientLoading ??= makeClient().finally(() => { clientLoading = null; }));
+}
+
+async function makeClient() {
   const { createClient } = await import(SUPABASE_JS);
   client = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
   client.auth.onAuthStateChange((event, s) => {
@@ -89,6 +95,34 @@ export async function loadProfile() {
   if (data) cloud.username = data.username;
   listeners.forEach((fn) => fn(cloud));
   return data;
+}
+
+/**
+ * Lo que se ve del perfil de alguien: los datos del perfil, sus mazos visibles, sus partidas (para
+ * las estadísticas) y su colección, si es pública. Funciona sin sesión con los perfiles públicos
+ * (carga Supabase solo para esto). Del propio perfil se devuelve lo mismo que verían los demás.
+ * Devuelve null si no existe o no se puede ver.
+ */
+export async function fetchProfilePage(username) {
+  const sb = await getClient();
+  const { data: profile, error } = await sb.from('profiles').select(`id,${PROFILE_COLUMNS}`).eq('username', username).maybeSingle();
+  if (error) throw new Error(authMessage(error));
+  if (!profile) return null;
+  // La sesión guardada puede no estar aún en `session` si la página se abre directamente aquí.
+  const { data: { session: current } } = await sb.auth.getSession();
+  const own = profile.id === current?.user.id;
+  const [deckRows, matchRows, colRows] = await Promise.all([
+    selectAll(() => sb.from('decks').select('*').eq('user_id', profile.id).is('deleted_at', null).order('updated_at', { ascending: false }).order('id')),
+    selectAll(() => sb.from('matches').select('deck_id,my_legend_id,opponent_legend_id,result').eq('user_id', profile.id).is('deleted_at', null).order('id')),
+    profile.is_public ? selectAll(() => sb.from('collection_items').select('card_id,normal,foil').eq('user_id', profile.id).order('card_id')) : [],
+  ]);
+  const decks = deckRows.map(fromRow).filter((d) => !own || profile.is_public || d.shared);
+  return {
+    profile, own, decks,
+    // Las partidas de un perfil privado no las ven los demás (ni sus estadísticas).
+    matches: own && !profile.is_public ? [] : matchRows,
+    collection: colRows.filter((r) => r.normal || r.foil),
+  };
 }
 
 /** Guarda nombre visible, bio, ciudad y si el perfil es público. */

@@ -170,7 +170,9 @@ function profileView() {
           el('div', { class: 'muted small', text: [`@${p.username}`, p.city].filter(Boolean).join(' · ') })),
         el('span', { class: `profile-badge${p.is_public ? ' on' : ''}`, text: p.is_public ? 'Público' : 'Privado' })),
       p.bio && el('p', { class: 'profile-bio', text: p.bio }),
-      el('button', { class: 'btn ghost small', type: 'button', onclick: () => { editing = { ...p }; error = ''; render(); } }, 'Editar perfil'));
+      el('div', { class: 'actions' },
+        el('button', { class: 'btn ghost small', type: 'button', onclick: () => { editing = { ...p }; error = ''; render(); } }, 'Editar perfil'),
+        el('button', { class: 'btn ghost small', type: 'button', onclick: () => { dlg().close(); location.hash = `@${p.username}`; } }, 'Ver mi perfil')));
   }
   // Lo escrito se guarda en el borrador al momento: la hoja se repinta cuando cambia la sincronización.
   const read = (f) => ({ display_name: f.display_name.value, city: f.city.value, bio: f.bio.value, is_public: f.is_public.checked });

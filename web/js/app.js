@@ -6,6 +6,7 @@ import { exportCsv, exportExcel, readableText } from './export.js';
 import { initImport } from './import-ui.js';
 import { initAccount } from './account-ui.js';
 import { initMatches } from './matches.js';
+import { initProfile, routeProfile } from './profile.js';
 import { loadPrices, pricesDate, priceInfo, unitPrice, entryValue, eur, usd, VALUABLE_EUR } from './prices.js';
 import { $, el, toast, cardImg, cardCode, baseName, download, matchesType, DOMAIN_ES, TYPE_ES, RARITY_ES } from './ui.js';
 
@@ -21,7 +22,8 @@ const VIEW_HASH = { scan: '', collection: 'coleccion', decks: 'mazos', matches: 
 function showView(name) {
   document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.id === `view-${name}`));
   document.querySelectorAll('.tabbar button').forEach((b) => b.classList.toggle('active', b.dataset.view === name));
-  history.replaceState(null, '', VIEW_HASH[name] ? `#${VIEW_HASH[name]}` : location.pathname + location.search);
+  // El perfil (#@usuario) no es una pestaña: deja su dirección tal cual.
+  if (name in VIEW_HASH) history.replaceState(null, '', VIEW_HASH[name] ? `#${VIEW_HASH[name]}` : location.pathname + location.search);
   if (name !== 'scan' && scanner.running) stopCamera();
   if (name === 'collection') renderCollection();
   window.scrollTo(0, 0);
@@ -542,6 +544,7 @@ $('#import-json').addEventListener('change', async (e) => {
 initDecks({ cards, byId, openCard });
 initImport({ cards, byId, openCard });
 initMatches({ cards, byId, openCard });
+initProfile({ cards, byId, openCard, showView });
 initAccount();
 
 // Lo que hay detrás de la ficha (colección, escaneadas) se actualiza en cuanto cambian copias o
@@ -560,3 +563,4 @@ store.onChange((what) => {
 // Al recargar, vuelve a la pestaña que estaba abierta.
 const startView = Object.keys(VIEW_HASH).find((v) => VIEW_HASH[v] && `#${VIEW_HASH[v]}` === location.hash);
 if (startView) showView(startView);
+else routeProfile();
