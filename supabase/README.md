@@ -13,6 +13,7 @@ molestan aunque la app aún no las use.
 | `05_limite_mazos.sql` | — | Límite de 15 mazos por cuenta (los borrados no cuentan) |
 | `06_perfil_que_falta.sql` | — | Rellena los perfiles que falten y crea `ensure_profile()`, con la que la app repara el suyo |
 | `07_partidas_sync.sql` | 2 · Registro de partidas | Puntos de cada juego y borrado sincronizado (`deleted_at`) en `matches` |
+| `08_amigos.sql` | 3 · Social | Amigos (os seguís los dos) con `are_friends()`, y la partida espejo (`matches.mirror_of`) |
 
 Las cartas no están en la base de datos: siguen en `web/data/cards.json`. Las tablas guardan el id
 de la carta (`ven-116-166`) y la app lo cruza con ese archivo, como hace hoy con el `localStorage`.
@@ -25,7 +26,7 @@ de la carta (`ven-116-166`) y la app lo cruza con ese archivo, como hace hoy con
    **Authentication → Emails → SMTP Settings:** un SMTP propio para que los correos lleguen (se usa
    Brevo: `smtp-relay.brevo.com`, puerto 587, con su usuario y clave SMTP; en Brevo, sin bloqueo de
    IP para las claves SMTP). El SMTP de prueba de Supabase solo envía a los miembros del proyecto.
-3. **SQL Editor:** pegar y ejecutar `01_cuentas.sql`, luego `02` a `07`, en orden. Se pueden repetir sin problema.
+3. **SQL Editor:** pegar y ejecutar `01_cuentas.sql`, luego `02` a `08`, en orden. Se pueden repetir sin problema.
 4. **Project Settings → API:** copiar la *Project URL* y la clave *anon / publishable*. Son las únicas
    que van en la web. La clave *service_role / secret* no se pone nunca en la web.
 5. **Authentication → URL Configuration:** *Site URL* `https://bertox22.github.io/riftbound-scanner/`
@@ -37,7 +38,12 @@ de la carta (`ven-116-166`) y la app lo cruza con ese archivo, como hace hoy con
 
 - Todas las tablas tienen RLS: cada usuario solo escribe lo suyo.
 - Colección, mazos y partidas de otros solo se leen si su perfil es público (`profiles.is_public`).
-  Un mazo suelto se puede compartir con `decks.is_public` aunque el perfil no lo sea.
+  Un mazo suelto se puede compartir con `decks.is_public` aunque el perfil no lo sea. Los amigos
+  (dos cuentas que se siguen mutuamente) ven los mazos y las partidas del otro; la colección, no.
+- Una partida solo puede llevar como rival con cuenta (`opponent_id`) a un amigo, y una copia
+  (`mirror_of`) solo puede ser de una partida en la que eras el rival. Lo comprueba un trigger
+  (`check_match_links`) solo cuando cambian esos campos, así que dejar de ser amigos no bloquea
+  editar partidas antiguas.
 - Las listas de "ofrezco" y "busco" las ven todos los que tienen sesión: es lo que permite encontrar
   con quién cambiar.
 - El estado de un intercambio solo cambia con `set_trade_status()`, que comprueba quién puede hacer
