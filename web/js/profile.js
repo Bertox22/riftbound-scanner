@@ -8,6 +8,7 @@ import { unitPrice, eur } from './prices.js';
 import { store } from './store.js';
 import { cloud, onCloudChange, fetchProfilePage } from './cloud.js';
 import { followButton } from './friends.js';
+import { openFriends } from './account-ui.js';
 import { record, recordText, rateText, groupBy, statRow, legendThumb, legendChamp, canonicalLegend } from './matches.js';
 
 let ctx; // { cards, byId, openCard, showView }
@@ -108,7 +109,8 @@ function render() {
   const { profile, decks, matches, collection } = page;
   const copies = collection.reduce((a, r) => a + r.normal + r.foil, 0);
   root.replaceChildren(...[
-    el('div', { class: 'section-head' }, back),
+    el('div', { class: 'section-head' }, back,
+      cloud.username && el('button', { class: 'btn ghost small', onclick: openFriends }, 'Buscar jugadores')),
     header(page),
     !page.own && headToHead(profile),
     ...(stats(matches) ?? []),

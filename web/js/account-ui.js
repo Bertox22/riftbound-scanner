@@ -288,9 +288,21 @@ function open() {
   if (!dlg().open) dlg().showModal();
 }
 
+/** Abre la hoja directamente en «Amigos», con el buscador de jugadores listo para escribir. */
+export function openFriends() {
+  error = '';
+  editing = null;
+  panel = 'friends';
+  render();
+  if (!dlg().open) dlg().showModal();
+  dlg().querySelector('[name="friend-search"]')?.focus();
+}
+
 export function initAccount() {
   const btn = $('#btn-account');
   btn.addEventListener('click', open);
+  const peopleBtn = $('#btn-people');
+  peopleBtn.addEventListener('click', openFriends);
   // Si se cierra la pregunta sin contestar, se vuelve a preguntar en la próxima sincronización.
   dlg().addEventListener('close', () => {
     draft.password = ''; // la contraseña no se queda guardada al cerrar
@@ -299,6 +311,7 @@ export function initAccount() {
   });
   onCloudChange(() => {
     btn.dataset.state = cloud.state;
+    peopleBtn.hidden = !cloud.username; // buscar jugadores necesita sesión
     btn.title = cloud.username ? `Cuenta: ${cloud.username}` : 'Cuenta';
     if (dlg().open) render();
   });

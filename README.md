@@ -14,6 +14,11 @@ entre tus dispositivos.
   "Quitar".
 - **Colección:** filtros por set, tipo (incluido "Campeón", que son las unidades Campeón) y dominio,
   cantidades normales/foil, exportación a Excel/CSV y copia de seguridad en JSON.
+  - Al quitar la última copia con «−», la carta se queda en gris (no desaparece) y el aviso deja
+    **Deshacer**.
+  - **Historial:** las cartas que has quitado (cuántas, si eran foil, cuándo y desde dónde: la
+    colección, la ficha, el escáner u otro dispositivo), cada una con «Deshacer». Con cuenta también
+    salen las que se quedaron a 0 en la nube, para recuperar las quitadas antes del historial.
 - **Importar:** cualquier Excel o CSV (o una lista pegada tipo "3x Arena Kingpin"). La app adivina
   las columnas (código, set, nº, nombre, copias, foil), busca cada carta por código, por nombre o
   por nombre aproximado, y enseña todo para revisarlo antes de sumar o reemplazar la colección.
@@ -49,7 +54,7 @@ entre tus dispositivos.
   - Tu perfil tiene su enlace, `#@usuario` (y `#@usuario/mazo` para un mazo): muestra tus
     estadísticas, las Leyendas que más juegas y los mazos que compartes. Los perfiles públicos se
     ven sin cuenta.
-  - En «Amigos» buscas jugadores y los sigues. Si os seguís los dos sois amigos: veis los mazos y
+  - Con el botón de la lupa (arriba, junto a la cuenta) buscas jugadores y los sigues. Si os seguís los dos sois amigos: veis los mazos y
     las partidas del otro aunque el perfil sea privado.
   - **Partida espejo:** al apuntar una partida puedes elegir a un amigo como rival. A él le aparece
     en Partidas para guardarla en su historial con todo al revés (resultado, marcador, puntos,
