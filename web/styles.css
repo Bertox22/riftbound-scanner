@@ -92,6 +92,24 @@ dialog :is(input[type=search], input[type=password], input[type=email], input:no
 .profile-bio { margin: 0; font-size: 14px; white-space: pre-line; }
 .profile-badge { flex: none; padding: 3px 10px; border-radius: 999px; font-size: 12px; background: var(--surface); color: var(--muted); }
 .profile-badge.on { color: var(--ok); }
+/* Amigos (en la hoja de cuenta) */
+.friend-search { margin: 12px 0 4px; }
+.person-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.person-list > li.muted { padding: 8px 2px; }
+.search-results { margin-top: 8px; }
+.person-row { display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 6px; border-radius: 14px; background: var(--surface-2); }
+.person-open {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 4px; border: 0; background: none;
+  color: var(--text); font: inherit; text-align: left; cursor: pointer;
+}
+.person-open .grow { display: flex; flex-direction: column; min-width: 0; }
+.person-open strong, .person-open .muted { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.person-avatar {
+  flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--surface); color: var(--accent); font-weight: 600;
+}
+.follow-btn { flex: none; }
+.dialog-head .btn + h2 { flex: 1; }
 /* Página de perfil (#@usuario) */
 .profile-head { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; align-items: start; margin: 8px 0 20px; }
 .profile-head h2 { margin: 0; font-size: 22px; font-weight: 600; }

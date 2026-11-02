@@ -3,6 +3,7 @@
 // primera vez que una cuenta con datos entra en un dispositivo con datos.
 
 import { $, el, toast } from './ui.js';
+import { friendsView } from './friends.js';
 import { cloud, onCloudChange, initCloud, signIn, signUp, signOut, syncNow, resetPassword, updatePassword, loadProfile, saveProfile, USERNAME_RE, EMAIL_RE } from './cloud.js';
 
 const dlg = () => $('#account-dialog');
@@ -13,6 +14,7 @@ let mode = 'in'; // in (entrar) · up (crear cuenta) · forgot (recuperar) · se
 let sentTo = '';
 let draft = { id: '', username: '', email: '', password: '' }; // lo escrito, para no perderlo al repintar
 let editing = null; // borrador del perfil mientras se edita
+let panel = 'main'; // con sesión: main (perfil y sincronización) · friends (amigos)
 
 const STATUS = {
   off: 'Sin sesión: los datos solo están en este dispositivo.',
@@ -203,6 +205,10 @@ function signedInView() {
   return [
     el('h3', { class: 'account-section first', text: 'Tu perfil' }),
     profileView(),
+    el('h3', { class: 'account-section', text: 'Amigos' }),
+    el('button', { class: 'export-option', type: 'button', onclick: () => { panel = 'friends'; render(); } },
+      el('strong', { text: cloud.people?.length ? peopleSummary() : 'Buscar y seguir a otros jugadores' }),
+      el('span', { class: 'muted small', text: 'Seguir, amigos y quién te sigue' })),
     el('h3', { class: 'account-section', text: 'Sincronización' }),
     el('p', { class: `sync-status ${cloud.state}`, role: 'status', text: statusText() }),
     el('p', { class: 'muted small', text: 'Tu colección y tus mazos se sincronizan solos en todos los dispositivos donde entres. Si sales, se quedan también en este.' }),
@@ -234,10 +240,37 @@ function answer(key) {
   render();
 }
 
+function peopleSummary() {
+  const friends = cloud.people.filter((p) => p.friend).length;
+  const followers = cloud.people.filter((p) => p.follower && !p.friend).length;
+  return [friends && `${friends} amigo${friends === 1 ? '' : 's'}`, followers && `${followers} te sigue${followers === 1 ? '' : 'n'}`].filter(Boolean).join(' · ') || `Sigues a ${cloud.people.length}`;
+}
+
+function friendsHead() {
+  return el('div', { class: 'dialog-head' },
+    el('button', { class: 'btn ghost small', type: 'button', onclick: () => { panel = 'main'; render(); } }, '← Cuenta'),
+    el('h2', { text: 'Amigos' }),
+    el('button', { class: 'icon-btn', title: 'Cerrar', 'aria-label': 'Cerrar', onclick: () => dlg().close() }, '✕'));
+}
+
 function render() {
   const d = dlg();
+  // La hoja se repinta entera (también al cambiar la sincronización): se conserva el campo en el que
+  // se estaba escribiendo y la posición del cursor.
+  const focused = d.contains(document.activeElement) ? document.activeElement : null;
+  const keep = focused?.name && { name: focused.name, start: focused.selectionStart, end: focused.selectionEnd };
+  draw(d);
+  const again = keep && d.querySelector(`[name="${keep.name}"]`);
+  if (again) {
+    again.focus();
+    try { again.setSelectionRange(keep.start, keep.end); } catch { /* casillas sin cursor */ }
+  }
+}
+
+function draw(d) {
   if (choice) d.replaceChildren(head('Juntar datos'), ...choiceView());
   else if (mode === 'recovery') d.replaceChildren(head('Contraseña nueva'), ...recoveryView());
+  else if (cloud.username && panel === 'friends') d.replaceChildren(friendsHead(), ...friendsView({ rerender: render, close: () => dlg().close() }));
   else if (cloud.username) d.replaceChildren(head('Tu cuenta'), ...signedInView().filter(Boolean));
   else {
     const [title, view] = SIGNED_OUT[mode] ?? SIGNED_OUT.in;
@@ -249,6 +282,7 @@ function open() {
   error = '';
   if (mode === 'sent' || (cloud.username && mode !== 'recovery')) mode = 'in';
   editing = null;
+  panel = 'main';
   if (cloud.username && !cloud.profile) loadProfile().catch((err) => console.error(err));
   render();
   if (!dlg().open) dlg().showModal();

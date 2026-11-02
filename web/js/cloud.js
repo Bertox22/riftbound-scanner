@@ -29,6 +29,7 @@ export const cloud = {
   state: 'off',
   username: null,
   profile: null, // { username, display_name, bio, city, is_public } cuando se ha leído
+  people: null, // a quién sigues y quién te sigue (loadPeople)
   lastSync: null,
   error: null,
 };
@@ -70,6 +71,7 @@ async function makeClient() {
 function setSession(s) {
   session = s;
   cloud.profile = null;
+  cloud.people = null;
   if (!s) {
     cloud.username = null;
     setState('off');
@@ -78,6 +80,7 @@ function setSession(s) {
   cloud.username = s.user.user_metadata?.username ?? s.user.email.split('@')[0];
   syncNow();
   loadProfile().catch((err) => console.error(err));
+  loadPeople().catch((err) => console.error(err));
 }
 
 // ---------- Perfil ----------
@@ -123,6 +126,68 @@ export async function fetchProfilePage(username) {
     matches: own && !profile.is_public ? [] : matchRows,
     collection: colRows.filter((r) => r.normal || r.foil),
   };
+}
+
+// ---------- Seguir y amigos ----------
+// Amigos = os seguís los dos (la base de datos les deja ver mazos y partidas del otro).
+
+/** Busca cuentas por usuario o nombre visible (sin la propia). */
+export async function searchProfiles(text) {
+  const q = text.trim().replace(/[^\p{L}\p{N}_ ]/gu, '').slice(0, 40);
+  if (q.length < 2 || !session) return [];
+  const sb = await getClient();
+  const like = `%${q.replace(/_/g, '\\_')}%`;
+  const [byUser, byName] = await Promise.all([
+    sb.from('profiles').select('id,username,display_name').ilike('username', like).neq('id', session.user.id).order('username').limit(10),
+    sb.from('profiles').select('id,username,display_name').ilike('display_name', like).neq('id', session.user.id).order('username').limit(10),
+  ]);
+  if (byUser.error || byName.error) throw new Error(authMessage(byUser.error ?? byName.error));
+  const seen = new Set();
+  return [...byUser.data, ...byName.data].filter((p) => !seen.has(p.id) && seen.add(p.id)).slice(0, 10);
+}
+
+/**
+ * A quién sigues y quién te sigue: [{ id, username, display_name, following, follower, friend }],
+ * primero los amigos. Se guarda en cloud.people para el resto de la app (rival de una partida…).
+ */
+export async function loadPeople() {
+  if (!session) return [];
+  const sb = await getClient();
+  const me = session.user.id;
+  const { data: rows, error } = await sb.from('follows').select('follower_id,followee_id').or(`follower_id.eq.${me},followee_id.eq.${me}`);
+  if (error) throw new Error(authMessage(error));
+  const people = new Map();
+  for (const r of rows) {
+    const id = r.follower_id === me ? r.followee_id : r.follower_id;
+    const p = people.get(id) ?? { id, following: false, follower: false };
+    if (r.follower_id === me) p.following = true;
+    else p.follower = true;
+    people.set(id, p);
+  }
+  if (people.size) {
+    const { data: profiles, error: err } = await sb.from('profiles').select('id,username,display_name').in('id', [...people.keys()]);
+    if (err) throw new Error(authMessage(err));
+    for (const pr of profiles) Object.assign(people.get(pr.id), pr);
+  }
+  cloud.people = [...people.values()].filter((p) => p.username)
+    .map((p) => ({ ...p, friend: p.following && p.follower }))
+    .sort((a, b) => b.friend - a.friend || a.username.localeCompare(b.username, 'es', { sensitivity: 'base' }));
+  listeners.forEach((fn) => fn(cloud));
+  return cloud.people;
+}
+
+export async function follow(id) {
+  const sb = await getClient();
+  const { error } = await sb.from('follows').insert({ followee_id: id });
+  if (error && error.code !== '23505') throw new Error(authMessage(error)); // 23505: ya lo seguías
+  await loadPeople();
+}
+
+export async function unfollow(id) {
+  const sb = await getClient();
+  const { error } = await sb.from('follows').delete().eq('follower_id', session.user.id).eq('followee_id', id);
+  if (error) throw new Error(authMessage(error));
+  await loadPeople();
 }
 
 /** Guarda nombre visible, bio, ciudad y si el perfil es público. */

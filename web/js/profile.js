@@ -3,7 +3,8 @@
 // mazos compartidos y tamaño de la colección (estas dos últimas, si el perfil es público).
 
 import { $, el, toast, cardImg, DOMAIN_ES } from './ui.js';
-import { cloud, fetchProfilePage } from './cloud.js';
+import { cloud, onCloudChange, fetchProfilePage } from './cloud.js';
+import { followButton } from './friends.js';
 import { record, recordText, rateText, groupBy, statRow, legendThumb, legendChamp, canonicalLegend } from './matches.js';
 
 let ctx; // { cards, byId, openCard, showView }
@@ -28,6 +29,7 @@ export async function copyProfileLink(username, deckId) {
   }
 }
 
+const isFriend = (id) => !!cloud.people?.find((p) => p.id === id)?.friend;
 const champTag = (legend) => legend?.champion ?? legend?.tags?.[0];
 const sum = (obj) => Object.values(obj ?? {}).reduce((a, b) => a + b, 0);
 
@@ -46,7 +48,9 @@ function header({ profile, own }) {
       el('div', { class: 'muted small', text: [`@${profile.username}`, profile.city].filter(Boolean).join(' · ') }),
       profile.bio && el('p', { class: 'profile-bio', text: profile.bio })),
     el('div', { class: 'actions' },
+      !own && cloud.username && followButton(profile, render),
       el('button', { class: 'btn ghost small', onclick: () => copyProfileLink(profile.username) }, 'Copiar enlace')),
+    !own && isFriend(profile.id) && el('p', { class: 'profile-own muted small', text: 'Sois amigos: ves sus mazos y sus partidas aunque su perfil sea privado.' }),
     own && el('p', { class: 'profile-own muted small' },
       profile.is_public ? 'Así ven tu perfil los demás.' : 'Así ven tu perfil los demás: es privado, así que solo se ven los mazos que compartes.'));
 }
@@ -98,8 +102,19 @@ function render() {
       ? el('ul', { class: 'deck-list' }, ...decks.map((d) => deckRow(d, matches)))
       : el('p', { class: 'muted small', text: 'No comparte ningún mazo.' }),
     profile.is_public && collection.length > 0 && el('p', { class: 'muted small profile-collection', text: `Colección: ${copies} cartas (${collection.length} distintas).` }),
-    !profile.is_public && !matches.length && el('p', { class: 'muted small', text: 'Perfil privado: sus estadísticas y su colección no se ven.' }),
+    !profile.is_public && !page.friend && !matches.length && el('p', { class: 'muted small', text: 'Perfil privado: sus estadísticas y su colección no se ven.' }),
   ].filter(Boolean));
+}
+
+async function load(username) {
+  try {
+    page = await fetchProfilePage(username);
+    if (page) page.friend = isFriend(page.profile.id);
+  } catch (err) {
+    console.error(err);
+    page = { error: err.message };
+  }
+  render();
 }
 
 /** Abre la página del perfil (y, si se pide, uno de sus mazos). */
@@ -108,13 +123,7 @@ export async function openProfile(username, deckId = null) {
   if (page?.profile?.username?.toLowerCase() !== username.toLowerCase()) {
     page = 'loading';
     render();
-    try {
-      page = await fetchProfilePage(username);
-    } catch (err) {
-      console.error(err);
-      page = { error: err.message };
-    }
-    render();
+    await load(username);
   }
   if (deckId && page?.decks) {
     const deck = page.decks.find((d) => d.id === deckId);
@@ -170,7 +179,15 @@ export function routeProfile() {
   return true;
 }
 
+const showing = () => $('#view-profile').classList.contains('active') && page?.profile;
+
 export function initProfile(context) {
   ctx = context;
   window.addEventListener('hashchange', routeProfile);
+  // Al hacerse amigos (o dejar de serlo) cambia lo que se puede ver: se vuelve a pedir.
+  onCloudChange(() => {
+    if (!showing()) return;
+    if (page.friend !== isFriend(page.profile.id)) load(page.profile.username);
+    else render();
+  });
 }
