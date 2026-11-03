@@ -48,9 +48,11 @@ entre tus dispositivos.
 - **Mesa (marcador en vivo):** en Partidas, «Iniciar partida» pide tu mazo (o tu Leyenda), el
   rival (te sugiere cuentas al escribir; si no tiene cuenta, basta su nombre), su Leyenda, si es a un
   juego o al mejor de 3 y a cuántos puntos. La mesa ocupa toda la pantalla: cada jugador tiene su
-  mitad (la del rival, girada) con su Leyenda de fondo; tocar arriba suma un punto y abajo lo resta.
-  Llegar a los puntos solo avisa («Gana el juego»): los juegos se cierran a mano con «Siguiente
-  juego». La barra del medio tiene el sorteo de quién empieza, reiniciar y terminar. Al terminar, la
+  mitad (la del rival, girada), teñida con el color del dominio de su Leyenda, con sus puntos en
+  grande, una pista hasta los puntos de victoria y los botones − y + en su borde (tocar el número
+  también suma). Llegar a los puntos solo avisa («Gana el juego», en dorado): los juegos se cierran a
+  mano con «Siguiente». La barra del medio tiene salir, «Sortear» quién empieza (antes del primer
+  punto), el juego y el marcador, reiniciar y «Terminar». Al terminar, la
   partida se guarda sola en tu historial (y si el rival es un amigo, le llega como partida espejo).
   La pantalla no se apaga y una recarga no pierde la partida.
 - **Cuenta (opcional):** el botón de la barra superior abre la cuenta. Con ella, colección, mazos y
