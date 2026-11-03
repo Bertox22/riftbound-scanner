@@ -45,6 +45,14 @@ entre tus dispositivos.
   el evento, la fecha y notas. Las estadísticas muestran el porcentaje de victorias (sin contar
   empates), el balance V–D–E, cómo te va empezando tú o el rival, y los resultados por mazo y contra
   cada Leyenda, con un filtro por mazo.
+- **Mesa (marcador en vivo):** en Partidas, «Iniciar partida» pide tu mazo (o tu Leyenda), el
+  rival (te sugiere cuentas al escribir; si no tiene cuenta, basta su nombre), su Leyenda, si es a un
+  juego o al mejor de 3 y a cuántos puntos. La mesa ocupa toda la pantalla: cada jugador tiene su
+  mitad (la del rival, girada) con su Leyenda de fondo; tocar arriba suma un punto y abajo lo resta.
+  Llegar a los puntos solo avisa («Gana el juego»): los juegos se cierran a mano con «Siguiente
+  juego». La barra del medio tiene el sorteo de quién empieza, reiniciar y terminar. Al terminar, la
+  partida se guarda sola en tu historial (y si el rival es un amigo, le llega como partida espejo).
+  La pantalla no se apaga y una recarga no pierde la partida.
 - **Cuenta (opcional):** el botón de la barra superior abre la cuenta. Con ella, colección, mazos y
   partidas se guardan en la nube y aparecen en todos tus dispositivos. Sin cuenta la app funciona
   igual, solo en el dispositivo. Ver [Cuentas y sincronización](#cuentas-y-sincronización).
@@ -62,7 +70,7 @@ entre tus dispositivos.
   - **¿Cuánto me falta?:** en el mazo de otro jugador ves qué cartas te faltan de tu colección y lo
     que costarían en Cardmarket, y puedes copiarlo a tus mazos.
 
-La pestaña abierta se guarda en la dirección (`#coleccion`, `#mazos`, `#partidas`, o `#@usuario` en un perfil), así que al
+La pestaña abierta se guarda en la dirección (`#coleccion`, `#mazos`, `#partidas`, `#mesa`, o `#@usuario` en un perfil), así que al
 recargar se vuelve a ella.
 
 **Precios:** cada noche se descargan los precios de Cardmarket (€) y TCGplayer ($) de riftbound.gg.
@@ -129,7 +137,7 @@ web/                 la app (estática, se puede publicar tal cual)
   index.html, styles.css
   js/                app.js (escáner y colección), decks.js, matches.js (partidas),
                      cloud.js y account-ui.js (cuenta y sincronización), profile.js (página de
-                     perfil), friends.js (seguir y amigos), store.js (localStorage),
+                     perfil), friends.js (seguir y amigos), table.js (mesa), store.js (localStorage),
                      import-ui.js, importer.js, export.js, prices.js, recognizer.js, scanner.js
   data/cards.json    datos de las cartas
   data/index.*       embeddings de referencia

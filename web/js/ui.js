@@ -21,8 +21,9 @@ let toastTimer;
 export function toast(msg, ms = 2200, action = null) {
   const t = $('#toast');
   const hide = () => t.classList.remove('show', 'has-action');
-  t.replaceChildren(el('span', { text: msg }),
-    action && el('button', { class: 'toast-action', type: 'button', onclick: () => { hide(); action.onclick(); } }, action.label));
+  // replaceChildren escribiría "null" sin botón: se filtra antes.
+  t.replaceChildren(...[el('span', { text: msg }),
+    action && el('button', { class: 'toast-action', type: 'button', onclick: () => { hide(); action.onclick(); } }, action.label)].filter(Boolean));
   t.classList.add('show');
   t.classList.toggle('has-action', !!action);
   clearTimeout(toastTimer);

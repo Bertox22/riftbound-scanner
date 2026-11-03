@@ -7,6 +7,7 @@ import { initImport } from './import-ui.js';
 import { initAccount } from './account-ui.js';
 import { initMatches } from './matches.js';
 import { initProfile, routeProfile } from './profile.js';
+import { initTable } from './table.js';
 import { cloud, fetchRemovedCards } from './cloud.js';
 import { loadPrices, pricesDate, priceInfo, unitPrice, entryValue, eur, usd, VALUABLE_EUR } from './prices.js';
 import { $, el, toast, cardImg, cardCode, baseName, download, matchesType, DOMAIN_ES, TYPE_ES, RARITY_ES } from './ui.js';
@@ -631,6 +632,7 @@ initDecks({ cards, byId, openCard });
 initImport({ cards, byId, openCard });
 initMatches({ cards, byId, openCard });
 initProfile({ cards, byId, openCard, showView });
+initTable({ byId, showView });
 initAccount();
 
 // Lo que hay detrás de la ficha (colección, escaneadas) se actualiza en cuanto cambian copias o

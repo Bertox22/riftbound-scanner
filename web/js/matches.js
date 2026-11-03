@@ -44,6 +44,9 @@ function buildLegends() {
   legends.sort((a, b) => legendTitle(a).localeCompare(legendTitle(b), 'es'));
 }
 
+/** Una carta por Leyenda (la impresión normal), ordenadas por campeón. */
+export const allLegends = () => legends;
+
 export const canonicalLegend = (id) => (id ? canonicalOf.get(id) ?? id : null);
 
 /** "Jinx · Loose Cannon" */
@@ -55,10 +58,10 @@ export const legendChamp = (card) => legendTitle(card).split(' · ')[0];
 
 // ---------- Datos ----------
 
-const deckById = (id) => store.decks.find((d) => d.id === id);
+export const deckById = (id) => store.decks.find((d) => d.id === id);
 const lastDeck = () => store.matches.find((m) => m.deck && deckById(m.deck))?.deck ?? store.decks[0]?.id ?? null;
 
-function blankMatch() {
+export function blankMatch() {
   return { id: crypto.randomUUID?.() ?? String(Date.now()), at: Date.now(), deck: lastDeck(), my: null, opp: null, oppName: '', result: null, score: null, points: [[null, null]], first: null, event: '', notes: '', rival: null, mirrorOf: null };
 }
 
@@ -71,7 +74,7 @@ const pointsText = (points) => fullGames(points).map(([a, b]) => `${a}–${b}`).
  * Con los puntos de cada juego se sabe el resultado: un juego, quien tenga más; varios, quien gane
  * más juegos (y el marcador al mejor de 3). Si no cuadra con un marcador posible, no se toca nada.
  */
-function deriveFromPoints(m) {
+export function deriveFromPoints(m) {
   const games = fullGames(m.points);
   if (!games.length) return;
   const wins = games.filter(([a, b]) => a > b).length;
@@ -88,7 +91,7 @@ function deriveFromPoints(m) {
   }
 }
 
-function saveMatch(m) {
+export function saveMatch(m) {
   m.points = fullGames(m.points);
   m.my = canonicalLegend(deckById(m.deck)?.legend) ?? m.my;
   m.updated = Date.now();
@@ -515,6 +518,9 @@ export function deckRecord(deckId) {
 
 /** Abre la hoja para apuntar una partida (con un mazo ya elegido, si se pasa). */
 export const newMatch = (deckId) => openSheet(null, deckId);
+
+/** Abre una partida ya guardada para corregirla. */
+export const editMatch = (m) => openSheet(m);
 
 export function initMatches(context) {
   ctx = context;

@@ -4,7 +4,7 @@
 // deshacerlo: [{ at, id, n, foil, from ('colección' | 'ficha' | 'escáner' | 'otro dispositivo'), undone }].
 // Solo en este navegador (lo que llega de otros dispositivos se apunta al sincronizar).
 
-const KEYS = { collection: 'rb.collection.v1', decks: 'rb.decks.v1', matches: 'rb.matches.v1', settings: 'rb.settings.v1', history: 'rb.history.v1' };
+const KEYS = { collection: 'rb.collection.v1', decks: 'rb.decks.v1', matches: 'rb.matches.v1', settings: 'rb.settings.v1', history: 'rb.history.v1', table: 'rb.table.v1' };
 const HISTORY_MAX = 200;
 const HISTORY_JOIN = 2 * 60 * 1000; // quitar varias copias seguidas de la misma carta cuenta como una línea
 
@@ -32,6 +32,7 @@ export const store = {
   matches: read(KEYS.matches, []), // la más reciente primero
   settings: read(KEYS.settings, {}),
   history: read(KEYS.history, []),
+  table: read(KEYS.table, null), // la partida que se está jugando en la mesa (table.js), o null
 
   onChange(fn) {
     listeners.add(fn);
@@ -100,6 +101,13 @@ export const store = {
   saveMatches() {
     write(KEYS.matches, this.matches);
     this.emit('matches');
+  },
+
+  /** Guarda (o, con null, borra) la partida de la mesa. No se sincroniza: es de este dispositivo. */
+  saveTable(table = this.table) {
+    this.table = table;
+    if (table) write(KEYS.table, table);
+    else try { localStorage.removeItem(KEYS.table); } catch { /* sin almacenamiento */ }
   },
 
   saveSettings() {
