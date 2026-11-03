@@ -280,6 +280,18 @@ export async function setTradeListItems(list, items) {
   }
 }
 
+/**
+ * Propone un intercambio a un amigo. items: [{ mine: true si la entregas tú, card_id, foil, quantity }].
+ * Con counterOf es una contraoferta: rechaza esa propuesta recibida al crear la nueva.
+ */
+export async function proposeTrade({ receiver, items, message, counterOf }) {
+  check(session, 'Inicia sesión para usar los intercambios.');
+  const sb = await getClient();
+  const { data, error } = await sb.rpc('propose_trade', { p_receiver: receiver, p_items: items, p_message: message || null, p_counter_of: counterOf ?? null });
+  if (error) throw new Error(authMessage(error).replace(/^[A-Z_]+: /, ''));
+  return data;
+}
+
 /** Guarda nombre visible, bio, ciudad y si el perfil es público. */
 export async function saveProfile({ display_name, bio, city, is_public }) {
   check(session, 'Inicia sesión para editar tu perfil.');

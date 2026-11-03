@@ -792,3 +792,10 @@ body.mesa-open { overflow: hidden; }
 .trade-box { margin: 12px 0; padding: 10px 12px; border-radius: var(--radius); background: var(--surface-2); }
 .trade-box summary { cursor: pointer; font-weight: 500; }
 .trade-box .icon-btn { background: var(--surface); }
+.trade-tag { color: var(--accent); }
+.trade-friend { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin: 16px 0; padding: 12px 14px; border-radius: var(--radius); background: var(--surface); }
+.trade-friend p { margin: 0; flex: 1 1 180px; }
+.section-head.trade-side { margin: 16px 0 8px; }
+.trade-side h3 { font-size: 15px; margin: 0; }
+.trade-message { display: block; margin: 16px 0; }
+.trade-message textarea { width: 100%; }

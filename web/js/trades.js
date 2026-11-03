@@ -1,11 +1,11 @@
 // Intercambios con amigos, en su propia vista (#intercambios) dentro de Colección: las listas de lo
-// que ofreces y lo que buscas. Las listas viven solo en la nube (hace falta cuenta para cambiar con
-// nadie): se leen al iniciar sesión, aquí se guarda una copia en memoria y cada cambio se sube poco
-// después.
+// que ofreces y lo que buscas, y la propuesta a un amigo (desde su perfil). Las listas viven solo en
+// la nube (hace falta cuenta para cambiar con nadie): se leen al iniciar sesión, aquí se guarda una
+// copia en memoria y cada cambio se sube poco después.
 
 import { $, el, toast, cardImg, cardCode, baseName } from './ui.js';
 import { store } from './store.js';
-import { cloud, onCloudChange, fetchTradeLists, setTradeListItems } from './cloud.js';
+import { cloud, onCloudChange, fetchTradeLists, setTradeListItems, proposeTrade } from './cloud.js';
 import { unitPrice, eur } from './prices.js';
 
 const WRITE_DELAY = 500;
@@ -16,6 +16,7 @@ const LABEL = { offer: 'Ofrezco', want: 'Busco' };
 let ctx;
 let listsOwner = null; // el usuario cuyas listas están cargadas
 let listsState = 'off'; // off · loading · ready · error
+let listsLoaded = Promise.resolve(); // termina cuando se han leído las listas
 let signedIn = false;
 const lists = { offer: new Map(), want: new Map() }; // "id|foil" → copias
 const pendingWrites = new Map(); // "lista|id|foil" → temporizador
@@ -96,19 +97,22 @@ export function tradeBlock(card, rerender) {
 /**
  * Hoja para añadir cartas de una en una: un buscador y, en cada carta, un botón por acabado.
  * options(card) → [{ label, foil, disabled }]. onPick(card, foil) puede llamarse varias veces.
+ * tag(card), opcional: un dato que resaltar en la carta (lo que ofrece o busca un amigo).
  */
-function pickCards({ title, hint, pool, options, onPick }) {
+function pickCards({ title, hint, pool, options, onPick, tag = () => null }) {
   const dlg = $('#picker-dialog');
   let q = '';
   const list = el('ul', { class: 'history-list' });
+  const cards = pool();
   const draw = () => {
     const text = q.trim().toLowerCase();
-    const found = pool().filter((c) => !text || `${c.name} ${cardCode(c)}`.toLowerCase().includes(text));
+    const found = cards.filter((c) => !text || `${c.name} ${cardCode(c)}`.toLowerCase().includes(text));
     list.replaceChildren(...found.slice(0, PICK_LIMIT).map((c) => el('li', { class: 'history-row trade-row' },
       cardImg(c, 'thumb small'),
       el('div', { class: 'grow' },
         el('strong', { text: c.name }),
-        el('span', { class: 'muted small', text: [cardCode(c), store.owned(c.id) ? `tienes ${store.owned(c.id)}` : null, unitPrice(c.id) != null ? eur(unitPrice(c.id)) : null].filter(Boolean).join(' · ') })),
+        el('span', { class: 'muted small', text: [cardCode(c), store.owned(c.id) ? `tienes ${store.owned(c.id)}` : null, unitPrice(c.id) != null ? eur(unitPrice(c.id)) : null].filter(Boolean).join(' · ') }),
+        tag(c) && el('span', { class: 'trade-tag small', text: tag(c) })),
       el('div', { class: 'trade-pick' }, options(c).map((o) => el('button', {
         class: 'btn ghost small',
         disabled: o.disabled,
@@ -189,6 +193,202 @@ async function offerSurplus(btn) {
   }
 }
 
+// ---------- Las listas de un amigo ----------
+
+const FRIEND_CACHE = 60_000;
+const friendCache = new Map(); // id → { at, lists: promesa de { offer: Map, want: Map } }
+const toMap = (rows) => new Map(rows.map((r) => [keyOf(r.card_id, r.foil), r.quantity]));
+
+function friendLists(id) {
+  const hit = friendCache.get(id);
+  if (hit && Date.now() - hit.at < FRIEND_CACHE) return hit.lists;
+  const promise = fetchTradeLists(id).then(({ offer, want }) => ({ offer: toMap(offer), want: toMap(want) }));
+  promise.catch(() => friendCache.delete(id));
+  friendCache.set(id, { at: Date.now(), lists: promise });
+  return promise;
+}
+
+/** Ids de las cartas que encajan: alguien las ofrece y otro las busca (quien busca foil, solo foil). */
+function matching(offer, want) {
+  const ids = new Set();
+  for (const key of want.keys()) {
+    const { id, foil } = parseKey(key);
+    if (offer.has(keyOf(id, true)) || (!foil && offer.has(keyOf(id, false)))) ids.add(id);
+  }
+  return ids;
+}
+
+const shownName = (p) => p.display_name || p.username;
+
+/** Recuadro del perfil de un amigo: qué encaja entre vuestras listas y el botón de proponer. */
+export function tradeBox(friend) {
+  const text = el('p', { class: 'muted small' });
+  Promise.all([friendLists(friend.id), listsLoaded]).then(([theirs]) => {
+    const have = matching(theirs.offer, lists.want).size;
+    const want = matching(lists.offer, theirs.want).size;
+    text.textContent = have || want
+      ? `Tiene ${have} carta${have === 1 ? '' : 's'} que buscas · busca ${want} que ofreces`
+      : 'Vuestras listas de Ofrezco y Busco aún no coinciden.';
+  }, (err) => console.error(err));
+  return el('div', { class: 'trade-friend' },
+    text,
+    el('button', { class: 'btn primary small', onclick: () => openProposal(friend) }, 'Proponer intercambio'));
+}
+
+// ---------- Proponer ----------
+
+let draft = null; // { other, give: Map, take: Map, message, counterOf, theirs, sending }
+
+const proposalDialog = () => $('#trade-dialog');
+
+/** Valor de un lado de la propuesta en Cardmarket; null si no se sabe el precio de ninguna carta. */
+function sideValue(side) {
+  let total = null;
+  for (const [key, n] of side) {
+    const { id, foil } = parseKey(key);
+    const price = unitPrice(id, foil);
+    if (price != null) total = (total ?? 0) + price * n;
+  }
+  return total;
+}
+
+function changeDraft(side, id, foil, n) {
+  const key = keyOf(id, foil);
+  if (n > 0) draft[side].set(key, n);
+  else draft[side].delete(key);
+  drawProposal();
+}
+
+const giveMax = (id, foil) => Math.min(ownedOf(id, foil), 99);
+
+function draftRow(side, key, n) {
+  const { id, foil } = parseKey(key);
+  const card = ctx.byId.get(id);
+  if (!card) return null;
+  const img = cardImg(card, 'thumb small');
+  img.addEventListener('click', () => ctx.openCard(card));
+  const price = unitPrice(id, foil);
+  const max = side === 'give' ? giveMax(id, foil) : 99;
+  return el('li', { class: 'history-row trade-row' },
+    img,
+    el('div', { class: 'grow' },
+      el('strong', { text: card.name }),
+      el('span', { class: 'muted small', text: [cardCode(card), foil && 'foil', price != null && eur(price)].filter(Boolean).join(' · ') }),
+      side === 'give' && n > max && el('span', { class: 'warn small', text: max ? `Solo tienes ${max}` : 'No la tienes' })),
+    el('div', { class: 'tile-qty' },
+      el('button', { class: 'icon-btn small', title: 'Una menos', onclick: () => changeDraft(side, id, foil, n - 1) }, '−'),
+      el('span', { class: 'qty', text: n }),
+      el('button', { class: 'icon-btn small', title: 'Una más', disabled: n >= max, onclick: () => changeDraft(side, id, foil, n + 1) }, '+')));
+}
+
+function pickGive() {
+  const theirWant = draft.theirs?.want ?? new Map();
+  const wanted = matching(lists.offer, theirWant);
+  const asked = (id) => theirWant.has(keyOf(id, false)) || theirWant.has(keyOf(id, true));
+  const offered = (id) => lists.offer.has(keyOf(id, false)) || lists.offer.has(keyOf(id, true));
+  const score = (id) => (wanted.has(id) ? 0 : asked(id) ? 1 : offered(id) ? 2 : 3);
+  pickCards({
+    title: 'Doy',
+    hint: 'De tu colección. Primero lo que busca y lo que ofreces.',
+    pool: () => ctx.cards.filter((c) => store.owned(c.id) > 0).sort((a, b) => score(a.id) - score(b.id) || byName(a, b)),
+    tag: (c) => (asked(c.id) ? 'La busca' : null),
+    options: (c) => [false, true].filter((foil) => ownedOf(c.id, foil) > 0).map((foil) => {
+      const n = draft.give.get(keyOf(c.id, foil)) ?? 0;
+      return { foil, label: `+ ${foil ? 'Foil' : 'Normal'}${n ? ` (${n})` : ''}`, disabled: n >= giveMax(c.id, foil) };
+    }),
+    onPick: (c, foil) => changeDraft('give', c.id, foil, (draft.give.get(keyOf(c.id, foil)) ?? 0) + 1),
+  });
+}
+
+function pickTake() {
+  const theirOffer = draft.theirs?.offer ?? new Map();
+  const wanted = matching(theirOffer, lists.want);
+  const offers = (id) => (theirOffer.get(keyOf(id, false)) ?? 0) + (theirOffer.get(keyOf(id, true)) ?? 0);
+  const score = (id) => (wanted.has(id) ? 0 : offers(id) ? 1 : 2);
+  pickCards({
+    title: 'Pido',
+    hint: 'Primero lo que ofrece y buscas. Puedes pedir cualquier carta, aunque no la ofrezca.',
+    pool: () => [...ctx.cards].sort((a, b) => score(a.id) - score(b.id) || byName(a, b)),
+    tag: (c) => (offers(c.id) ? `Ofrece ${offers(c.id)}` : null),
+    options: (c) => [false, true].map((foil) => {
+      const n = draft.take.get(keyOf(c.id, foil)) ?? 0;
+      return { foil, label: `+ ${foil ? 'Foil' : 'Normal'}${n ? ` (${n})` : ''}`, disabled: n >= 99 };
+    }),
+    onPick: (c, foil) => changeDraft('take', c.id, foil, (draft.take.get(keyOf(c.id, foil)) ?? 0) + 1),
+  });
+}
+
+function draftSection(side, title, empty, pick) {
+  const rows = [...draft[side].entries()];
+  const value = sideValue(draft[side]);
+  return [
+    el('div', { class: 'section-head trade-side' },
+      el('h3', {}, title, value != null && el('span', { class: 'muted', text: ` ≈ ${eur(value)}` })),
+      el('button', { class: 'btn ghost small', onclick: pick }, 'Añadir')),
+    rows.length
+      ? el('ul', { class: 'history-list' }, rows.map(([key, n]) => draftRow(side, key, n)))
+      : el('p', { class: 'muted small', text: empty }),
+  ];
+}
+
+async function sendProposal() {
+  const d = draft;
+  const items = [
+    ...[...d.give].map(([key, quantity]) => ({ mine: true, card_id: parseKey(key).id, foil: parseKey(key).foil, quantity })),
+    ...[...d.take].map(([key, quantity]) => ({ mine: false, card_id: parseKey(key).id, foil: parseKey(key).foil, quantity })),
+  ];
+  d.sending = true;
+  drawProposal();
+  try {
+    await proposeTrade({ receiver: d.other.id, items, message: d.message, counterOf: d.counterOf });
+    draft = null;
+    proposalDialog().close();
+    toast(`Propuesta enviada a ${shownName(d.other)}`);
+    refresh();
+  } catch (err) {
+    console.error(err);
+    d.sending = false;
+    drawProposal();
+    toast(err.message, 4000);
+  }
+}
+
+function drawProposal() {
+  const d = draft;
+  const dlg = proposalDialog();
+  const name = shownName(d.other);
+  const over = [...d.give].some(([key, n]) => { const { id, foil } = parseKey(key); return n > giveMax(id, foil); });
+  const empty = !d.give.size && !d.take.size;
+  dlg.replaceChildren(...[
+    el('div', { class: 'dialog-head' },
+      el('h2', { text: d.counterOf ? `Contraoferta a ${name}` : `Intercambio con ${name}` }),
+      el('button', { class: 'icon-btn', title: 'Cerrar', 'aria-label': 'Cerrar', onclick: () => dlg.close() }, '✕')),
+    ...draftSection('give', 'Doy', d.take.size ? 'Nada: le pides sin dar nada a cambio.' : 'Nada todavía.', pickGive),
+    ...draftSection('take', 'Pido', d.give.size ? 'Nada: se lo regalas.' : 'Nada todavía.', pickTake),
+    el('label', { class: 'match-field trade-message' },
+      el('span', { text: 'Mensaje (opcional)' }),
+      el('textarea', { rows: 2, maxlength: 500, oninput: (e) => { d.message = e.target.value; } }, d.message)),
+    over && el('p', { class: 'warn small', text: 'Das más copias de las que tienes.' }),
+    el('div', { class: 'actions' },
+      el('button', { class: 'btn primary', disabled: empty || over || d.sending, onclick: sendProposal }, d.sending ? 'Enviando…' : 'Enviar propuesta'),
+      el('button', { class: 'btn ghost', onclick: () => { draft = null; dlg.close(); } }, 'Descartar')),
+  ].filter(Boolean));
+}
+
+/**
+ * Abre la propuesta a un amigo. Si se cerró sin enviar y es para el mismo, sigue donde estaba.
+ * Con `start` ({ give, take, counterOf, message }) empieza desde ahí (contraoferta).
+ */
+export function openProposal(other, start = null) {
+  if (start || draft?.other.id !== other.id) {
+    draft = { other, give: new Map(start?.give), take: new Map(start?.take), message: start?.message ?? '', counterOf: start?.counterOf ?? null, theirs: null, sending: false };
+  }
+  const d = draft;
+  friendLists(other.id).then((theirs) => { d.theirs = theirs; }, (err) => console.error(err));
+  drawProposal();
+  if (!proposalDialog().open) proposalDialog().showModal();
+}
+
 // ---------- Vista ----------
 
 function listRow(list, key, qty) {
@@ -253,7 +453,7 @@ export function initTrades(context) {
   store.onChange((what) => what === 'collection' && refresh());
   onCloudChange(() => {
     const owner = cloud.profile?.username ?? null;
-    if (owner && owner !== listsOwner) loadLists(owner);
+    if (owner && owner !== listsOwner) listsLoaded = loadLists(owner);
     if (!cloud.username && listsOwner) {
       listsOwner = null;
       listsState = 'off';

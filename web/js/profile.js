@@ -8,6 +8,7 @@ import { unitPrice, eur } from './prices.js';
 import { store } from './store.js';
 import { cloud, onCloudChange, fetchProfilePage } from './cloud.js';
 import { followButton } from './friends.js';
+import { tradeBox } from './trades.js';
 import { openFriends } from './account-ui.js';
 import { record, recordText, rateText, groupBy, statRow, legendThumb, legendChamp, canonicalLegend } from './matches.js';
 
@@ -113,6 +114,7 @@ function render() {
       cloud.username && el('button', { class: 'btn ghost small', onclick: openFriends }, 'Buscar jugadores')),
     header(page),
     !page.own && headToHead(profile),
+    !page.own && isFriend(profile.id) && tradeBox(profile),
     ...(stats(matches) ?? []),
     el('h3', { class: 'stats-title', text: decks.length ? `Mazos (${decks.length})` : 'Mazos' }),
     decks.length
