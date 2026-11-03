@@ -19,6 +19,7 @@ import { allLegends, legendTitle, legendChamp, canonicalLegend, deckById, blankM
 let ctx; // { byId, showView }
 let wakeLock = null;
 
+// El color del primer dominio de cada Leyenda tiñe su mitad (identidad, no datos).
 const DOMAIN_COLOR = { Fury: '#e5484d', Calm: '#3fc07a', Mind: '#4c8dff', Body: '#f08c3a', Chaos: '#a066e8', Order: '#e2b955' };
 const TARGETS = [8, 11];
 
@@ -173,13 +174,27 @@ function start(s, myLegend) {
 
 // ---------- Mesa ----------
 
+/** ¿Hay alguien que ya gana el juego que se está jugando? 0 tú, 1 el rival, null nadie. */
+function leader() {
+  const [a, b] = current();
+  const target = t().target;
+  if (a >= target && a > b) return 0;
+  if (b >= target && b > a) return 1;
+  return null;
+}
+
+/**
+ * La mitad de un jugador, de arriba abajo tal como la mira él: su nombre y su Leyenda con los juegos
+ * ganados, los puntos (tocarlos suma uno), la pista hasta los puntos de victoria y los botones − y +,
+ * que quedan en su borde de la mesa. La del rival se gira entera.
+ */
 function half(side) {
   const tb = t();
   const p = side === 0 ? tb.me : tb.opp;
   const legend = ctx.byId.get(p.legend);
   const score = current()[side];
-  const won = score >= tb.target && score > current()[1 - side];
-  const colors = (legend?.domain ?? []).map((d) => DOMAIN_COLOR[d]).filter(Boolean);
+  const won = leader() === side;
+  const tint = DOMAIN_COLOR[(legend?.domain ?? []).find((d) => DOMAIN_COLOR[d])] ?? '#555';
   const name = side === 0 ? (cloud.profile?.display_name || cloud.username || 'Tú') : oppLabel(tb);
   const startsHere = tb.games.length === 1 && tb.first === (side === 0 ? 'me' : 'opp');
   const bump = (d) => {
@@ -189,20 +204,32 @@ function half(side) {
     navigator.vibrate?.(10);
     renderTable();
   };
+  const filled = Math.min(score, tb.target);
   return el('section', {
     class: `mesa-half${side === 1 ? ' flipped' : ''}${won ? ' won' : ''}`,
-    style: `--c1: ${colors[0] ?? '#444'}; --c2: ${colors[1] ?? colors[0] ?? '#444'}`,
+    style: `--tint: ${tint}`, 'aria-label': `${name}: ${score} puntos`,
   },
     legend && el('div', { class: 'mesa-art', style: `background-image: url("${legend.image}")`, 'aria-hidden': 'true' }),
-    el('button', { class: 'mesa-tap plus', type: 'button', 'aria-label': `Sumar un punto a ${name}`, onclick: () => bump(1) }, el('span', { text: '+' })),
-    el('button', { class: 'mesa-tap minus', type: 'button', 'aria-label': `Quitar un punto a ${name}`, onclick: () => bump(-1) }, el('span', { text: '−' })),
-    el('div', { class: 'mesa-info', 'aria-live': 'polite' },
-      el('div', { class: 'mesa-name' }, name, legend && el('span', { text: ` · ${legendChamp(legend)}` })),
-      el('div', { class: 'mesa-score', text: String(score) }),
-      won ? el('div', { class: 'mesa-flag', text: 'Gana el juego' })
-        : startsHere ? el('div', { class: 'mesa-flag start', text: 'Empieza' }) : null,
-      tb.bestOf > 1 && el('div', { class: 'mesa-games', 'aria-label': `${gamesWon(side)} juegos ganados` },
-        ...Array.from({ length: 2 }, (_, i) => el('span', { class: `dot${i < gamesWon(side) ? ' on' : ''}` })))));
+    el('header', { class: 'mesa-head' },
+      el('div', { class: 'mesa-who' },
+        el('strong', { text: name }),
+        legend && el('span', { text: legendChamp(legend) })),
+      tb.bestOf > 1 && el('div', { class: 'mesa-games', 'aria-label': `${gamesWon(side)} de 2 juegos ganados` },
+        el('span', { text: 'Juegos' }),
+        ...Array.from({ length: 2 }, (_, i) => el('i', { class: i < gamesWon(side) ? 'on' : '' })))),
+    el('button', {
+      class: 'mesa-score', type: 'button', 'aria-label': `Sumar un punto a ${name}`, onclick: () => bump(1),
+    },
+      // Un 6 o un 9 girados se confunden: van subrayados, como en los dados.
+      el('span', { class: `mesa-num${/[69]/.test(String(score)) ? ' marked' : ''}`, text: String(score) }),
+      el('span', { class: 'mesa-track', 'aria-hidden': 'true' },
+        ...Array.from({ length: tb.target }, (_, i) => el('i', { class: i < filled ? 'on' : '' }))),
+      won ? el('span', { class: 'mesa-flag', text: 'Gana el juego' })
+        : startsHere ? el('span', { class: 'mesa-flag start', text: 'Empieza' })
+          : el('span', { class: 'mesa-flag none', 'aria-hidden': 'true' })),
+    el('div', { class: 'mesa-steps' },
+      el('button', { class: 'mesa-step', type: 'button', 'aria-label': `Quitar un punto a ${name}`, disabled: !score, onclick: () => bump(-1) }, '−'),
+      el('button', { class: 'mesa-step plus', type: 'button', 'aria-label': `Sumar un punto a ${name}`, onclick: () => bump(1) }, '+')));
 }
 
 /** Juegos ya cerrados que ha ganado un lado (el que se está jugando no cuenta). */
@@ -210,25 +237,33 @@ function gamesWon(side) {
   return t().games.slice(0, -1).filter(([a, b]) => (side === 0 ? a > b : b > a)).length;
 }
 
-function iconBtn(label, svg, onclick, cls = '') {
-  const b = el('button', { class: `mesa-btn ${cls}`, type: 'button', title: label, 'aria-label': label, onclick });
+function iconBtn(label, svg, onclick) {
+  const b = el('button', { class: 'mesa-btn', type: 'button', title: label, 'aria-label': label, onclick });
   b.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${svg}</svg>`;
   return b;
 }
 
+/**
+ * La barra del medio, para quien tiene el móvil delante. Solo una acción va en blanco: «Siguiente»
+ * cuando alguien ya gana el juego y quedan juegos, «Terminar» cuando la partida ya está decidida.
+ */
 function bar() {
   const tb = t();
   const n = tb.games.length;
-  const decided = tb.bestOf > 1 && (gamesWon(0) >= 2 || gamesWon(1) >= 2);
+  const [a, b] = current();
+  const decided = tb.bestOf === 1 ? leader() !== null : gamesWon(0) + (leader() === 0) >= 2 || gamesWon(1) + (leader() === 1) >= 2;
+  const canNext = tb.bestOf > 1 && n < 3 && !(gamesWon(0) >= 2 || gamesWon(1) >= 2) && (a > 0 || b > 0);
+  const canDraw = n === 1 && !a && !b;
+  const pill = (text, label, onclick, primary) => el('button', { class: `mesa-pill${primary ? ' primary' : ''}`, type: 'button', 'aria-label': label, onclick }, text);
   return el('div', { class: 'mesa-bar' },
     iconBtn('Salir de la mesa (la partida sigue guardada)', '<path d="M15 6l-6 6 6 6"/>', closeTable),
-    iconBtn('Sortear quién empieza', '<rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r="1.2" fill="currentColor"/><circle cx="15" cy="15" r="1.2" fill="currentColor"/><circle cx="15" cy="9" r="1.2" fill="currentColor"/><circle cx="9" cy="15" r="1.2" fill="currentColor"/>', drawFirst),
+    canDraw && pill('Sortear', 'Sortear quién empieza', drawFirst, false),
     el('div', { class: 'mesa-status' },
       el('strong', { text: tb.bestOf > 1 ? `Juego ${n}` : 'Un juego' }),
       el('span', { text: tb.bestOf > 1 ? `${gamesWon(0)}–${gamesWon(1)} · a ${tb.target}` : `a ${tb.target} puntos` })),
-    tb.bestOf > 1 && n < 3 && !decided && iconBtn('Siguiente juego', '<path d="M6 5l8 7-8 7M16 5v14"/>', nextGame),
-    iconBtn('Reiniciar', '<path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v5h5"/>', reset),
-    iconBtn('Terminar y guardar la partida', '<rect x="6" y="6" width="12" height="12" rx="2"/>', finish, 'end'));
+    iconBtn('Reiniciar la partida', '<path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v5h5"/>', reset),
+    canNext && pill('Siguiente', 'Cerrar este juego y empezar el siguiente', nextGame, leader() !== null && !decided),
+    pill('Terminar', 'Terminar y guardar la partida', finish, decided));
 }
 
 function renderTable() {
