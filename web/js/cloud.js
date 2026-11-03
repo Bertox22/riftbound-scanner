@@ -250,6 +250,36 @@ export async function dismissIncoming(original) {
   if (error) throw new Error(authMessage(error));
 }
 
+// ---------- Intercambios ----------
+// Ofrezco / Busco: viven solo en la nube; las ves tú y tus amigos.
+
+const TRADE_TABLE = { offer: 'trade_list', want: 'want_list' };
+
+/** Las listas de una cuenta (la propia por defecto): { offer: [{ card_id, foil, quantity }], want }. */
+export async function fetchTradeLists(userId = session?.user.id) {
+  const sb = await getClient();
+  const read = (table) => selectAll(() => sb.from(table).select('card_id,foil,quantity').eq('user_id', userId).order('card_id').order('foil'));
+  const [offer, want] = await Promise.all([read(TRADE_TABLE.offer), read(TRADE_TABLE.want)]);
+  return { offer, want };
+}
+
+/** Pone las copias de cartas de una lista propia: items [{ card_id, foil, quantity }]; con 0 se quita. */
+export async function setTradeListItems(list, items) {
+  check(session, 'Inicia sesión para usar los intercambios.');
+  const sb = await getClient();
+  const table = TRADE_TABLE[list];
+  const user_id = session.user.id;
+  const keep = items.filter((i) => i.quantity > 0).map((i) => ({ ...i, user_id }));
+  if (keep.length) {
+    const { error } = await sb.from(table).upsert(keep, { onConflict: 'user_id,card_id,foil' });
+    if (error) throw new Error(authMessage(error));
+  }
+  for (const i of items.filter((x) => x.quantity <= 0)) {
+    const { error } = await sb.from(table).delete().eq('user_id', user_id).eq('card_id', i.card_id).eq('foil', i.foil);
+    if (error) throw new Error(authMessage(error));
+  }
+}
+
 /** Guarda nombre visible, bio, ciudad y si el perfil es público. */
 export async function saveProfile({ display_name, bio, city, is_public }) {
   check(session, 'Inicia sesión para editar tu perfil.');

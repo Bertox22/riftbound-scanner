@@ -777,3 +777,18 @@ body.mesa-open { overflow: hidden; }
 }
 .opp-suggest { margin-top: -8px; }
 .toast { z-index: 60; }
+
+/* Intercambios */
+.col-tabs { display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 12px; }
+.trade-intro { margin: 0; }
+#trades-view .section-head { margin-top: 20px; }
+.trade-row .grow { flex: 1; }
+.trade-row .tile-qty { flex: none; margin-top: 0; background: var(--surface); }
+.trade-row .warn { line-height: 1.3; }
+.trade-pick { display: flex; flex-direction: column; gap: 4px; flex: none; }
+.trade-pick .btn { white-space: nowrap; }
+.trade-search { width: 100%; margin-bottom: 12px; }
+.trade-more { padding: 8px; text-align: center; }
+.trade-box { margin: 12px 0; padding: 10px 12px; border-radius: var(--radius); background: var(--surface-2); }
+.trade-box summary { cursor: pointer; font-weight: 500; }
+.trade-box .icon-btn { background: var(--surface); }

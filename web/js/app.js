@@ -8,6 +8,7 @@ import { initAccount } from './account-ui.js';
 import { initMatches } from './matches.js';
 import { initProfile, routeProfile } from './profile.js';
 import { initTable } from './table.js';
+import { initTrades, renderTrades, tradeBlock } from './trades.js';
 import { cloud, fetchRemovedCards } from './cloud.js';
 import { loadPrices, pricesDate, priceInfo, unitPrice, entryValue, eur, usd, VALUABLE_EUR } from './prices.js';
 import { $, el, toast, cardImg, cardCode, baseName, download, matchesType, DOMAIN_ES, TYPE_ES, RARITY_ES } from './ui.js';
@@ -19,18 +20,19 @@ const sets = [...new Map(cards.map((c) => [c.set, c.setName])).entries()];
 // ---------- Navegación ----------
 
 // La pestaña va en la dirección (#coleccion, #mazos…) para que al recargar se quede en la misma.
-const VIEW_HASH = { scan: '', collection: 'coleccion', decks: 'mazos', matches: 'partidas' };
+const VIEW_HASH = { scan: '', collection: 'coleccion', decks: 'mazos', matches: 'partidas', trades: 'intercambios' };
 
 function showView(name) {
   document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.id === `view-${name}`));
-  document.querySelectorAll('.tabbar button').forEach((b) => b.classList.toggle('active', b.dataset.view === name));
+  document.querySelectorAll('.tabbar button').forEach((b) => b.classList.toggle('active', b.dataset.view === (name === 'trades' ? 'collection' : name))); // Intercambios va dentro de Colección
   // El perfil (#@usuario) no es una pestaña: deja su dirección tal cual.
   if (name in VIEW_HASH) history.replaceState(null, '', VIEW_HASH[name] ? `#${VIEW_HASH[name]}` : location.pathname + location.search);
   if (name !== 'scan' && scanner.running) stopCamera();
   if (name === 'collection') renderCollection();
+  if (name === 'trades') renderTrades();
   window.scrollTo(0, 0);
 }
-document.querySelectorAll('.tabbar button').forEach((b) => b.addEventListener('click', () => showView(b.dataset.view)));
+document.querySelectorAll('.tabbar button, .col-tabs button').forEach((b) => b.addEventListener('click', () => showView(b.dataset.view)));
 
 function collectionValue() {
   let v = 0;
@@ -118,6 +120,7 @@ function openCard(card) {
           priceBlock(card),
           qtyRow('Normales', e.n, (d) => { store.add(card.id, d, false, 'ficha'); render(); }),
           qtyRow('Foil', e.f, (d) => { store.add(card.id, d, true, 'ficha'); render(); }),
+          tradeBlock(card, render),
           variants.length > 0 && el('div', {},
             el('h3', { text: 'Otras versiones' }),
             el('div', { class: 'variants' }, variants.map((v) => el('button', { class: 'variant', onclick: () => { card = v; render(); } },
@@ -633,6 +636,7 @@ initImport({ cards, byId, openCard });
 initMatches({ cards, byId, openCard });
 initProfile({ cards, byId, openCard, showView });
 initTable({ byId, showView });
+initTrades({ cards, byId, openCard });
 initAccount();
 
 // Lo que hay detrás de la ficha (colección, escaneadas) se actualiza en cuanto cambian copias o

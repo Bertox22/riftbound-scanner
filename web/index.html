@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=50">
+  <link rel="stylesheet" href="styles.css?v=51">
   <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.wasm.min.js"></script>
 </head>
 <body>
@@ -107,6 +107,12 @@
         <button id="btn-export-json" class="btn ghost small">Exportar copia (JSON)</button>
         <label class="btn ghost small">Importar copia (JSON)<input type="file" id="import-json" accept=".json,application/json" hidden></label>
       </div>
+    </section>
+
+    <!-- INTERCAMBIOS (dentro de Colección) -->
+    <section id="view-trades" class="view">
+      <div class="segmented col-tabs"><button data-view="collection">Mis cartas</button><button aria-checked="true" data-view="trades">Intercambios</button></div>
+      <div id="trades-view"></div>
     </section>
 
     <!-- MAZOS -->
