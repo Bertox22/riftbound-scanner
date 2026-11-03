@@ -292,6 +292,58 @@ export async function proposeTrade({ receiver, items, message, counterOf }) {
   return data;
 }
 
+/**
+ * Mis intercambios, los últimos primero, desde mi lado: [{ id, status, message, incoming (me lo
+ * propusieron), other: { id, username, display_name }, give, take: [{ card_id, foil, quantity }],
+ * applied (mi lado ya está en mi colección), counter_of, updated_at }].
+ */
+export async function fetchTrades() {
+  if (!session) return [];
+  const sb = await getClient();
+  const me = session.user.id;
+  const { data: rows, error } = await sb.from('trades').select('*, trade_items(*)').order('updated_at', { ascending: false }).limit(100);
+  if (error) throw new Error(authMessage(error));
+  const ids = [...new Set(rows.map((r) => (r.proposer_id === me ? r.receiver_id : r.proposer_id)))];
+  const { data: people, error: err2 } = ids.length ? await sb.from('profiles').select('id,username,display_name').in('id', ids) : { data: [] };
+  if (err2) throw new Error(authMessage(err2));
+  const byId = new Map(people.map((p) => [p.id, p]));
+  return rows.map((r) => {
+    const incoming = r.receiver_id === me;
+    const otherId = incoming ? r.proposer_id : r.receiver_id;
+    return {
+      id: r.id, status: r.status, message: r.message, incoming, counter_of: r.counter_of, updated_at: r.updated_at,
+      other: byId.get(otherId) ?? { id: otherId, username: '?' },
+      give: r.trade_items.filter((i) => i.from_user === me),
+      take: r.trade_items.filter((i) => i.from_user !== me),
+      applied: !!(incoming ? r.receiver_applied_at : r.proposer_applied_at),
+    };
+  });
+}
+
+/** Amigos con los que encajan tus listas: [{ other_id, cards_they_have, cards_they_want, … }]. */
+export async function fetchTradeMatches() {
+  if (!session) return [];
+  const sb = await getClient();
+  const { data, error } = await sb.rpc('trade_matches');
+  if (error) throw new Error(authMessage(error));
+  return data;
+}
+
+/** Cambia el estado de un intercambio (la base de datos comprueba quién puede hacer qué). */
+export async function setTradeStatus(id, status) {
+  const sb = await getClient();
+  const { error } = await sb.rpc('set_trade_status', { p_trade: id, p_status: status });
+  if (error) throw new Error(/No se puede pasar/.test(error.message) ? 'Ese intercambio ya ha cambiado: mira cómo está ahora.' : authMessage(error));
+}
+
+/** Apunta que mi lado ya está en mi colección. true solo la primera vez: entonces hay que aplicarlo. */
+export async function markTradeApplied(id) {
+  const sb = await getClient();
+  const { data, error } = await sb.rpc('mark_trade_applied', { p_trade: id });
+  if (error) throw new Error(authMessage(error));
+  return data === true;
+}
+
 /** Guarda nombre visible, bio, ciudad y si el perfil es público. */
 export async function saveProfile({ display_name, bio, city, is_public }) {
   check(session, 'Inicia sesión para editar tu perfil.');

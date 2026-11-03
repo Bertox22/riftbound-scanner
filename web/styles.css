@@ -799,3 +799,23 @@ body.mesa-open { overflow: hidden; }
 .trade-side h3 { font-size: 15px; margin: 0; }
 .trade-message { display: block; margin: 16px 0; }
 .trade-message textarea { width: 100%; }
+.has-dot { position: relative; }
+.has-dot::after { content: ""; position: absolute; top: 6px; right: calc(50% - 22px); width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.col-tabs .has-dot::after { top: 10px; right: 14px; }
+.trade-list { list-style: none; padding: 0; margin: 8px 0 16px; display: flex; flex-direction: column; gap: 8px; }
+.trade-card { padding: 12px 14px; border-radius: var(--radius); background: var(--surface); }
+.trade-card .actions { margin: 12px 0 0; }
+.trade-card-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; }
+.trade-status { margin-left: auto; color: var(--muted); white-space: nowrap; }
+.trade-accepted .trade-status { color: var(--ok); }
+.trade-note { margin: 8px 0 0; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); overflow-wrap: anywhere; }
+.trade-sides { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 10px; }
+@media (min-width: 640px) { .trade-sides { grid-template-columns: 1fr 1fr; } }
+.trade-side-box p { margin: 4px 0 0; }
+.trade-items { list-style: none; padding: 0; margin: 6px 0 0; display: flex; flex-direction: column; gap: 6px; }
+.trade-item { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.trade-item .thumb.small { width: 32px; flex: none; border-radius: 3px; cursor: pointer; }
+.trade-short { display: block; }
+.trade-history { margin: 8px 0 0; }
+.trade-history summary { cursor: pointer; color: var(--muted); font-size: 14px; }
+.trade-friend-name { display: flex; flex-direction: column; gap: 2px; padding-left: 4px; }

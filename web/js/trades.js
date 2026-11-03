@@ -1,11 +1,14 @@
-// Intercambios con amigos, en su propia vista (#intercambios) dentro de Colección: las listas de lo
-// que ofreces y lo que buscas, y la propuesta a un amigo (desde su perfil). Las listas viven solo en
-// la nube (hace falta cuenta para cambiar con nadie): se leen al iniciar sesión, aquí se guarda una
-// copia en memoria y cada cambio se sube poco después.
+// Intercambios con amigos, en su propia vista (#intercambios) dentro de Colección: la bandeja de
+// propuestas, los amigos con los que encajas y las listas de lo que ofreces y buscas. Las listas
+// viven solo en la nube (hace falta cuenta para cambiar con nadie): se leen al iniciar sesión, aquí
+// se guarda una copia en memoria y cada cambio se sube poco después.
+//
+// Un intercambio: propuesto → aceptado → hecho. Al estar hecho, cada lado suma y resta en su propia
+// colección (cada uno solo escribe en la suya); mark_trade_applied evita aplicarlo dos veces.
 
 import { $, el, toast, cardImg, cardCode, baseName } from './ui.js';
 import { store } from './store.js';
-import { cloud, onCloudChange, fetchTradeLists, setTradeListItems, proposeTrade } from './cloud.js';
+import { cloud, onCloudChange, fetchTradeLists, setTradeListItems, proposeTrade, fetchTrades, fetchTradeMatches, setTradeStatus, markTradeApplied } from './cloud.js';
 import { unitPrice, eur } from './prices.js';
 
 const WRITE_DELAY = 500;
@@ -344,7 +347,7 @@ async function sendProposal() {
     draft = null;
     proposalDialog().close();
     toast(`Propuesta enviada a ${shownName(d.other)}`);
-    refresh();
+    refreshTrades(true);
   } catch (err) {
     console.error(err);
     d.sending = false;
@@ -387,6 +390,205 @@ export function openProposal(other, start = null) {
   friendLists(other.id).then((theirs) => { d.theirs = theirs; }, (err) => console.error(err));
   drawProposal();
   if (!proposalDialog().open) proposalDialog().showModal();
+}
+
+// ---------- Bandeja ----------
+
+const TRADES_EVERY = 60_000; // se miran al sincronizar, como mucho cada minuto
+const HISTORY_SHOWN = 30;
+const STATUS_ES = { pending: 'Pendiente', accepted: 'Aceptado', rejected: 'Rechazado', cancelled: 'Cancelado', completed: 'Hecho' };
+const dateText = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short' });
+
+let trades = null; // null: sin leer · lista de fetchTrades
+let tradesError = null;
+let tradesAt = 0;
+let tradesRun = 0;
+let friendMatches = new Map(); // id del amigo → { have, want }
+const applying = new Set(); // intercambios que se están aplicando ahora mismo
+
+const needsMe = (t) => t.status === 'accepted' || (t.status === 'pending' && t.incoming);
+
+function updateDot() {
+  const on = !!cloud.username && (trades ?? []).some(needsMe);
+  document.querySelectorAll('.tabbar [data-view=collection], .col-tabs [data-view=trades]').forEach((b) => b.classList.toggle('has-dot', on));
+}
+
+/** Lee la bandeja. Sin `force`, solo si hace más de un minuto de la última vez. */
+export async function refreshTrades(force = false) {
+  if (!cloud.username || (!force && Date.now() - tradesAt < TRADES_EVERY)) return;
+  tradesAt = Date.now();
+  const run = ++tradesRun;
+  try {
+    const [rows, found] = await Promise.all([fetchTrades(), fetchTradeMatches()]);
+    if (run !== tradesRun) return;
+    trades = rows;
+    tradesError = null;
+    friendMatches = new Map(found.map((m) => [m.other_id, { have: m.cards_they_have, want: m.cards_they_want }]));
+    updateDot();
+    refresh();
+    await applyCompleted();
+  } catch (err) {
+    console.error(err);
+    if (run === tradesRun) {
+      tradesError = err.message;
+      refresh();
+    }
+  }
+}
+
+/** Los intercambios hechos que aún no están en mi colección (también si los marcó el otro). */
+async function applyCompleted() {
+  await listsLoaded;
+  for (const t of (trades ?? []).filter((x) => x.status === 'completed' && !x.applied && !applying.has(x.id))) {
+    applying.add(t.id);
+    try {
+      // Primero se apunta: si otro dispositivo ya lo aplicó, aquí no se toca nada.
+      if (await markTradeApplied(t.id)) applyToCollection(t);
+      t.applied = true;
+    } catch (err) {
+      console.error(err);
+      toast(`No se pudo aplicar el intercambio con ${shownName(t.other)}: ${err.message}`, 5000);
+    } finally {
+      applying.delete(t.id);
+    }
+  }
+}
+
+function applyToCollection(t) {
+  let short = 0;
+  for (const i of t.give) {
+    short += Math.max(0, i.quantity - ownedOf(i.card_id, i.foil));
+    store.add(i.card_id, -i.quantity, i.foil, 'intercambio');
+    const offered = qtyOf('offer', i.card_id, i.foil);
+    if (offered) setQty('offer', i.card_id, i.foil, Math.max(0, offered - i.quantity));
+  }
+  for (const i of t.take) {
+    store.add(i.card_id, i.quantity, i.foil);
+    // Lo recibido deja de buscarse: foil cubre también lo que se buscaba sin importar el acabado.
+    let left = i.quantity;
+    for (const foil of i.foil ? [true, false] : [false]) {
+      const wanted = qtyOf('want', i.card_id, foil);
+      const used = Math.min(wanted, left);
+      if (used) setQty('want', i.card_id, foil, wanted - used);
+      left -= used;
+    }
+  }
+  toast(`Intercambio con ${shownName(t.other)} hecho: tu colección está al día.${short ? ` Faltaban ${short} copia(s) de las que dabas: mírala por si acaso.` : ''}`, 5000);
+}
+
+async function changeStatus(t, status, btn) {
+  btn.disabled = true;
+  try {
+    await setTradeStatus(t.id, status);
+  } catch (err) {
+    toast(err.message, 4000);
+  }
+  await refreshTrades(true);
+}
+
+function startCounter(t) {
+  const toEntries = (items) => items.map((i) => [keyOf(i.card_id, i.foil), i.quantity]);
+  openProposal(t.other, { give: toEntries(t.give), take: toEntries(t.take), counterOf: t.id });
+}
+
+function tradeItem(i, warnShort) {
+  const card = ctx.byId.get(i.card_id);
+  const short = warnShort && i.quantity > ownedOf(i.card_id, i.foil);
+  const text = `${i.quantity}× ${card?.name ?? i.card_id}${i.foil ? ' (foil)' : ''}`;
+  if (!card) return el('li', { class: 'trade-item', text });
+  const img = cardImg(card, 'thumb small');
+  img.addEventListener('click', () => ctx.openCard(card));
+  return el('li', { class: 'trade-item' }, img,
+    el('span', { class: 'grow' }, text, short && el('span', { class: 'warn small trade-short', text: `Tienes ${ownedOf(i.card_id, i.foil)}` })));
+}
+
+function tradeSide(title, items, nothing, warnShort) {
+  const total = items.reduce((a, i) => {
+    const p = unitPrice(i.card_id, i.foil);
+    return p == null ? a : (a ?? 0) + p * i.quantity;
+  }, null);
+  return el('div', { class: 'trade-side-box' },
+    el('div', { class: 'muted small' }, title, total != null && el('span', { class: 'trade-tag', text: ` ≈ ${eur(total)}` })),
+    items.length
+      ? el('ul', { class: 'trade-items' }, items.map((i) => tradeItem(i, warnShort)))
+      : el('p', { class: 'muted small', text: nothing }));
+}
+
+function tradeActions(t) {
+  const button = (cls, label, onclick) => el('button', { class: `btn ${cls} small`, onclick }, label);
+  const act = (status) => (e) => changeStatus(t, status, e.currentTarget);
+  const ask = (status, question) => (e) => confirm(question) && changeStatus(t, status, e.currentTarget);
+  if (t.status === 'pending' && t.incoming) {
+    return [button('primary', 'Aceptar', act('accepted')), button('ghost', 'Contraoferta', () => startCounter(t)), button('danger', 'Rechazar', act('rejected'))];
+  }
+  if (t.status === 'pending') return [button('ghost', 'Cancelar propuesta', act('cancelled'))];
+  if (t.status === 'accepted') {
+    return [
+      button('primary', 'Hecho', ask('completed', `¿Ya os habéis dado las cartas con ${shownName(t.other)}? Se sumarán y restarán en la colección de los dos.`)),
+      button('ghost', 'Cancelar', ask('cancelled', '¿Cancelar este intercambio ya aceptado?')),
+    ];
+  }
+  return [];
+}
+
+function tradeCard(t) {
+  const actions = tradeActions(t);
+  const countered = t.status === 'rejected' && trades.some((x) => x.counter_of === t.id);
+  return el('li', { class: `trade-card trade-${t.status}` },
+    el('div', { class: 'trade-card-head' },
+      el('button', { class: 'link', onclick: () => { location.hash = `#@${t.other.username}`; } }, el('strong', { text: shownName(t.other) })),
+      el('span', { class: 'muted small', text: [t.counter_of && 'Contraoferta', t.incoming ? 'te propone' : 'le propones'].filter(Boolean).join(' · ') }),
+      el('span', { class: 'trade-status small', text: `${countered ? 'Con contraoferta' : STATUS_ES[t.status]} · ${dateText.format(new Date(t.updated_at))}` })),
+    t.message && el('p', { class: 'trade-note small', text: t.message }),
+    el('div', { class: 'trade-sides' },
+      tradeSide('Das', t.give, 'Nada', t.status === 'pending' || t.status === 'accepted'),
+      tradeSide('Recibes', t.take, 'Nada', false)),
+    actions.length > 0 && el('div', { class: 'actions' }, actions));
+}
+
+function inbox() {
+  if (tradesError && !trades) {
+    return [el('p', { class: 'muted small', text: `No se han podido cargar los intercambios: ${tradesError}` })];
+  }
+  if (!trades) return [el('p', { class: 'muted small', text: 'Cargando intercambios…' })];
+  const section = (title, list) => list.length > 0 && [
+    el('h3', { class: 'stats-title', text: `${title} (${list.length})` }),
+    el('ul', { class: 'trade-list' }, list.map(tradeCard)),
+  ];
+  const open = trades.filter((t) => t.status === 'pending' || t.status === 'accepted');
+  const closed = trades.filter((t) => !open.includes(t));
+  return [
+    el('div', { class: 'section-head' }, el('h2', { text: 'Propuestas' })),
+    !open.length && el('p', { class: 'muted small', text: 'No tienes propuestas abiertas. Propón un intercambio a un amigo desde aquí abajo o desde su perfil.' }),
+    section('Te han propuesto', open.filter((t) => t.status === 'pending' && t.incoming)),
+    section('Aceptados, por entregar', open.filter((t) => t.status === 'accepted')),
+    section('Enviados', open.filter((t) => t.status === 'pending' && !t.incoming)),
+    closed.length > 0 && el('details', { class: 'trade-history' },
+      el('summary', { text: `Historial (${closed.length})` }),
+      el('ul', { class: 'trade-list' }, closed.slice(0, HISTORY_SHOWN).map(tradeCard))),
+  ].flat().filter(Boolean);
+}
+
+/** Tus amigos, primero aquellos con los que encajan vuestras listas. */
+function friendsSection() {
+  const friends = (cloud.people ?? []).filter((p) => p.friend);
+  const score = (p) => { const m = friendMatches.get(p.id); return m ? (m.have && m.want ? 2 : 1) * 1000 + m.have + m.want : 0; };
+  const sorted = [...friends].sort((a, b) => score(b) - score(a));
+  return [
+    el('div', { class: 'section-head' }, el('h2', { text: 'Con quién cambiar' })),
+    sorted.length
+      ? el('ul', { class: 'history-list' }, sorted.map((p) => {
+        const m = friendMatches.get(p.id);
+        return el('li', { class: 'history-row trade-row' },
+          el('div', { class: 'grow trade-friend-name' },
+            el('button', { class: 'link', onclick: () => { location.hash = `#@${p.username}`; } }, el('strong', { text: shownName(p) })),
+            el('span', { class: m ? 'trade-tag small' : 'muted small', text: m ? `Tiene ${m.have} que buscas · busca ${m.want} que ofreces` : 'Aún no coincidís en las listas' })),
+          el('button', { class: 'btn ghost small', onclick: () => openProposal(p) }, 'Proponer'));
+      }))
+      : el('div', {},
+        el('p', { class: 'muted small', text: 'Solo se puede cambiar con amigos: dos cuentas que se siguen la una a la otra.' }),
+        el('button', { class: 'btn ghost small', onclick: () => $('#btn-people').click() }, 'Buscar jugadores')),
+  ];
 }
 
 // ---------- Vista ----------
@@ -438,7 +640,11 @@ export function renderTrades() {
       el('button', { class: 'btn ghost small', onclick: () => loadLists(listsOwner) }, 'Reintentar')));
   }
   if (listsState !== 'ready') return root.replaceChildren(el('div', { class: 'profile-empty' }, el('p', { class: 'muted', text: 'Cargando…' })));
+  // Repintar no debe cerrar el historial ni mover la página: se recuerda si estaba abierto.
+  const historyOpen = !!root.querySelector('.trade-history')?.open;
   root.replaceChildren(
+    ...inbox(),
+    ...friendsSection(),
     el('p', { class: 'muted small trade-intro', text: 'Tus amigos ven lo que ofreces y lo que buscas. Añadir una carta aquí no la quita de tu colección.' }),
     ...listSection('offer', 'Aún no ofreces ninguna carta.',
       el('button', { class: 'btn ghost small', onclick: (e) => offerSurplus(e.currentTarget) }, 'Ofrecer repetidas'),
@@ -446,6 +652,13 @@ export function renderTrades() {
     ...listSection('want', 'Aún no buscas ninguna carta.',
       el('button', { class: 'btn primary small', onclick: addWant }, 'Añadir')),
   );
+  if (historyOpen) root.querySelector('.trade-history').open = true;
+}
+
+/** Al entrar en la vista se pinta lo que haya y se mira si hay novedades. */
+export function showTrades() {
+  renderTrades();
+  refreshTrades(true);
 }
 
 export function initTrades(context) {
@@ -459,10 +672,18 @@ export function initTrades(context) {
       listsState = 'off';
       lists.offer.clear();
       lists.want.clear();
+      friendCache.clear();
+      friendMatches = new Map();
+      trades = null;
+      tradesError = null;
+      tradesAt = 0;
+      draft = null;
+      updateDot();
     }
     if (signedIn !== !!cloud.username) {
       signedIn = !!cloud.username;
       refresh();
     }
+    if (cloud.state === 'idle') refreshTrades();
   });
 }

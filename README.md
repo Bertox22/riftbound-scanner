@@ -71,8 +71,19 @@ entre tus dispositivos.
     Leyendas y quién empezó) o descartarla. En su perfil ves vuestro cara a cara («Tú contra X»).
   - **¿Cuánto me falta?:** en el mazo de otro jugador ves qué cartas te faltan de tu colección y lo
     que costarían en Cardmarket, y puedes copiarlo a tus mazos.
+- **Intercambios (con cuenta, solo entre amigos):** en Colección → Intercambios (`#intercambios`).
+  - **Ofrezco / Busco:** marcas las cartas desde la ficha o desde estas listas, y «Ofrecer repetidas»
+    añade las copias que pasan de 3 (sin contar runas). Solo las ven tus amigos y no quitan nada de la colección.
+  - **Proponer:** desde el perfil de un amigo o desde «Con quién cambiar». Eliges lo que das (de tu
+    colección) y lo que pides (cualquier carta; primero las que encajan), con un mensaje opcional y el
+    valor de cada lado en Cardmarket. Un lado puede ir vacío, para regalar o para pedir.
+  - **Bandeja:** quien recibe acepta, rechaza o hace una contraoferta (rechaza la propuesta y abre
+    otra al revés); quien propone puede cancelar. Un punto dorado avisa de lo que espera por ti.
+  - **Hecho:** cuando os habéis dado las cartas, cualquiera de los dos lo marca. La app de cada uno
+    suma y resta en su colección una sola vez, aunque tengas varios dispositivos, y ajusta sus listas.
+    Lo que das queda en el Historial de cartas quitadas.
 
-La pestaña abierta se guarda en la dirección (`#coleccion`, `#mazos`, `#partidas`, `#mesa`, o `#@usuario` en un perfil), así que al
+La pestaña abierta se guarda en la dirección (`#coleccion`, `#intercambios`, `#mazos`, `#partidas`, `#mesa`, o `#@usuario` en un perfil), así que al
 recargar se vuelve a ella.
 
 **Precios:** cada noche se descargan los precios de Cardmarket (€) y TCGplayer ($) de riftbound.gg.
@@ -139,7 +150,7 @@ web/                 la app (estática, se puede publicar tal cual)
   index.html, styles.css
   js/                app.js (escáner y colección), decks.js, matches.js (partidas),
                      cloud.js y account-ui.js (cuenta y sincronización), profile.js (página de
-                     perfil), friends.js (seguir y amigos), table.js (mesa), store.js (localStorage),
+                     perfil), friends.js (seguir y amigos), trades.js (intercambios), table.js (mesa), store.js (localStorage),
                      import-ui.js, importer.js, export.js, prices.js, recognizer.js, scanner.js
   data/cards.json    datos de las cartas
   data/index.*       embeddings de referencia

@@ -1,7 +1,7 @@
 // Estado persistente en localStorage: colección, mazos, partidas y ajustes.
 // Colección: { [cardId]: { n: copias normales, f: copias foil } }
 // Historial: las copias que se han quitado, la más reciente primero, para ver qué se quitó y
-// deshacerlo: [{ at, id, n, foil, from ('colección' | 'ficha' | 'escáner' | 'otro dispositivo'), undone }].
+// deshacerlo: [{ at, id, n, foil, from ('colección' | 'ficha' | 'escáner' | 'intercambio' | 'otro dispositivo'), undone }].
 // Solo en este navegador (lo que llega de otros dispositivos se apunta al sincronizar).
 
 const KEYS = { collection: 'rb.collection.v1', decks: 'rb.decks.v1', matches: 'rb.matches.v1', settings: 'rb.settings.v1', history: 'rb.history.v1', table: 'rb.table.v1' };

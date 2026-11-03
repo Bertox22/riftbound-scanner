@@ -8,7 +8,7 @@ import { initAccount } from './account-ui.js';
 import { initMatches } from './matches.js';
 import { initProfile, routeProfile } from './profile.js';
 import { initTable } from './table.js';
-import { initTrades, renderTrades, tradeBlock } from './trades.js';
+import { initTrades, showTrades, tradeBlock } from './trades.js';
 import { cloud, fetchRemovedCards } from './cloud.js';
 import { loadPrices, pricesDate, priceInfo, unitPrice, entryValue, eur, usd, VALUABLE_EUR } from './prices.js';
 import { $, el, toast, cardImg, cardCode, baseName, download, matchesType, DOMAIN_ES, TYPE_ES, RARITY_ES } from './ui.js';
@@ -29,7 +29,7 @@ function showView(name) {
   if (name in VIEW_HASH) history.replaceState(null, '', VIEW_HASH[name] ? `#${VIEW_HASH[name]}` : location.pathname + location.search);
   if (name !== 'scan' && scanner.running) stopCamera();
   if (name === 'collection') renderCollection();
-  if (name === 'trades') renderTrades();
+  if (name === 'trades') showTrades();
   window.scrollTo(0, 0);
 }
 document.querySelectorAll('.tabbar button, .col-tabs button').forEach((b) => b.addEventListener('click', () => showView(b.dataset.view)));
