@@ -542,6 +542,10 @@ const matchKey = (m) => canon({
   score: m.score ?? null, points: m.points ?? [], first: m.first ?? null, event: m.event ?? '', notes: m.notes ?? '',
   rival: m.rival ?? null, mirrorOf: m.mirrorOf ?? null,
 });
+const ledgerKey = (m) => canon({
+  at: m.at, kind: m.kind, label: m.label ?? null, card: m.card ?? null, foil: !!m.foil, qty: m.qty, price: m.price,
+  ownedBefore: m.ownedBefore ?? null, inCollection: !!m.inCollection,
+});
 
 function toRow(uid, d) {
   return {
@@ -585,6 +589,21 @@ function fromMatchRow(r) {
   };
 }
 const byDate = (a, b) => b.at - a.at;
+
+function toLedgerRow(uid, m) {
+  return {
+    user_id: uid, id: m.id, kind: m.kind, occurred_at: new Date(m.at).toISOString(),
+    label: m.label ?? null, card_id: m.card ?? null, foil: !!m.foil, quantity: m.qty, unit_price: m.price,
+    owned_before: m.ownedBefore ?? null, in_collection: !!m.inCollection, deleted_at: null,
+  };
+}
+function fromLedgerRow(r) {
+  return {
+    id: r.id, at: Date.parse(r.occurred_at), kind: r.kind, label: r.label, card: r.card_id, foil: r.foil,
+    qty: r.quantity, price: Number(r.unit_price), ownedBefore: r.owned_before, inCollection: r.in_collection,
+    updated: Date.parse(r.updated_at),
+  };
+}
 
 /** Todas las filas de una consulta, de mil en mil. */
 async function selectAll(build) {
@@ -653,6 +672,7 @@ async function firstSync(uid) {
     store.collection = structuredClone(remoteCol);
     store.decks = structuredClone(remoteDecks);
     store.matches = structuredClone(remoteMatches).sort(byDate);
+    store.ledger = []; // el balance no entra en la pregunta: el pull de después baja el de la cuenta
   } else if (choice === 'merge') {
     for (const [id, e] of Object.entries(remoteCol)) {
       const cur = store.collection[id] || { n: 0, f: 0 };
@@ -744,6 +764,25 @@ async function push(uid, snap) {
     for (const id of goneMatches) delete snap.matches[id];
     writeSnap(snap);
   }
+
+  snap.ledger ??= {}; // foto de antes de sincronizar el balance
+  const changedLedger = store.ledger.filter((m) => snap.ledger[m.id] !== ledgerKey(m));
+  for (let i = 0; i < changedLedger.length; i += 500) {
+    const chunk = changedLedger.slice(i, i + 500);
+    const { error } = await sb.from('ledger').upsert(chunk.map((m) => toLedgerRow(uid, m)), { onConflict: 'id' });
+    if (error) throw error;
+    for (const m of chunk) snap.ledger[m.id] = ledgerKey(m);
+    writeSnap(snap);
+  }
+
+  const localLedgerIds = new Set(store.ledger.map((m) => m.id));
+  const goneLedger = Object.keys(snap.ledger).filter((id) => !localLedgerIds.has(id));
+  if (goneLedger.length) {
+    const { error } = await sb.from('ledger').update({ deleted_at: new Date().toISOString() }).eq('user_id', uid).in('id', goneLedger);
+    if (error) throw error;
+    for (const id of goneLedger) delete snap.ledger[id];
+    writeSnap(snap);
+  }
 }
 
 /** Baja lo que ha cambiado en la nube desde la última vez (incluidos los cambios de otros dispositivos). */
@@ -805,6 +844,31 @@ async function pull(uid, snap) {
     else if (matchKey(store.matches[i]) !== snap.matches[r.id]) { store.matches[i] = match; changed = true; }
   }
   if (changed) store.matches.sort(byDate);
+
+  // Balance, igual que las partidas.
+  const ledgerSince = snap.ledgerPull;
+  const ledgerRows = await selectAll(() => {
+    const q = sb.from('ledger').select('*').eq('user_id', uid);
+    return (ledgerSince ? q.gt('updated_at', ledgerSince) : q).order('updated_at').order('id');
+  });
+  let ledgerChanged = false;
+  for (const r of ledgerRows) {
+    snap.ledgerPull = maxStamp(snap.ledgerPull, r.updated_at);
+    const i = store.ledger.findIndex((m) => m.id === r.id);
+    if (r.deleted_at) {
+      delete snap.ledger[r.id];
+      if (i >= 0) { store.ledger.splice(i, 1); ledgerChanged = true; }
+      continue;
+    }
+    const entry = fromLedgerRow(r);
+    snap.ledger[r.id] = ledgerKey(entry);
+    if (i < 0) { store.ledger.push(entry); ledgerChanged = true; }
+    else if (ledgerKey(store.ledger[i]) !== snap.ledger[r.id]) { store.ledger[i] = entry; ledgerChanged = true; }
+  }
+  if (ledgerChanged) {
+    store.ledger.sort(byDate);
+    changed = true;
+  }
   writeSnap(snap);
   if (changed) store.persist(); // avisa a la app; la comparación con la foto ya no ve nada que subir
 }

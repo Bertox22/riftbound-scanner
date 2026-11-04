@@ -9,6 +9,7 @@ import { initMatches } from './matches.js';
 import { initProfile, routeProfile } from './profile.js';
 import { initTable } from './table.js';
 import { initTrades, showTrades, tradeBlock } from './trades.js';
+import { initLedger } from './ledger.js';
 import { cloud, fetchRemovedCards } from './cloud.js';
 import { loadPrices, pricesDate, priceInfo, unitPrice, entryValue, eur, usd, VALUABLE_EUR } from './prices.js';
 import { $, el, toast, cardImg, cardCode, baseName, download, matchesType, DOMAIN_ES, TYPE_ES, RARITY_ES } from './ui.js';
@@ -637,6 +638,7 @@ initMatches({ cards, byId, openCard });
 initProfile({ cards, byId, openCard, showView });
 initTable({ byId, showView });
 initTrades({ cards, byId, openCard });
+initLedger({ cards, byId, openCard });
 initAccount();
 
 // Lo que hay detrás de la ficha (colección, escaneadas) se actualiza en cuanto cambian copias o

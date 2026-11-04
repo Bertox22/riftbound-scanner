@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=53">
+  <link rel="stylesheet" href="styles.css?v=54">
   <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.wasm.min.js"></script>
 </head>
 <body>
@@ -91,7 +91,10 @@
       </div>
       <div class="col-summary-row">
         <p id="col-summary" class="muted"></p>
-        <button id="btn-col-history" class="btn ghost small" title="Cartas que has quitado de la colección">Historial</button>
+        <div class="actions">
+          <button id="btn-col-balance" class="btn ghost small" title="Compras y ventas que has apuntado">Balance</button>
+          <button id="btn-col-history" class="btn ghost small" title="Cartas que has quitado de la colección">Historial</button>
+        </div>
       </div>
       <div id="col-grid" class="grid"></div>
       <div class="section-head">
@@ -182,6 +185,7 @@
   <dialog id="account-dialog"></dialog>
   <dialog id="match-dialog"></dialog>
   <dialog id="trade-dialog"></dialog>
+  <dialog id="balance-dialog"></dialog>
   <div id="mesa" class="mesa" hidden></div>
   <div id="toast" class="toast"></div>
 

@@ -19,6 +19,13 @@ entre tus dispositivos.
   - **Historial:** las cartas que has quitado (cuántas, si eran foil, cuándo y desde dónde: la
     colección, la ficha, el escáner u otro dispositivo), cada una con «Deshacer». Con cuenta también
     salen las que se quedaron a 0 en la nube, para recuperar las quitadas antes del historial.
+  - **Balance:** apuntas a mano lo que compras y vendes, ya sean productos (una caja, sobres…) o
+    cartas sueltas, con cantidad, precio por unidad y fecha, y ves el total (dos cajas a 35 € y una a
+    35 € son −105 €; vender una carta por 6 € lo deja en −99 €). Solo se venden cartas que tienes:
+    salen de la colección, quedan en el Historial como «venta» y vuelven si borras la venta. Comprar una
+    carta no la añade: avisa «No la has incluido en la colección» hasta que la tengas, con un botón
+    «Añadir». Con cuenta se sincroniza entre tus dispositivos y solo lo ves tú. Es tu cuenta de gastos:
+    no usa los precios de Cardmarket.
 - **Importar:** cualquier Excel o CSV (o una lista pegada tipo "3x Arena Kingpin"). La app adivina
   las columnas (código, set, nº, nombre, copias, foil), busca cada carta por código, por nombre o
   por nombre aproximado, y enseña todo para revisarlo antes de sumar o reemplazar la colección.
@@ -150,7 +157,7 @@ web/                 la app (estática, se puede publicar tal cual)
   index.html, styles.css
   js/                app.js (escáner y colección), decks.js, matches.js (partidas),
                      cloud.js y account-ui.js (cuenta y sincronización), profile.js (página de
-                     perfil), friends.js (seguir y amigos), trades.js (intercambios), table.js (mesa), store.js (localStorage),
+                     perfil), friends.js (seguir y amigos), trades.js (intercambios), table.js (mesa), ledger.js (balance), store.js (localStorage),
                      import-ui.js, importer.js, export.js, prices.js, recognizer.js, scanner.js
   data/cards.json    datos de las cartas
   data/index.*       embeddings de referencia
@@ -188,9 +195,9 @@ la web se sirva por **HTTPS** (los navegadores no dejan usar la cámara en http)
    "Añadir a pantalla de inicio" para tenerla como una app.
 
 Sin cuenta, la colección, los mazos y las partidas se guardan solo en el navegador (localStorage:
-`rb.collection.v1`, `rb.decks.v1`, `rb.matches.v1`). Usa **Colección → Exportar copia** de vez en
+`rb.collection.v1`, `rb.decks.v1`, `rb.matches.v1`, `rb.ledger.v1`). Usa **Colección → Exportar copia** de vez en
 cuando para no perderlos si borras los datos del navegador, o crea una cuenta para tenerlos en la
-nube. La copia JSON incluye colección, mazos y partidas.
+nube. La copia JSON incluye colección, mazos, partidas y balance.
 
 ## Actualización automática (diaria)
 

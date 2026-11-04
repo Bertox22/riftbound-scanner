@@ -1,10 +1,10 @@
-// Estado persistente en localStorage: colección, mazos, partidas y ajustes.
+// Estado persistente en localStorage: colección, mazos, partidas, balance y ajustes.
 // Colección: { [cardId]: { n: copias normales, f: copias foil } }
 // Historial: las copias que se han quitado, la más reciente primero, para ver qué se quitó y
-// deshacerlo: [{ at, id, n, foil, from ('colección' | 'ficha' | 'escáner' | 'intercambio' | 'otro dispositivo'), undone }].
+// deshacerlo: [{ at, id, n, foil, from ('colección' | 'ficha' | 'escáner' | 'intercambio' | 'venta' | 'otro dispositivo'), undone }].
 // Solo en este navegador (lo que llega de otros dispositivos se apunta al sincronizar).
 
-const KEYS = { collection: 'rb.collection.v1', decks: 'rb.decks.v1', matches: 'rb.matches.v1', settings: 'rb.settings.v1', history: 'rb.history.v1', table: 'rb.table.v1' };
+const KEYS = { collection: 'rb.collection.v1', decks: 'rb.decks.v1', matches: 'rb.matches.v1', settings: 'rb.settings.v1', history: 'rb.history.v1', table: 'rb.table.v1', ledger: 'rb.ledger.v1' };
 const HISTORY_MAX = 200;
 const HISTORY_JOIN = 2 * 60 * 1000; // quitar varias copias seguidas de la misma carta cuenta como una línea
 
@@ -30,6 +30,7 @@ export const store = {
   collection: read(KEYS.collection, {}),
   decks: read(KEYS.decks, []),
   matches: read(KEYS.matches, []), // la más reciente primero
+  ledger: read(KEYS.ledger, []), // compras y ventas (ledger.js), la más reciente primero
   settings: read(KEYS.settings, {}),
   history: read(KEYS.history, []),
   table: read(KEYS.table, null), // la partida que se está jugando en la mesa (table.js), o null
@@ -103,6 +104,11 @@ export const store = {
     this.emit('matches');
   },
 
+  saveLedger() {
+    write(KEYS.ledger, this.ledger);
+    this.emit('ledger');
+  },
+
   /** Guarda (o, con null, borra) la partida de la mesa. No se sincroniza: es de este dispositivo. */
   saveTable(table = this.table) {
     this.table = table;
@@ -119,13 +125,15 @@ export const store = {
     write(KEYS.collection, this.collection);
     write(KEYS.decks, this.decks);
     write(KEYS.matches, this.matches);
+    write(KEYS.ledger, this.ledger);
     this.emit('collection');
     this.emit('decks');
     this.emit('matches');
+    this.emit('ledger');
   },
 
   exportData() {
-    return { app: 'riftbound-scanner', version: 1, exported: new Date().toISOString(), collection: this.collection, decks: this.decks, matches: this.matches };
+    return { app: 'riftbound-scanner', version: 1, exported: new Date().toISOString(), collection: this.collection, decks: this.decks, matches: this.matches, ledger: this.ledger };
   },
 
   importData(data, mode = 'replace') {
@@ -140,17 +148,23 @@ export const store = {
       const seen = new Set(this.matches.map((m) => m.id));
       this.matches.push(...(data.matches || []).filter((m) => !seen.has(m.id)));
       this.matches.sort((a, b) => b.at - a.at);
+      const moves = new Set(this.ledger.map((m) => m.id));
+      this.ledger.push(...(data.ledger || []).filter((m) => !moves.has(m.id)));
+      this.ledger.sort((a, b) => b.at - a.at);
     } else {
       this.collection = data.collection;
       this.decks = data.decks || [];
       this.matches = data.matches || [];
+      this.ledger = data.ledger ?? this.ledger; // las copias antiguas no lo traen: se conserva
     }
     write(KEYS.collection, this.collection);
     write(KEYS.decks, this.decks);
     write(KEYS.matches, this.matches);
+    write(KEYS.ledger, this.ledger);
     this.emit('collection');
     this.emit('decks');
     this.emit('matches');
+    this.emit('ledger');
   },
 
   /** Solo la colección (desde Excel/CSV): "merge" suma, "replace" la sustituye. Los mazos no se tocan. */
