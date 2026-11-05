@@ -627,8 +627,9 @@ async function runSync() {
     snap = await firstSync(uid);
     if (!snap) return false;
   }
-  await push(uid, snap);
+  const deckError = await push(uid, snap);
   await pull(uid, snap);
+  if (deckError) throw deckError; // lo demás ya está sincronizado: solo queda avisar del límite
   return true;
 }
 
@@ -650,8 +651,9 @@ async function firstSync(uid) {
     if (r.normal || r.foil) remoteCol[r.card_id] = { n: r.normal, f: r.foil };
   }
   const remoteDecks = [];
+  let deckStamp = null;
   for (const r of deckRows) {
-    stamp = maxStamp(stamp, r.updated_at);
+    deckStamp = maxStamp(deckStamp, r.updated_at);
     if (!r.deleted_at) remoteDecks.push(fromRow(r));
   }
   let matchStamp = null;
@@ -697,6 +699,7 @@ async function firstSync(uid) {
     uid,
     lastPull: stamp,
     collection: remoteCol,
+    deckPull: deckStamp,
     decks: Object.fromEntries(remoteDecks.map((d) => [d.id, deckKey(d)])),
     matchPull: matchStamp,
     matches: Object.fromEntries(remoteMatches.map((m) => [m.id, matchKey(m)])),
@@ -706,7 +709,10 @@ async function firstSync(uid) {
   return snap;
 }
 
-/** Sube lo que difiere de la foto de la nube. */
+/**
+ * Sube lo que difiere de la foto de la nube. Si no caben todos los mazos, sube lo que quepa y lo
+ * demás, y devuelve ese error para avisar al terminar la sincronización.
+ */
 async function push(uid, snap) {
   const sb = await getClient();
 
@@ -727,20 +733,34 @@ async function push(uid, snap) {
     writeSnap(snap);
   }
 
-  const changed = store.decks.filter((d) => snap.decks[d.id] !== deckKey(d));
-  if (changed.length) {
-    const { error } = await sb.from('decks').upsert(changed.map((d) => toRow(uid, d)), { onConflict: 'user_id,id' });
-    if (error) throw error;
-    for (const d of changed) snap.decks[d.id] = deckKey(d);
-    writeSnap(snap);
-  }
-
+  // Primero los borrados: dejan sitio para los mazos que no cabían.
   const localIds = new Set(store.decks.map((d) => d.id));
   const gone = Object.keys(snap.decks).filter((id) => !localIds.has(id));
   if (gone.length) {
     const { error } = await sb.from('decks').update({ deleted_at: new Date().toISOString() }).eq('user_id', uid).in('id', gone);
     if (error) throw error;
     for (const id of gone) delete snap.decks[id];
+    writeSnap(snap);
+  }
+
+  const changed = store.decks.filter((d) => snap.decks[d.id] !== deckKey(d));
+  const upsertDecks = (list) => sb.from('decks').upsert(list.map((d) => toRow(uid, d)), { onConflict: 'user_id,id' });
+  let deckError = null;
+  if (changed.length) {
+    let uploaded = changed;
+    const { error } = await upsertDecks(changed);
+    if (error && !/LIMITE_MAZOS/.test(error.message)) throw error;
+    if (error) {
+      // Pasa del límite: de uno en uno, para que suban las ediciones y los que quepan.
+      deckError = error;
+      uploaded = [];
+      for (const d of changed) {
+        const { error: one } = await upsertDecks([d]);
+        if (!one) uploaded.push(d);
+        else if (!/LIMITE_MAZOS/.test(one.message)) throw one;
+      }
+    }
+    for (const d of uploaded) snap.decks[d.id] = deckKey(d);
     writeSnap(snap);
   }
 
@@ -790,20 +810,32 @@ async function push(uid, snap) {
     for (const id of goneLedger) delete snap.ledger[id];
     writeSnap(snap);
   }
+  return deckError;
 }
 
-/** Baja lo que ha cambiado en la nube desde la última vez (incluidos los cambios de otros dispositivos). */
+/**
+ * Baja lo que ha cambiado en la nube desde la última vez (incluidos los cambios de otros dispositivos).
+ * Cada tipo lleva su propia marca: se consultan por separado, y con una sola la fecha de un mazo podría
+ * saltarse una carta guardada entre las dos consultas. Lo que difiere de la foto se ha cambiado aquí
+ * después de subir: no se pisa, solo se actualiza la foto y la siguiente vuelta lo sube.
+ */
 async function pull(uid, snap) {
   const sb = await getClient();
-  const since = snap.lastPull;
-  const newer = (q) => (since ? q.gt('updated_at', since) : q);
-  const colRows = await selectAll(() => newer(sb.from('collection_items').select('card_id,normal,foil,updated_at').eq('user_id', uid)).order('updated_at').order('card_id'));
-  const deckRows = await selectAll(() => newer(sb.from('decks').select('*').eq('user_id', uid)).order('updated_at').order('id'));
+  snap.deckPull ??= snap.lastPull; // foto de antes de separar las marcas
+  const newer = (q, since) => (since ? q.gt('updated_at', since) : q);
+  const colRows = await selectAll(() => newer(sb.from('collection_items').select('card_id,normal,foil,updated_at').eq('user_id', uid), snap.lastPull).order('updated_at').order('card_id'));
+  const deckRows = await selectAll(() => newer(sb.from('decks').select('*').eq('user_id', uid), snap.deckPull).order('updated_at').order('id'));
 
   let changed = false;
   for (const r of colRows) {
     snap.lastPull = maxStamp(snap.lastPull, r.updated_at);
     const cur = store.collection[r.card_id];
+    const base = snap.collection[r.card_id];
+    if ((cur?.n ?? 0) !== (base?.n ?? 0) || (cur?.f ?? 0) !== (base?.f ?? 0)) {
+      if (r.normal || r.foil) snap.collection[r.card_id] = { n: r.normal, f: r.foil };
+      else delete snap.collection[r.card_id];
+      continue;
+    }
     // Lo que se quitó en otro dispositivo también va al historial de este.
     if (cur && cur.n > r.normal) store.logRemoval(r.card_id, cur.n - r.normal, false, 'otro dispositivo');
     if (cur && cur.f > r.foil) store.logRemoval(r.card_id, cur.f - r.foil, true, 'otro dispositivo');
@@ -816,15 +848,17 @@ async function pull(uid, snap) {
     }
   }
   for (const r of deckRows) {
-    snap.lastPull = maxStamp(snap.lastPull, r.updated_at);
+    snap.deckPull = maxStamp(snap.deckPull, r.updated_at);
     const i = store.decks.findIndex((d) => d.id === r.id);
+    const dirty = snap.decks[r.id] !== (i >= 0 ? deckKey(store.decks[i]) : undefined);
     if (r.deleted_at) {
       delete snap.decks[r.id];
-      if (i >= 0) { store.decks.splice(i, 1); changed = true; }
+      if (i >= 0 && !dirty) { store.decks.splice(i, 1); changed = true; }
       continue;
     }
     const deck = fromRow(r);
     snap.decks[r.id] = deckKey(deck);
+    if (dirty) continue;
     if (i < 0) { store.decks.unshift(deck); changed = true; }
     else if (deckKey(store.decks[i]) !== snap.decks[r.id]) { store.decks[i] = deck; changed = true; }
   }
@@ -838,15 +872,17 @@ async function pull(uid, snap) {
   for (const r of matchRows) {
     snap.matchPull = maxStamp(snap.matchPull, r.updated_at);
     const i = store.matches.findIndex((m) => m.id === r.id);
+    const dirty = snap.matches[r.id] !== (i >= 0 ? matchKey(store.matches[i]) : undefined);
     if (r.deleted_at) {
       delete snap.matches[r.id];
-      if (i >= 0) { store.matches.splice(i, 1); changed = true; }
+      if (i >= 0 && !dirty) { store.matches.splice(i, 1); changed = true; }
       continue;
     }
     const match = fromMatchRow(r);
     // El mazo que la nube no enlaza (no estaba subido) se conserva si aquí sí lo tenemos.
     if (!match.deck && i >= 0) match.deck = store.matches[i].deck;
     snap.matches[r.id] = matchKey(match);
+    if (dirty) continue;
     if (i < 0) { store.matches.push(match); changed = true; }
     else if (matchKey(store.matches[i]) !== snap.matches[r.id]) { store.matches[i] = match; changed = true; }
   }
@@ -862,13 +898,15 @@ async function pull(uid, snap) {
   for (const r of ledgerRows) {
     snap.ledgerPull = maxStamp(snap.ledgerPull, r.updated_at);
     const i = store.ledger.findIndex((m) => m.id === r.id);
+    const dirty = snap.ledger[r.id] !== (i >= 0 ? ledgerKey(store.ledger[i]) : undefined);
     if (r.deleted_at) {
       delete snap.ledger[r.id];
-      if (i >= 0) { store.ledger.splice(i, 1); ledgerChanged = true; }
+      if (i >= 0 && !dirty) { store.ledger.splice(i, 1); ledgerChanged = true; }
       continue;
     }
     const entry = fromLedgerRow(r);
     snap.ledger[r.id] = ledgerKey(entry);
+    if (dirty) continue;
     if (i < 0) { store.ledger.push(entry); ledgerChanged = true; }
     else if (ledgerKey(store.ledger[i]) !== snap.ledger[r.id]) { store.ledger[i] = entry; ledgerChanged = true; }
   }

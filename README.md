@@ -123,7 +123,8 @@ marcha están en [`supabase/README.md`](supabase/README.md).
 - La app compara lo local con una "foto" de lo que hay en la nube (`rb.sync.v1`) y sube solo lo
   que difiere. Si la misma carta, mazo o partida cambia en dos dispositivos sin conexión, gana el
   último que sube. Los mazos y partidas borrados se marcan (`deleted_at`) para que el borrado llegue
-  a los demás dispositivos.
+  a los demás dispositivos. Lo que se cambia mientras se sincroniza no se pisa: se sube en la vuelta
+  siguiente. Si no caben todos los mazos (15 por cuenta), se sincroniza todo lo demás y la app avisa.
 - **La primera vez** que una cuenta con datos entra en un dispositivo con datos, la app pregunta qué
   hacer con las cartas, los mazos y las partidas, cada cosa por separado: juntar, quedarse con lo de
   la cuenta o con lo del dispositivo. Las cartas se pueden juntar sin duplicar (la cantidad mayor de
