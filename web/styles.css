@@ -394,6 +394,22 @@ dialog::backdrop { background: rgba(0, 0, 0, .7); }
 .export-option:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 .export-option:disabled { opacity: .5; }
 .export-option strong { font-weight: 600; }
+/* "Juntar datos": una pregunta por cartas, mazos y partidas. */
+.merge-group { margin: 16px 0 0; padding: 0; border: 0; min-width: 0; }
+.merge-group legend { padding: 0; font-weight: 600; }
+.merge-group > p { margin: 2px 0 8px; }
+.merge-option {
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin-top: 6px;
+  border-radius: 14px; background: var(--surface-2); cursor: pointer; transition: background-color .15s;
+}
+.merge-option:hover { background: #333; }
+.merge-option:has(input:checked) { outline: 2px solid var(--text); outline-offset: -2px; }
+.merge-option input { flex: none; width: 18px; height: 18px; margin: 0; accent-color: var(--text); }
+.merge-option input:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.merge-option strong, .merge-option .grow > span { display: block; }
+.merge-option strong { font-weight: 600; }
+.merge-result { flex: none; color: var(--accent); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#account-dialog > .actions { margin-top: 16px; }
 .deck-name { width: 100%; font-size: 20px; font-weight: 600; margin: 4px 0 12px; background: transparent; }
 .deck-share { flex-wrap: wrap; column-gap: 10px; row-gap: 0; margin: -6px 0 10px; }
 .deck-name:hover { background: var(--surface); }

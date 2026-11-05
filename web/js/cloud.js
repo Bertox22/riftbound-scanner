@@ -11,6 +11,7 @@
 // sincronizaran no las tienen, y la primera vez se bajan todas y se juntan con las de aquí.
 
 import { store } from './store.js';
+import { joinCollection, joinById, countCards, sameCollection, sameById, autoPlan } from './merge.js';
 
 const SUPABASE_URL = 'https://eyevxcflrgouelrfkosk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_juyEUUFU4PVzQaIhgJVJLA_SkqddAD0'; // clave pública: puede ir en la web
@@ -632,8 +633,9 @@ async function runSync() {
 }
 
 /**
- * Primera vez de esta cuenta en este dispositivo. Si solo uno de los dos tiene datos, se usan esos;
- * si los dos tienen, se pregunta: juntar, quedarse con lo de la cuenta o subir lo de aquí.
+ * Primera vez de esta cuenta en este dispositivo. Cartas, mazos y partidas se deciden por separado:
+ * si solo un lado tiene datos de ese tipo se usan esos, si coinciden no se toca nada, y si no se
+ * pregunta qué hacer (solo por los tipos en los que hay que elegir).
  */
 async function firstSync(uid) {
   const sb = await getClient();
@@ -659,32 +661,37 @@ async function firstSync(uid) {
     if (!r.deleted_at) remoteMatches.push(fromMatchRow(r));
   }
 
-  const count = (col, decks, matches) => ({ cards: Object.values(col).reduce((a, e) => a + e.n + e.f, 0), decks: decks.length, matches: matches.length });
-  const local = count(store.collection, store.decks, store.matches);
-  const remote = count(remoteCol, remoteDecks, remoteMatches);
-  const any = (c) => c.cards || c.decks || c.matches;
-  let choice = 'device';
-  if (any(local) && any(remote)) choice = await askChoice({ local, remote });
-  else if (any(remote)) choice = 'cloud';
-  if (!choice) return null;
-
-  if (choice === 'cloud') {
-    store.collection = structuredClone(remoteCol);
-    store.decks = structuredClone(remoteDecks);
-    store.matches = structuredClone(remoteMatches).sort(byDate);
-    store.ledger = []; // el balance no entra en la pregunta: el pull de después baja el de la cuenta
-  } else if (choice === 'merge') {
-    for (const [id, e] of Object.entries(remoteCol)) {
-      const cur = store.collection[id] || { n: 0, f: 0 };
-      store.collection[id] = { n: cur.n + e.n, f: cur.f + e.f };
-    }
-    const ids = new Set(store.decks.map((d) => d.id));
-    store.decks.push(...structuredClone(remoteDecks.filter((d) => !ids.has(d.id))));
-    const matchIds = new Set(store.matches.map((m) => m.id));
-    store.matches.push(...structuredClone(remoteMatches.filter((m) => !matchIds.has(m.id))));
-    store.matches.sort(byDate);
+  const plan = {
+    cards: autoPlan(!countCards(store.collection), !countCards(remoteCol), sameCollection(store.collection, remoteCol)),
+    decks: autoPlan(!store.decks.length, !remoteDecks.length, sameById(store.decks, remoteDecks, deckKey)),
+    matches: autoPlan(!store.matches.length, !remoteMatches.length, sameById(store.matches, remoteMatches, matchKey)),
+  };
+  const open = Object.keys(plan).filter((kind) => !plan[kind]);
+  if (open.length) {
+    const size = (how, kind) => (kind === 'cards'
+      ? countCards(joinCollection(store.collection, remoteCol, how))
+      : joinById(kind === 'decks' ? store.decks : store.matches, kind === 'decks' ? remoteDecks : remoteMatches, how).length);
+    // Cuánto quedaría con cada respuesta, para enseñarlo en la pregunta.
+    const options = { cards: ['max', 'sum', 'cloud', 'device'], decks: ['merge', 'cloud', 'device'], matches: ['merge', 'cloud', 'device'] };
+    const questions = open.map((kind) => ({
+      kind,
+      local: size('device', kind),
+      remote: size('cloud', kind),
+      results: Object.fromEntries(options[kind].map((how) => [how, size(how, kind)])),
+    }));
+    const answers = await askChoice({ questions, auto: Object.keys(plan).filter((kind) => plan[kind]) });
+    if (!answers) return null;
+    Object.assign(plan, answers);
   }
+
   // 'device': lo local se queda y el siguiente paso lo sube (y borra en la nube lo que no está aquí).
+  store.collection = joinCollection(store.collection, remoteCol, plan.cards);
+  store.decks = joinById(store.decks, remoteDecks, plan.decks);
+  store.matches = joinById(store.matches, remoteMatches, plan.matches).sort(byDate);
+  // Quedarse con todo lo de la cuenta deja también el balance: el pull de después baja el de la
+  // cuenta. En los demás casos el de aquí se conserva y se junta con el de la cuenta.
+  const plans = Object.values(plan);
+  if (plans.includes('cloud') && plans.every((how) => how === 'cloud' || how === 'same')) store.ledger = [];
 
   const snap = {
     uid,
@@ -695,7 +702,7 @@ async function firstSync(uid) {
     matches: Object.fromEntries(remoteMatches.map((m) => [m.id, matchKey(m)])),
   };
   writeSnap(snap);
-  if (choice !== 'device') store.persist();
+  if (plans.some((how) => how !== 'device' && how !== 'same')) store.persist();
   return snap;
 }
 

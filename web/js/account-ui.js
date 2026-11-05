@@ -7,7 +7,7 @@ import { friendsView } from './friends.js';
 import { cloud, onCloudChange, initCloud, signIn, signUp, signOut, syncNow, resetPassword, updatePassword, loadProfile, saveProfile, USERNAME_RE, EMAIL_RE } from './cloud.js';
 
 const dlg = () => $('#account-dialog');
-let choice = null; // { local, remote, resolve } mientras se pregunta qué hacer con los datos
+let choice = null; // { questions, auto, picks, resolve } mientras se pregunta qué hacer con los datos
 let error = '';
 let busy = false;
 let mode = 'in'; // in (entrar) · up (crear cuenta) · forgot (recuperar) · sent (correo enviado) · recovery (nueva contraseña)
@@ -218,25 +218,81 @@ function signedInView() {
   ];
 }
 
+const KINDS = {
+  cards: {
+    title: 'Cartas', one: 'carta', many: 'cartas', first: 'max',
+    options: {
+      max: ['Juntar sin duplicar', 'De cada carta, la cantidad mayor de los dos lados. Lo normal si es la misma colección.'],
+      sum: ['Sumar las copias', 'Solo si son cartas distintas: 2 aquí y 2 en la cuenta serían 4.'],
+      cloud: ['Solo las de la cuenta', 'Este dispositivo se queda con las cartas de la cuenta.'],
+      device: ['Solo las de este dispositivo', 'La cuenta se queda con las cartas de este dispositivo.'],
+    },
+  },
+  decks: {
+    title: 'Mazos', one: 'mazo', many: 'mazos', first: 'merge',
+    options: {
+      merge: ['Juntar', 'Conserva los mazos de los dos lados.'],
+      cloud: ['Solo los de la cuenta', 'Este dispositivo se queda con los mazos de la cuenta.'],
+      device: ['Solo los de este dispositivo', 'La cuenta se queda con los mazos de este dispositivo.'],
+    },
+  },
+  matches: {
+    title: 'Partidas', one: 'partida', many: 'partidas', first: 'merge',
+    options: {
+      merge: ['Juntar', 'Conserva las partidas de los dos lados.'],
+      cloud: ['Solo las de la cuenta', 'Este dispositivo se queda con las partidas de la cuenta.'],
+      device: ['Solo las de este dispositivo', 'La cuenta se queda con las partidas de este dispositivo.'],
+    },
+  },
+};
+
+const howMany = (n, kind) => `${n} ${n === 1 ? KINDS[kind].one : KINDS[kind].many}`;
+
+/** ¿Se conservan partidas de un lado cuyos mazos no se conservan? Se quedan sin mazo. */
+function orphanRisk() {
+  const { decks, matches } = choice.picks;
+  return !!decks && !!matches && decks !== 'merge' && matches !== decks;
+}
+
+function pick(kind, how) {
+  choice.picks[kind] = how;
+  // Sin repintar la hoja: no se pierde el foco ni la posición en la lista de opciones.
+  dlg().querySelector('.merge-orphans').hidden = !orphanRisk();
+}
+
+function choiceGroup({ kind, local, remote, results }) {
+  const { title, options } = KINDS[kind];
+  return el('fieldset', { class: 'merge-group' },
+    el('legend', { text: title }),
+    el('p', { class: 'muted small', text: `Aquí: ${howMany(local, kind)}. En tu cuenta: ${howMany(remote, kind)}.` }),
+    ...Object.entries(options).map(([how, [label, hint]]) => el('label', { class: 'merge-option' },
+      el('input', {
+        type: 'radio', name: `merge-${kind}`, value: how, checked: choice.picks[kind] === how,
+        onchange: () => pick(kind, how),
+      }),
+      el('span', { class: 'grow' },
+        el('strong', { text: label }),
+        el('span', { class: 'muted small', text: hint })),
+      el('span', { class: 'merge-result', text: howMany(results[how], kind), title: 'Lo que quedará' }))));
+}
+
 function choiceView() {
-  const { local, remote } = choice;
-  const what = ({ cards, decks, matches }) => `${cards} carta${cards === 1 ? '' : 's'}, ${decks} mazo${decks === 1 ? '' : 's'} y ${matches} partida${matches === 1 ? '' : 's'}`;
-  const option = (key, label, hint) => el('button', { class: 'export-option', onclick: () => answer(key) },
-    el('strong', { text: label }), el('span', { class: 'muted small', text: hint }));
+  const { questions, auto } = choice;
+  const autoNames = auto.map((kind) => KINDS[kind].title.toLowerCase());
   return [
-    el('p', { text: 'Este dispositivo y tu cuenta tienen datos distintos. ¿Qué hacemos?' }),
-    el('p', { class: 'muted small', text: `Aquí: ${what(local)}. En tu cuenta: ${what(remote)}.` }),
-    el('div', { class: 'export-options' },
-      option('merge', 'Juntar las dos', 'Suma las copias de cada carta y conserva todos los mazos y partidas.'),
-      option('cloud', 'Quedarme con lo de la cuenta', 'Este dispositivo pasa a tener lo mismo que tu cuenta.'),
-      option('device', 'Subir lo de este dispositivo', 'Tu cuenta pasa a tener lo mismo que este dispositivo.')),
+    el('p', { text: 'Este dispositivo y tu cuenta tienen datos distintos. Elige qué hacer con cada cosa.' }),
+    ...questions.map(choiceGroup),
+    autoNames.length > 0 && el('p', { class: 'muted small', text: `No hay que elegir nada para ${autoNames.join(' ni ')}: ya coinciden o solo están en un lado.` }),
+    el('p', { class: 'muted small merge-orphans', hidden: !orphanRisk(), text: 'Las partidas de un mazo que no se conserve se guardan igual, pero aparecerán como «Mazo borrado».' }),
+    el('div', { class: 'actions' },
+      el('button', { class: 'btn primary', type: 'button', onclick: answer }, 'Aplicar')),
   ];
 }
 
-function answer(key) {
-  const { resolve } = choice;
+function answer() {
+  const { resolve, picks } = choice;
   choice = null;
-  resolve(key);
+  resolve(picks);
   render();
 }
 
@@ -268,7 +324,7 @@ function render() {
 }
 
 function draw(d) {
-  if (choice) d.replaceChildren(head('Juntar datos'), ...choiceView());
+  if (choice) d.replaceChildren(head('Juntar datos'), ...choiceView().filter(Boolean));
   else if (mode === 'recovery') d.replaceChildren(head('Contraseña nueva'), ...recoveryView());
   else if (cloud.username && panel === 'friends') d.replaceChildren(friendsHead(), ...friendsView({ rerender: render, close: () => dlg().close() }));
   else if (cloud.username) d.replaceChildren(head('Tu cuenta'), ...signedInView().filter(Boolean));
@@ -323,8 +379,9 @@ export function initAccount() {
       render();
       if (!dlg().open) dlg().showModal();
     },
-    ask: (counts) => new Promise((resolve) => {
-      choice = { ...counts, resolve };
+    ask: ({ questions, auto }) => new Promise((resolve) => {
+      const picks = Object.fromEntries(questions.map(({ kind }) => [kind, KINDS[kind].first]));
+      choice = { questions, auto, picks, resolve };
       render();
       if (!dlg().open) dlg().showModal();
     }),

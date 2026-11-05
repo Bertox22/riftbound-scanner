@@ -124,8 +124,11 @@ marcha están en [`supabase/README.md`](supabase/README.md).
   que difiere. Si la misma carta, mazo o partida cambia en dos dispositivos sin conexión, gana el
   último que sube. Los mazos y partidas borrados se marcan (`deleted_at`) para que el borrado llegue
   a los demás dispositivos.
-- **La primera vez** que una cuenta con datos entra en un dispositivo con datos, la app pregunta si
-  juntarlos, quedarse con los de la cuenta o subir los del dispositivo.
+- **La primera vez** que una cuenta con datos entra en un dispositivo con datos, la app pregunta qué
+  hacer con las cartas, los mazos y las partidas, cada cosa por separado: juntar, quedarse con lo de
+  la cuenta o con lo del dispositivo. Las cartas se pueden juntar sin duplicar (la cantidad mayor de
+  cada una, la opción por defecto) o sumando las copias. No pregunta por lo que ya coincide o solo
+  está en un lado.
 - Si a una cuenta le falta su perfil, la app lo repara sola (`ensure_profile()`) y solo cierra la
   sesión si Supabase confirma que la cuenta ya no existe.
 - Sin sesión no se carga Supabase. En la web solo va la clave pública (publishable); la clave
@@ -156,7 +159,7 @@ la cámara: se propone la edición normal y puedes cambiar la versión en la lis
 web/                 la app (estática, se puede publicar tal cual)
   index.html, styles.css
   js/                app.js (escáner y colección), decks.js, matches.js (partidas),
-                     cloud.js y account-ui.js (cuenta y sincronización), profile.js (página de
+                     cloud.js, merge.js y account-ui.js (cuenta y sincronización), profile.js (página de
                      perfil), friends.js (seguir y amigos), trades.js (intercambios), table.js (mesa), ledger.js (balance), store.js (localStorage),
                      import-ui.js, importer.js, export.js, prices.js, recognizer.js, scanner.js
   data/cards.json    datos de las cartas
