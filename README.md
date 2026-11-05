@@ -58,8 +58,8 @@ entre tus dispositivos.
   mitad (la del rival, girada), teñida con el color del dominio de su Leyenda, con sus puntos en
   grande, una pista hasta los puntos de victoria y los botones − y + en su borde (tocar el número
   también suma). Llegar a los puntos solo avisa («Gana el juego», en dorado): los juegos se cierran a
-  mano con «Siguiente». La barra del medio tiene salir, «Sortear» quién empieza (antes del primer
-  punto), el juego y el marcador, reiniciar y «Terminar». Al terminar, la
+  mano con «Siguiente». La barra del medio tiene salir, «Sortear» (antes del primer punto: quien gana
+  elige en su mitad si empieza o empieza el otro, y eso queda apuntado en la partida), el juego y el marcador, reiniciar y «Terminar». Al terminar, la
   partida se guarda sola en tu historial (y si el rival es un amigo, le llega como partida espejo).
   La pantalla no se apaga y una recarga no pierde la partida.
 - **Cuenta (opcional):** el botón de la barra superior abre la cuenta. Con ella, colección, mazos y

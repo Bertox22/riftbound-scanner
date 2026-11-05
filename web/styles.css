@@ -847,3 +847,12 @@ body.mesa-open { overflow: hidden; }
 .ledger-hint { margin: 0; min-height: 18px; }
 .ledger-form-end { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .ledger-form-total { font-variant-numeric: tabular-nums; color: var(--accent); }
+
+/* Mesa: quien gana el sorteo elige quién empieza */
+.mesa-choose { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 16px; text-align: center; background: rgba(0, 0, 0, .88); }
+.mesa-choose strong { font-size: 20px; font-weight: 600; }
+.mesa-choose span { margin-bottom: 6px; color: #b4b4b4; }
+.mesa-choice { width: min(100%, 320px); min-height: 52px; padding: 0 16px; border: 0; border-radius: 999px; background: #fff; color: #000; font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mesa-choice:hover { background: #e6e6e6; }
+.mesa-choice:active { transform: scale(.98); }
+.mesa-choice:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }

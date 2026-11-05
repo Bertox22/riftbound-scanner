@@ -9,7 +9,8 @@
 // Mesa (store.table, solo en este dispositivo, así una recarga no la pierde):
 // { id, started, bestOf (1 | 3), target (puntos para ganar un juego), me: { deck, legend },
 //   opp: { name, legend, account: { id, username } | null }, games: [[tuyos, rival], …] (el último es
-//   el que se juega), first: 'me' | 'opp' | null (quién empezó el primer juego) }
+//   el que se juega), first: 'me' | 'opp' | null (quién empezó el primer juego), chooser: 'me' | 'opp' |
+//   null (ganó el sorteo y aún tiene que elegir quién empieza) }
 
 import { store } from './store.js';
 import { $, el, toast, cardImg } from './ui.js';
@@ -18,6 +19,7 @@ import { allLegends, legendTitle, legendChamp, canonicalLegend, deckById, blankM
 
 let ctx; // { byId, showView }
 let wakeLock = null;
+let drawing = false; // el sorteo está en marcha
 
 // El color del primer dominio de cada Leyenda tiñe su mitad (identidad, no datos).
 const DOMAIN_COLOR = { Fury: '#e5484d', Calm: '#3fc07a', Mind: '#4c8dff', Body: '#f08c3a', Chaos: '#a066e8', Order: '#e2b955' };
@@ -197,6 +199,7 @@ function half(side) {
   const tint = DOMAIN_COLOR[(legend?.domain ?? []).find((d) => DOMAIN_COLOR[d])] ?? '#555';
   const name = side === 0 ? (cloud.profile?.display_name || cloud.username || 'Tú') : oppLabel(tb);
   const startsHere = tb.games.length === 1 && tb.first === (side === 0 ? 'me' : 'opp');
+  const chooses = tb.chooser === (side === 0 ? 'me' : 'opp');
   const bump = (d) => {
     const g = current();
     g[side] = Math.max(0, Math.min(99, g[side] + d));
@@ -229,7 +232,20 @@ function half(side) {
           : el('span', { class: 'mesa-flag none', 'aria-hidden': 'true' })),
     el('div', { class: 'mesa-steps' },
       el('button', { class: 'mesa-step', type: 'button', 'aria-label': `Quitar un punto a ${name}`, disabled: !score, onclick: () => bump(-1) }, '−'),
-      el('button', { class: 'mesa-step plus', type: 'button', 'aria-label': `Sumar un punto a ${name}`, onclick: () => bump(1) }, '+')));
+      el('button', { class: 'mesa-step plus', type: 'button', 'aria-label': `Sumar un punto a ${name}`, onclick: () => bump(1) }, '+')),
+    chooses && choosePanel(side));
+}
+
+/** Quien gana el sorteo elige quién empieza. Va en su mitad, así que lo lee de frente. */
+function choosePanel(side) {
+  const self = side === 0 ? 'me' : 'opp';
+  const other = side === 0 ? 'opp' : 'me';
+  const otherName = other === 'opp' ? oppLabel() : (cloud.profile?.display_name || cloud.username || 'tu rival');
+  return el('div', { class: 'mesa-choose', role: 'group', 'aria-label': 'Elegir quién empieza' },
+    el('strong', { text: 'Has ganado el sorteo' }),
+    el('span', { text: '¿Quién empieza?' }),
+    el('button', { class: 'mesa-choice', type: 'button', onclick: () => chooseFirst(self) }, 'Empiezo yo'),
+    el('button', { class: 'mesa-choice', type: 'button', onclick: () => chooseFirst(other) }, `Empieza ${otherName}`));
 }
 
 /** Juegos ya cerrados que ha ganado un lado (el que se está jugando no cuenta). */
@@ -253,11 +269,11 @@ function bar() {
   const [a, b] = current();
   const decided = tb.bestOf === 1 ? leader() !== null : gamesWon(0) + (leader() === 0) >= 2 || gamesWon(1) + (leader() === 1) >= 2;
   const canNext = tb.bestOf > 1 && n < 3 && !(gamesWon(0) >= 2 || gamesWon(1) >= 2) && (a > 0 || b > 0);
-  const canDraw = n === 1 && !a && !b;
+  const canDraw = n === 1 && !a && !b && !tb.chooser;
   const pill = (text, label, onclick, primary) => el('button', { class: `mesa-pill${primary ? ' primary' : ''}`, type: 'button', 'aria-label': label, onclick }, text);
   return el('div', { class: 'mesa-bar' },
     iconBtn('Salir de la mesa (la partida sigue guardada)', '<path d="M15 6l-6 6 6 6"/>', closeTable),
-    canDraw && pill('Sortear', 'Sortear quién empieza', drawFirst, false),
+    canDraw && pill('Sortear', 'Sortear quién elige quién empieza', drawFirst, false),
     el('div', { class: 'mesa-status' },
       el('strong', { text: tb.bestOf > 1 ? `Juego ${n}` : 'Un juego' }),
       el('span', { text: tb.bestOf > 1 ? `${gamesWon(0)}–${gamesWon(1)} · a ${tb.target}` : `a ${tb.target} puntos` })),
@@ -298,8 +314,10 @@ async function keepAwake() {
 
 // ---------- Acciones ----------
 
-/** Sorteo de quién empieza: las dos mitades se iluminan por turnos y se para en una. */
+/** Sorteo: las dos mitades se iluminan por turnos y se para en una, que elige quién empieza. */
 function drawFirst() {
+  if (drawing) return;
+  drawing = true;
   const halves = [...document.querySelectorAll('.mesa-half')]; // [rival, tú]
   const pick = Math.random() < 0.5 ? 'me' : 'opp';
   const steps = 9 + (pick === 'me' ? 1 : 0); // acaba en la mitad elegida
@@ -308,15 +326,27 @@ function drawFirst() {
     halves.forEach((h, k) => h.classList.toggle('lit', k === i % 2));
     if (++i < steps) setTimeout(tick, 70 + i * 18);
     else {
+      drawing = false;
       halves.forEach((h) => h.classList.remove('lit'));
-      if (t().games.length === 1) { t().first = pick; store.saveTable(); }
+      if (!t()) return;
+      t().first = null;
+      t().chooser = pick;
+      store.saveTable();
       renderTable();
-      const who = pick === 'me' ? 'Empiezas tú' : `Empieza ${oppLabel()}`;
-      toast(who);
       flash(pick === 'me' ? 0 : 1);
     }
   };
   tick();
+}
+
+/** Apunta a quien haya elegido el ganador del sorteo como el que empieza. */
+function chooseFirst(who) {
+  t().first = who;
+  t().chooser = null;
+  store.saveTable();
+  renderTable();
+  toast(who === 'me' ? 'Empiezas tú' : `Empieza ${oppLabel()}`);
+  flash(who === 'me' ? 0 : 1);
 }
 
 function flash(side) {
@@ -336,6 +366,7 @@ function reset() {
   if (!confirm('¿Reiniciar la partida? Los puntos vuelven a 0.')) return;
   t().games = [[0, 0]];
   t().first = null;
+  t().chooser = null;
   store.saveTable();
   renderTable();
 }
