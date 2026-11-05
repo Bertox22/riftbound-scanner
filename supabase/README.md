@@ -1,8 +1,8 @@
 # Base de datos (Supabase)
 
-Esquema para las cuentas y las fases que vienen. Cada archivo es una fase y se ejecuta una vez,
-en orden, en el editor SQL de Supabase. Se pueden ejecutar todos ya: las tablas de fases futuras no
-molestan aunque la app aún no las use.
+Esquema para las cuentas y las fases que vienen. Cada archivo es una fase y se ejecuta en orden, en
+el editor SQL de Supabase. Se pueden ejecutar todos ya: las tablas de fases futuras no molestan
+aunque la app aún no las use.
 
 | Archivo | Fase | Tablas |
 | --- | --- | --- |
@@ -16,6 +16,7 @@ molestan aunque la app aún no las use.
 | `08_amigos.sql` | 3 · Social | Amigos (os seguís los dos) con `are_friends()`, y la partida espejo (`matches.mirror_of`) |
 | `09_intercambios_amigos.sql` | 4 · Intercambios | Solo entre amigos: `propose_trade()`, contraoferta (`counter_of`) y `mark_trade_applied()` |
 | `10_balance.sql` | — | Balance de compras y ventas (`ledger`), con borrado sincronizado (`deleted_at`) |
+| `11_correcciones.sql` | — | Corrige los triggers de mazos y partidas con upsert, oculta lo borrado a otros y añade `my_friends()`, límites de tamaño e índices |
 
 Las cartas no están en la base de datos: siguen en `web/data/cards.json`. Las tablas guardan el id
 de la carta (`ven-116-166`) y la app lo cruza con ese archivo, como hace hoy con el `localStorage`.
@@ -28,7 +29,8 @@ de la carta (`ven-116-166`) y la app lo cruza con ese archivo, como hace hoy con
    **Authentication → Emails → SMTP Settings:** un SMTP propio para que los correos lleguen (se usa
    Brevo: `smtp-relay.brevo.com`, puerto 587, con su usuario y clave SMTP; en Brevo, sin bloqueo de
    IP para las claves SMTP). El SMTP de prueba de Supabase solo envía a los miembros del proyecto.
-3. **SQL Editor:** pegar y ejecutar `01_cuentas.sql`, luego `02` a `10`, en orden. Se pueden repetir sin problema.
+3. **SQL Editor:** pegar y ejecutar `01_cuentas.sql`, luego `02` a `11`, en orden. Para repetir un archivo,
+   repite también todos los siguientes: cada uno cambia cosas de los anteriores, y uno suelto desharía esos cambios.
 4. **Project Settings → API:** copiar la *Project URL* y la clave *anon / publishable*. Son las únicas
    que van en la web. La clave *service_role / secret* no se pone nunca en la web.
 5. **Authentication → URL Configuration:** *Site URL* `https://bertox22.github.io/riftbound-scanner/`
@@ -42,10 +44,11 @@ de la carta (`ven-116-166`) y la app lo cruza con ese archivo, como hace hoy con
 - Colección, mazos y partidas de otros solo se leen si su perfil es público (`profiles.is_public`).
   Un mazo suelto se puede compartir con `decks.is_public` aunque el perfil no lo sea. Los amigos
   (dos cuentas que se siguen mutuamente) ven los mazos y las partidas del otro; la colección, no.
+  Lo borrado (`deleted_at`) y las cartas a 0 solo los ve su dueño.
 - Una partida solo puede llevar como rival con cuenta (`opponent_id`) a un amigo, y una copia
-  (`mirror_of`) solo puede ser de una partida en la que eras el rival. Lo comprueba un trigger
-  (`check_match_links`) solo cuando cambian esos campos, así que dejar de ser amigos no bloquea
-  editar partidas antiguas.
+  (`mirror_of`) solo puede ser de una partida en la que eras el rival; si no lo es, se guarda sin el
+  enlace. Lo comprueba un trigger (`check_match_links`) solo cuando cambian esos campos, así que
+  dejar de ser amigos no bloquea editar partidas antiguas.
 - Las listas de "ofrezco" y "busco" solo las ves tú y tus amigos, y `trade_matches()` solo busca entre ellos.
 - Un intercambio solo se crea con `propose_trade()`, que exige que seáis amigos y al menos una carta.
   El estado solo cambia con `set_trade_status()`, que comprueba quién puede hacer qué (quien recibe
@@ -54,6 +57,6 @@ de la carta (`ven-116-166`) y la app lo cruza con ese archivo, como hace hoy con
   `mark_trade_applied()` devuelva true, cosa que solo pasa la primera vez para cada lado.
 - El balance (`ledger`) solo lo lee y lo escribe su dueño.
 - El nombre de usuario no se puede cambiar desde la web (las cuentas antiguas inician sesión con él).
-- El perfil (`profiles`) lo crea el alta. No hay que borrar filas de `profiles` a mano: se borran
-  en cascada la colección, los mazos y las partidas de esa cuenta. Si falta, `ensure_profile()` lo
-  vuelve a crear (vacío).
+- El perfil (`profiles`) lo crea el alta. No hay que borrar filas de `profiles` a mano: se borra en
+  cascada todo lo de esa cuenta (colección, mazos, partidas, amigos, intercambios y balance). Si
+  falta, `ensure_profile()` lo vuelve a crear (vacío).

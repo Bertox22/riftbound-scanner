@@ -70,6 +70,7 @@ grant select, insert, update, delete on public.trade_list, public.want_list to a
 -- Jugadores que ofrecen cartas que busco y/o buscan cartas que ofrezco. Primero los que encajan
 -- en los dos sentidos; luego por número de cartas en común. Con la ciudad de cada uno.
 
+drop function if exists public.trade_matches(); -- 09 cambia lo que devuelve: sin esto, repetir este archivo falla
 create or replace function public.trade_matches()
 returns table (other_id uuid, other_username citext, other_city text, cards_they_have integer, cards_they_want integer)
 language sql stable security invoker set search_path = '' as $$

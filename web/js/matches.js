@@ -8,7 +8,7 @@
 // Las Leyendas se guardan con un id "canónico" por Leyenda (no por impresión), para que la foil,
 // la Metal o la Signature cuenten como la misma al sacar estadísticas.
 
-import { store } from './store.js';
+import { store, newUuid } from './store.js';
 import { $, el, toast, cardImg } from './ui.js';
 import { cloud, onCloudChange, fetchIncoming, dismissIncoming, mirrorId } from './cloud.js';
 
@@ -62,7 +62,7 @@ export const deckById = (id) => store.decks.find((d) => d.id === id);
 const lastDeck = () => store.matches.find((m) => m.deck && deckById(m.deck))?.deck ?? store.decks[0]?.id ?? null;
 
 export function blankMatch() {
-  return { id: crypto.randomUUID?.() ?? String(Date.now()), at: Date.now(), deck: lastDeck(), my: null, opp: null, oppName: '', result: null, score: null, points: [[null, null]], first: null, event: '', notes: '', rival: null, mirrorOf: null };
+  return { id: newUuid(), at: Date.now(), deck: lastDeck(), my: null, opp: null, oppName: '', result: null, score: null, points: [[null, null]], first: null, event: '', notes: '', rival: null, mirrorOf: null };
 }
 
 // ---------- Puntos ----------

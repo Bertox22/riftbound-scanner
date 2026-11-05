@@ -89,8 +89,8 @@ export function tradeBlock(card, rerender) {
   const sub = [offered && `ofreces ${offered}`, wanted && `buscas ${wanted}`].filter(Boolean).join(' · ');
   return el('details', { class: 'trade-box', open: fichaOpen, ontoggle: (e) => { fichaOpen = e.target.open; } },
     el('summary', { text: sub ? `Intercambio: ${sub}` : 'Intercambio' }),
-    row('offer', false, 'Ofrezco normales', ownedOf(card.id, false)),
-    row('offer', true, 'Ofrezco foil', ownedOf(card.id, true)),
+    row('offer', false, 'Ofrezco normales', giveMax(card.id, false)),
+    row('offer', true, 'Ofrezco foil', giveMax(card.id, true)),
     row('want', false, 'Busco (me vale cualquiera)', 99),
     row('want', true, 'Busco solo foil', 99));
 }
@@ -145,7 +145,7 @@ function addOffer() {
     pool: () => ctx.cards.filter((c) => store.owned(c.id) > 0).sort(byName),
     options: (c) => [false, true].filter((foil) => ownedOf(c.id, foil) > 0).map((foil) => {
       const n = qtyOf('offer', c.id, foil);
-      return { foil, label: `+ ${foil ? 'Foil' : 'Normal'}${n ? ` (${n})` : ''}`, disabled: n >= ownedOf(c.id, foil) };
+      return { foil, label: `+ ${foil ? 'Foil' : 'Normal'}${n ? ` (${n})` : ''}`, disabled: n >= giveMax(c.id, foil) };
     }),
     onPick: (c, foil) => setQty('offer', c.id, foil, qtyOf('offer', c.id, foil) + 1),
   });
@@ -610,7 +610,7 @@ function listRow(list, key, qty) {
     el('div', { class: 'tile-qty' },
       el('button', { class: 'icon-btn small', title: 'Una menos', onclick: () => setQty(list, id, foil, qty - 1) }, '−'),
       el('span', { class: 'qty', text: qty }),
-      el('button', { class: 'icon-btn small', title: 'Una más', disabled: list === 'offer' ? qty >= have : qty >= 99, onclick: () => setQty(list, id, foil, qty + 1) }, '+')));
+      el('button', { class: 'icon-btn small', title: 'Una más', disabled: list === 'offer' ? qty >= giveMax(id, foil) : qty >= 99, onclick: () => setQty(list, id, foil, qty + 1) }, '+')));
 }
 
 function listSection(list, empty, ...buttons) {

@@ -10,7 +10,7 @@
 // Las partidas tienen su propia marca de "bajado hasta" (matchPull): las fotos de antes de que se
 // sincronizaran no las tienen, y la primera vez se bajan todas y se juntan con las de aquí.
 
-import { store } from './store.js';
+import { store, uuidFromBytes } from './store.js';
 import { joinCollection, joinById, countCards, sameCollection, sameById, autoPlan } from './merge.js';
 
 const SUPABASE_URL = 'https://eyevxcflrgouelrfkosk.supabase.co';
@@ -212,10 +212,7 @@ export async function unfollow(id) {
 /** Id de la copia de una partida en esta cuenta (un uuid derivado de la original y de la cuenta). */
 export async function mirrorId(originalId) {
   const bytes = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`espejo:${originalId}:${session.user.id}`))).slice(0, 16);
-  bytes[6] = (bytes[6] & 0x0f) | 0x50; // versión 5 (por nombre)
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  const hex = [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  return uuidFromBytes(bytes, 5); // versión 5 (por nombre)
 }
 
 /**

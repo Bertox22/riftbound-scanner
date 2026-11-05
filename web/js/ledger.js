@@ -6,11 +6,12 @@
 // añade: avisa hasta que las copias estén en la colección. Para eso se apunta cuántas había al comprar.
 
 import { $, el, toast, cardImg, cardCode, baseName } from './ui.js';
-import { store } from './store.js';
+import { store, newUuid } from './store.js';
 import { unitPrice, eur } from './prices.js';
 
 const SEARCH_LIMIT = 30;
-const MAX_QTY = 999;
+const MAX_QTY = 999; // los mismos límites que la tabla ledger: pasarse atascaría la sincronización
+const MAX_PRICE = 99_999_999.99;
 
 let ctx;
 
@@ -108,7 +109,7 @@ function drawBalance() {
 
 function parsePrice(text) {
   const n = Number(text.trim().replace(/\s|€/g, '').replace(',', '.'));
-  return text.trim() && Number.isFinite(n) && n >= 0 ? round2(n) : null;
+  return text.trim() && Number.isFinite(n) && n >= 0 && n <= MAX_PRICE ? round2(n) : null;
 }
 
 /** Hoy → ahora mismo (para que quede el primero); otro día → ese día a mediodía. */
@@ -191,7 +192,7 @@ function openForm(kind) {
   }
 
   function maxQty() {
-    return selling && f.what === 'card' && f.card ? ownedOf(f.card.id, f.foil) : MAX_QTY;
+    return selling && f.what === 'card' && f.card ? Math.min(ownedOf(f.card.id, f.foil), MAX_QTY) : MAX_QTY;
   }
 
   function values() {
@@ -217,7 +218,7 @@ function openForm(kind) {
     const { qty, price } = values();
     const isCard = f.what === 'card';
     const entry = {
-      id: crypto.randomUUID?.() ?? String(Date.now()),
+      id: newUuid(),
       at: dateToAt(dateInput.value), kind,
       label: isCard ? null : labelInput.value.trim().slice(0, 120),
       card: isCard ? f.card.id : null,
