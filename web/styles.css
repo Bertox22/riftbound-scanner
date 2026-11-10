@@ -897,3 +897,65 @@ body.mesa-open { overflow: hidden; }
 .mesa-choice:hover { background: #e6e6e6; }
 .mesa-choice:active { transform: scale(.98); }
 .mesa-choice:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+/* Importar y exportar (Colección): dos cajas, una al lado de la otra en pantallas anchas. */
+.io-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.io-box { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px 16px; border-radius: 16px; background: var(--surface); }
+.io-box h3 { margin: 0; color: var(--text); font-size: 15px; }
+.io-box p { margin: 0 0 8px; color: var(--faint); }
+.io-box .actions { margin-top: auto; }
+@media (min-width: 640px) { .io-grid { grid-template-columns: 1fr 1fr; } }
+
+/* Hojas: la cabecera (título y ✕) se queda fija al desplazar una hoja larga; la barra de
+   desplazamiento, fina y gris, para que no pise las esquinas redondeadas. */
+dialog { scrollbar-width: thin; scrollbar-color: #3a3a3a transparent; }
+dialog > .dialog-head:first-child {
+  position: sticky; top: -20px; z-index: 3; margin: -20px -20px 12px; padding: 20px 20px 12px; background: var(--surface);
+}
+
+/* ---------- Portátil y ordenador ----------
+   En el móvil nada cambia. En pantallas anchas el contenido respira bajo la barra de arriba, las hojas
+   flotan centradas con aire arriba y abajo (no pegadas al borde) y las que son listas o formularios
+   no se estiran a lo ancho. */
+@media (min-width: 561px) {
+  dialog { max-height: calc(100dvh - 96px); }
+  #balance-dialog, #match-dialog, #picker-dialog:has(.history-list), #picker-dialog:has(.ledger-form) { max-width: 600px; }
+}
+@media (min-width: 768px) {
+  main { padding: 32px 24px 24px; }
+  /* El primer título de cada vista va pegado al principio: el aire ya lo da main. */
+  .view > .section-head:first-child, #deck-list-view > .section-head:first-child { margin-top: 0; }
+  .col-tabs { max-width: 360px; margin-bottom: 20px; }
+  .filters { gap: 10px; }
+  #col-summary { margin-top: 18px; }
+  .col-summary-row { margin: 18px 0 8px; }
+  .grid { gap: 20px 14px; margin-top: 12px; }
+  /* Escanear: la cámara y su lista en una columna centrada, alineadas entre sí. */
+  #view-scan { max-width: min(520px, 52.5vh); margin: 0 auto; } /* = el ancho de la cámara (3:4, hasta 70vh de alto) */
+  .cam-controls { margin-top: 12px; }
+  /* Estadísticas: las listas por mazo y por Leyenda, a dos columnas. */
+  .stat-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stats-summary, .stats-first { gap: 10px; }
+  .match-stats { gap: 14px; }
+  /* La lista de mazos, a dos columnas (el editor de cada mazo no cambia). */
+  .deck-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+}
+/* Con sitio de sobra, las pestañas pasan de la barra de abajo al centro de la de arriba. */
+@media (min-width: 1120px) {
+  body { padding-bottom: 32px; }
+  .topbar { padding: 0 24px; }
+  .tabbar {
+    top: 0; bottom: auto; left: 50%; right: auto; transform: translateX(-50%); z-index: 11;
+    display: flex; align-items: center; gap: 4px; height: 56px; padding: 0; background: none; border: 0;
+  }
+  .tabbar button {
+    flex-direction: row; gap: 8px; height: 40px; padding: 0 16px; border-radius: 999px; font-size: 14px;
+    transition: color .15s, background-color .15s;
+  }
+  .tabbar svg { width: 20px; height: 20px; }
+  .tabbar button:hover { background: var(--surface); color: var(--text); }
+  .tabbar button.active { background: var(--surface); }
+  .tabbar button:focus-visible { outline-offset: 2px; border-radius: 999px; }
+  .tabbar .has-dot::after { top: 8px; right: 10px; }
+  .toast { bottom: 24px; }
+}

@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=58">
+  <link rel="stylesheet" href="styles.css?v=59">
   <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.wasm.min.js"></script>
 </head>
 <body>
@@ -69,6 +69,7 @@
 
     <!-- COLECCIÓN -->
     <section id="view-collection" class="view">
+      <div class="segmented col-tabs"><button aria-checked="true" data-view="collection">Mis cartas</button><button data-view="trades">Intercambios</button></div>
       <div class="filters">
         <input type="search" id="col-search" placeholder="Buscar carta, texto o etiqueta…">
         <div class="filter-row">
@@ -100,15 +101,24 @@
       <div class="section-head">
         <h2>Importar y exportar</h2>
       </div>
-      <div class="actions">
-        <button id="btn-import-table" class="btn primary small">Importar Excel / CSV / lista</button>
-      </div>
-      <p class="muted small">Exportar:</p>
-      <div class="actions">
-        <button id="btn-export-excel" class="btn ghost small">Exportar Excel</button>
-        <button id="btn-export-csv" class="btn ghost small">Exportar CSV</button>
-        <button id="btn-export-json" class="btn ghost small">Exportar copia (JSON)</button>
-        <label class="btn ghost small">Importar copia (JSON)<input type="file" id="import-json" accept=".json,application/json" hidden></label>
+      <div class="io-grid">
+        <div class="io-box">
+          <h3>Importar</h3>
+          <p class="muted small">Un Excel o CSV de cualquier web, una lista pegada («3x Arena Kingpin») o una copia de esta app.</p>
+          <div class="actions">
+            <button id="btn-import-table" class="btn primary small">Importar Excel / CSV / lista</button>
+            <label class="btn ghost small">Importar copia (JSON)<input type="file" id="import-json" accept=".json,application/json" hidden></label>
+          </div>
+        </div>
+        <div class="io-box">
+          <h3>Exportar</h3>
+          <p class="muted small">Tu colección con copias, foil y precios, o una copia completa (colección, mazos, partidas y balance).</p>
+          <div class="actions">
+            <button id="btn-export-excel" class="btn ghost small">Excel</button>
+            <button id="btn-export-csv" class="btn ghost small">CSV</button>
+            <button id="btn-export-json" class="btn ghost small">Copia (JSON)</button>
+          </div>
+        </div>
       </div>
     </section>
 

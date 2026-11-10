@@ -117,7 +117,7 @@ export async function fetchProfilePage(username) {
   const own = profile.id === current?.user.id;
   const [deckRows, matchRows, colRows] = await Promise.all([
     selectAll(() => sb.from('decks').select('*').eq('user_id', profile.id).is('deleted_at', null).order('updated_at', { ascending: false }).order('id')),
-    selectAll(() => sb.from('matches').select('deck_id,my_legend_id,opponent_legend_id,result').eq('user_id', profile.id).is('deleted_at', null).order('id')),
+    selectAll(() => sb.from('matches').select('deck_id,my_legend_id,opponent_legend_id,result,games_won,games_lost,points').eq('user_id', profile.id).is('deleted_at', null).order('id')),
     profile.is_public ? selectAll(() => sb.from('collection_items').select('card_id,normal,foil').eq('user_id', profile.id).order('card_id')) : [],
   ]);
   const decks = deckRows.map(fromRow).filter((d) => !own || profile.is_public || d.shared);

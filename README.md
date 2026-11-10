@@ -51,9 +51,10 @@ entre tus dispositivos.
   (8–7, o hasta 3 juegos al mejor de 3: el resultado y el marcador se marcan solos), quién empezó
   (al mejor de 3, cada juego), el evento, la fecha y notas. El marcador admite 3–0 y 0–3 por si se
   juega el tercer juego aunque ya haya ganador. Si el rival es un amigo, eliges también con cuál de
-  sus mazos jugó (y su Leyenda se pone sola). Las estadísticas muestran el porcentaje de victorias (sin contar
-  empates), el balance V–D–E, cómo te va empezando tú o el rival, y los resultados por mazo y contra
-  cada Leyenda, con un filtro por mazo.
+  sus mazos jugó (y su Leyenda se pone sola). Las estadísticas cuentan juegos, no partidas (al mejor de 3, un 2–1 son
+  dos victorias y una derrota, y un 0–3, tres derrotas): el porcentaje de victorias (sin contar
+  empates), el balance V–D–E, cómo te va en los juegos que empiezas tú o el rival, y los resultados
+  por mazo y contra cada Leyenda, con un filtro por mazo.
 - **Mesa (marcador en vivo):** en Partidas, «Iniciar partida» pide tu mazo (o tu Leyenda), el
   rival (te sugiere cuentas al escribir; si no tiene cuenta, basta su nombre; si es un amigo, también
   su mazo), su Leyenda, si es a un
@@ -85,7 +86,8 @@ entre tus dispositivos.
     descartarla. En su perfil ves vuestro cara a cara («Tú contra X»).
   - **¿Cuánto me falta?:** en el mazo de otro jugador ves qué cartas te faltan de tu colección y lo
     que costarían en Cardmarket, y puedes copiarlo a tus mazos.
-- **Intercambios (con cuenta, solo entre amigos):** en Colección → Intercambios (`#intercambios`).
+- **Intercambios (con cuenta, solo entre amigos):** en Colección, con el selector «Mis cartas /
+  Intercambios» de arriba (`#intercambios`).
   - **Ofrezco / Busco:** marcas las cartas desde la ficha o desde estas listas, y «Ofrecer repetidas»
     añade las copias que pasan de 3 (sin contar runas). Solo las ven tus amigos y no quitan nada de la colección.
   - **Proponer:** desde el perfil de un amigo o desde «Con quién cambiar». Eliges lo que das (de tu

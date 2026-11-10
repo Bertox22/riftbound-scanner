@@ -241,15 +241,40 @@ function matchRow(m) {
 }
 
 // ---------- Estadísticas ----------
-// El porcentaje de victorias no cuenta los empates (igual que las vistas de la base de datos).
+// Se cuentan juegos, no partidas: al mejor de 3, un 2–1 son dos victorias y una derrota y un 0–3,
+// tres derrotas; a un juego, la partida es un juego. El porcentaje de victorias no cuenta los empates.
 
-export function record(list) {
-  const r = { games: list.length, win: 0, loss: 0, draw: 0 };
-  for (const m of list) r[m.result]++;
+/**
+ * Los juegos de una partida: [{ res: 'win' | 'loss' | 'draw', start: true | false | null }] (start:
+ * quién empezó ese juego). Vale también para las filas de la nube que se ven en los perfiles
+ * (games_won, games_lost, points, result).
+ */
+export function gamesOf(m) {
+  const score = m.score ?? (m.games_won != null && m.games_lost != null ? `${m.games_won}-${m.games_lost}` : null);
+  const [won, lost] = score ? score.split('-').map(Number) : [null, null];
+  const played = (m.points ?? []).map(([a, b], i) => ({ a, b, i })).filter(({ a, b }) => a != null && b != null);
+  const byPoints = played.map(({ a, b, i }) => ({ res: a > b ? 'win' : b > a ? 'loss' : 'draw', start: startOf(m, i) }));
+  const w = byPoints.filter((g) => g.res === 'win').length, l = byPoints.filter((g) => g.res === 'loss').length;
+  // Los puntos mandan si cuadran con el marcador (o si no hay marcador y hay varios juegos): saben quién empezó cada uno.
+  if (played.length > 1 && (score == null || (w === won && l === lost))) return byPoints;
+  if (score != null) {
+    return [...Array(won).fill('win'), ...Array(lost).fill('loss')].map((res) => ({ res, start: null }));
+  }
+  return [{ res: m.result, start: m.first ?? m.went_first ?? null }];
+}
+
+function tally(games, matches) {
+  const r = { matches, games: games.length, win: 0, loss: 0, draw: 0 };
+  for (const g of games) r[g.res]++;
   const decided = r.win + r.loss;
   r.rate = decided ? Math.round((100 * r.win) / decided) : null;
   return r;
 }
+
+/** Récord de una lista de partidas, por juegos: { matches, games, win, loss, draw, rate }. */
+export const record = (list) => tally(list.flatMap(gamesOf), list.length);
+/** "3 partidas", o "3 partidas · 7 juegos" si alguna fue al mejor de 3. */
+export const countText = (r) => `${r.matches} partida${r.matches === 1 ? '' : 's'}${r.games !== r.matches ? ` · ${r.games} juegos` : ''}`;
 export const recordText = (r) => `${r.win}–${r.loss}${r.draw ? `–${r.draw}` : ''}`;
 export const rateText = (r) => (r.rate == null ? '—' : `${r.rate} %`);
 
@@ -261,7 +286,7 @@ export function groupBy(list, key) {
     if (!groups.has(k)) groups.set(k, []);
     groups.get(k).push(m);
   }
-  return [...groups].map(([k, ms]) => [k, record(ms)]).sort((a, b) => b[1].games - a[1].games || (b[1].rate ?? -1) - (a[1].rate ?? -1));
+  return [...groups].map(([k, ms]) => [k, record(ms)]).sort((a, b) => b[1].matches - a[1].matches || (b[1].rate ?? -1) - (a[1].rate ?? -1));
 }
 
 function rateBar(r) {
@@ -276,7 +301,7 @@ export function statRow(thumb, name, r) {
         el('span', { class: 'stat-row-name', text: name }),
         el('span', { class: 'stat-row-rate', text: rateText(r) })),
       rateBar(r),
-      el('div', { class: 'muted small', text: `${recordText(r)} · ${r.games} partida${r.games === 1 ? '' : 's'}` })));
+      el('div', { class: 'muted small', text: `${recordText(r)} · ${countText(r)}` })));
 }
 
 const filtered = () => store.matches.filter((m) => !deckFilter || (m.deck ?? 'none') === deckFilter);
@@ -285,8 +310,10 @@ function renderStats(list) {
   const box = $('#match-stats');
   if (!store.matches.length) return box.replaceChildren();
   const all = record(list);
-  const firstR = record(list.filter((m) => m.first === true));
-  const secondR = record(list.filter((m) => m.first === false));
+  // Empezando tú o el rival: cada juego por su cuenta (al mejor de 3, cada uno tiene quien empezó).
+  const games = list.flatMap(gamesOf);
+  const firstR = tally(games.filter((g) => g.start === true), 0);
+  const secondR = tally(games.filter((g) => g.start === false), 0);
 
   // Mazos con partidas (y los que ya no existen, si quedan partidas suyas).
   const deckIds = [...new Set(store.matches.map((m) => m.deck ?? 'none'))];
@@ -310,8 +337,8 @@ function renderStats(list) {
         el('strong', { text: recordText(all) }),
         el('span', { class: 'muted small', text: all.draw ? 'V–D–E' : 'V–D' })),
       el('div', { class: 'stats-big' },
-        el('strong', { text: String(all.games) }),
-        el('span', { class: 'muted small', text: all.games === 1 ? 'partida' : 'partidas' }))),
+        el('strong', { text: String(all.matches) }),
+        el('span', { class: 'muted small', text: `${all.matches === 1 ? 'partida' : 'partidas'}${all.games !== all.matches ? ` · ${all.games} juegos` : ''}` }))),
     (firstR.games || secondR.games) && el('div', { class: 'stats-first' },
       ...[['Empezando tú', firstR], ['Empezando el rival', secondR]].map(([label, r]) => el('div', {},
         el('span', { class: 'muted small', text: label }),
@@ -701,7 +728,7 @@ export function deckRecord(deckId) {
   const r = record(list);
   return {
     text: `${recordText(r)}${r.rate == null ? '' : ` · ${rateText(r)}`}`,
-    title: `${r.games} partida${r.games === 1 ? '' : 's'}: ${r.win} V, ${r.loss} D${r.draw ? `, ${r.draw} E` : ''}`,
+    title: `${countText(r)}: ${r.win} V, ${r.loss} D${r.draw ? `, ${r.draw} E` : ''}`,
   };
 }
 

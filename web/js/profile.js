@@ -10,7 +10,7 @@ import { cloud, onCloudChange, fetchProfilePage } from './cloud.js';
 import { followButton } from './friends.js';
 import { tradeBox } from './trades.js';
 import { openFriends } from './account-ui.js';
-import { record, recordText, rateText, groupBy, statRow, legendThumb, legendChamp, canonicalLegend } from './matches.js';
+import { record, recordText, rateText, countText, groupBy, statRow, legendThumb, legendChamp, canonicalLegend } from './matches.js';
 
 let ctx; // { cards, byId, openCard, showView }
 let page = null; // lo último que se ha cargado: { profile, own, decks, matches, collection }
@@ -68,7 +68,7 @@ function headToHead(profile) {
   return el('div', { class: 'head-to-head' },
     el('span', { class: 'muted small', text: `Tú contra ${profile.display_name || profile.username}` }),
     el('strong', { text: recordText(r) }),
-    el('span', { class: 'muted small', text: `${rateText(r)} · ${r.games} partida${r.games === 1 ? '' : 's'}` }));
+    el('span', { class: 'muted small', text: `${rateText(r)} · ${countText(r)}` }));
 }
 
 function stats(matches) {
@@ -79,7 +79,7 @@ function stats(matches) {
     el('div', { class: 'stats-summary' },
       el('div', { class: 'stats-big' }, el('strong', { text: rateText(all) }), el('span', { class: 'muted small', text: 'victorias' })),
       el('div', { class: 'stats-big' }, el('strong', { text: recordText(all) }), el('span', { class: 'muted small', text: all.draw ? 'V–D–E' : 'V–D' })),
-      el('div', { class: 'stats-big' }, el('strong', { text: String(all.games) }), el('span', { class: 'muted small', text: all.games === 1 ? 'partida' : 'partidas' }))),
+      el('div', { class: 'stats-big' }, el('strong', { text: String(all.matches) }), el('span', { class: 'muted small', text: `${all.matches === 1 ? 'partida' : 'partidas'}${all.games !== all.matches ? ` · ${all.games} juegos` : ''}` }))),
     byLegend.length > 0 && el('h3', { class: 'stats-title', text: 'Leyendas que más juega' }),
     byLegend.length > 0 && el('ul', { class: 'stat-list' },
       ...byLegend.map(([id, r]) => statRow(legendThumb(id), ctx.byId.get(id) ? legendChamp(ctx.byId.get(id)) : 'Leyenda', r))),
