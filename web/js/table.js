@@ -259,16 +259,26 @@ function iconBtn(label, svg, onclick) {
   return b;
 }
 
+/** ¿La partida ya tiene ganador, contando el juego que se está jugando si alguien ya lo gana? */
+function decided() {
+  if (t().bestOf === 1) return leader() !== null;
+  return gamesWon(0) + (leader() === 0) >= 2 || gamesWon(1) + (leader() === 1) >= 2;
+}
+
 /**
- * La barra del medio, para quien tiene el móvil delante. Solo una acción va en blanco: «Siguiente»
- * cuando alguien ya gana el juego y quedan juegos, «Terminar» cuando la partida ya está decidida.
+ * La barra del medio, para quien tiene el móvil delante. Solo una acción va en blanco: «Terminar
+ * juego» cuando alguien ya gana el juego y quedan juegos (lo guarda y pasa al siguiente), «Terminar»
+ * cuando la partida ya está decidida (la guarda en el historial).
  */
 function bar() {
   const tb = t();
   const n = tb.games.length;
   const [a, b] = current();
-  const decided = tb.bestOf === 1 ? leader() !== null : gamesWon(0) + (leader() === 0) >= 2 || gamesWon(1) + (leader() === 1) >= 2;
-  const canNext = tb.bestOf > 1 && n < 3 && !(gamesWon(0) >= 2 || gamesWon(1) >= 2) && (a > 0 || b > 0);
+  const over = leader() !== null;
+  const done = decided();
+  const closeGame = tb.bestOf > 1 && over && !done;
+  // Cerrar un juego sin llegar a los puntos (p. ej. si alguien se rinde).
+  const canNext = tb.bestOf > 1 && n < 3 && !over && !(gamesWon(0) >= 2 || gamesWon(1) >= 2) && (a > 0 || b > 0);
   const canDraw = n === 1 && !a && !b && !tb.chooser;
   const pill = (text, label, onclick, primary) => el('button', { class: `mesa-pill${primary ? ' primary' : ''}`, type: 'button', 'aria-label': label, onclick }, text);
   return el('div', { class: 'mesa-bar' },
@@ -278,8 +288,10 @@ function bar() {
       el('strong', { text: tb.bestOf > 1 ? `Juego ${n}` : 'Un juego' }),
       el('span', { text: tb.bestOf > 1 ? `${gamesWon(0)}–${gamesWon(1)} · a ${tb.target}` : `a ${tb.target} puntos` })),
     iconBtn('Reiniciar la partida', '<path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v5h5"/>', reset),
-    canNext && pill('Siguiente', 'Cerrar este juego y empezar el siguiente', nextGame, leader() !== null && !decided),
-    pill('Terminar', 'Terminar y guardar la partida', finish, decided));
+    canNext && pill('Siguiente', 'Cerrar este juego y empezar el siguiente', nextGame, false),
+    closeGame
+      ? pill('Terminar juego', `Guardar el juego ${n} y empezar el juego ${n + 1}`, nextGame, true)
+      : pill('Terminar', 'Terminar y guardar la partida', finish, done));
 }
 
 function renderTable() {
@@ -356,10 +368,12 @@ function flash(side) {
 function nextGame() {
   const [a, b] = current();
   if (!a && !b) return toast('Este juego aún no tiene puntos.');
-  if (!confirm(`¿Cerrar el juego ${t().games.length} (${a}–${b}) y empezar el siguiente?`)) return;
+  const n = t().games.length;
+  if (!confirm(`¿Terminar el juego ${n} (${a}–${b})? Se guarda y empieza el juego ${n + 1}.`)) return;
   t().games.push([0, 0]);
   store.saveTable();
   renderTable();
+  toast(`Juego ${n} guardado (${gamesWon(0)}–${gamesWon(1)}). Empieza el juego ${n + 1}.`);
 }
 
 function reset() {
@@ -398,7 +412,8 @@ function finish() {
   const m = toMatch(tb);
   const what = { win: 'victoria', loss: 'derrota', draw: 'empate' }[m.result];
   const pts = m.points.map(([a, b]) => `${a}–${b}`).join(', ');
-  if (!confirm(`¿Terminar la partida? Se guardará como ${what} (${pts}).`)) return;
+  const early = tb.bestOf > 1 && !decided() ? 'Nadie ha ganado aún 2 juegos. ' : '';
+  if (!confirm(`${early}¿Terminar la partida? Se guardará como ${what} (${pts}).`)) return;
   saveMatch(m);
   store.saveTable(null);
   closeTable();
