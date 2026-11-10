@@ -539,7 +539,12 @@ const matchKey = (m) => canon({
   at: m.at, deck: m.deck ?? null, my: m.my ?? null, opp: m.opp ?? null, oppName: m.oppName ?? '', result: m.result,
   score: m.score ?? null, points: m.points ?? [], first: m.first ?? null, event: m.event ?? '', notes: m.notes ?? '',
   rival: m.rival ?? null, mirrorOf: m.mirrorOf ?? null,
+  // Solo si hay Campos: así las partidas de antes no cuentan como cambiadas y no se vuelven a subir.
+  ...(m.battlefields?.length ? { battlefields: m.battlefields } : {}),
 });
+// La columna de los Campos llega con 12_campos_partida.sql. Mientras no esté, las partidas se suben sin
+// ellos (y las que los tienen se reintentan en cada sincronización, hasta que la columna exista).
+let noBattlefieldColumn = false;
 const ledgerKey = (m) => canon({
   at: m.at, kind: m.kind, label: m.label ?? null, card: m.card ?? null, foil: !!m.foil, qty: m.qty, price: m.price,
   ownedBefore: m.ownedBefore ?? null, inCollection: !!m.inCollection,
@@ -573,6 +578,7 @@ function toMatchRow(uid, m, snap) {
     event: (m.event || '').slice(0, 80) || null, notes: (m.notes || '').slice(0, 500) || null,
     points: m.points?.length ? m.points : null,
     opponent_id: m.rival ?? null, mirror_of: m.mirrorOf ?? null,
+    ...(noBattlefieldColumn ? {} : { battlefields: m.battlefields?.length ? m.battlefields : null }),
     deleted_at: null,
   };
 }
@@ -582,7 +588,7 @@ function fromMatchRow(r) {
     oppName: r.opponent_name ?? '', result: r.result,
     score: r.games_won != null && r.games_lost != null ? `${r.games_won}-${r.games_lost}` : null,
     points: r.points ?? [], first: r.went_first, event: r.event ?? '', notes: r.notes ?? '',
-    rival: r.opponent_id ?? null, mirrorOf: r.mirror_of ?? null,
+    rival: r.opponent_id ?? null, mirrorOf: r.mirror_of ?? null, battlefields: r.battlefields ?? [],
     updated: Date.parse(r.updated_at),
   };
 }
@@ -775,8 +781,15 @@ async function push(uid, snap) {
       store.persist();
       ({ error } = await upsert());
     }
+    // La base de datos aún no tiene la columna de los Campos (falta 12_campos_partida.sql).
+    if (error && !noBattlefieldColumn && /battlefields/.test(error.message)) {
+      console.warn('Falta la columna matches.battlefields: las partidas se suben sin los Campos de batalla.');
+      noBattlefieldColumn = true;
+      ({ error } = await upsert());
+    }
     if (error) throw error;
-    for (const m of chunk) snap.matches[m.id] = matchKey(m);
+    // Sin la columna, lo subido no lleva los Campos: la foto tampoco, para reintentarlo la próxima vez.
+    for (const m of chunk) snap.matches[m.id] = matchKey(noBattlefieldColumn ? { ...m, battlefields: [] } : m);
     writeSnap(snap);
   }
 

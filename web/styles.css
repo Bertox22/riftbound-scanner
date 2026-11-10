@@ -544,6 +544,19 @@ dialog input[type=date]:focus { outline: none; border-color: var(--muted); }
 .legend-opt:hover { background: var(--surface-2); color: var(--text); }
 .legend-opt.selected { box-shadow: 0 0 0 2px var(--text); color: var(--text); }
 .legend-opt .thumb { border-radius: 6px; }
+/* Campos de batalla: cartas apaisadas, en una cuadrícula más ancha. */
+.bf-grid { grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); }
+.bf-grid .thumb { aspect-ratio: 335 / 240; object-fit: cover; }
+.bf-group { grid-column: 1 / -1; margin: 4px 0 0; }
+.bf-list { display: flex; flex-direction: column; gap: 8px; }
+.bf-row { display: flex; align-items: center; gap: 8px; }
+.bf-pick {
+  flex: 1 1 0; min-width: 0; min-height: 44px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--surface-2);
+  color: var(--text); font: inherit; font-size: 14px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.bf-pick:hover { background: #2e2e2e; }
+.bf-pick.empty-pick { color: var(--muted); }
+.bf-pick.active { box-shadow: 0 0 0 2px var(--text); }
 /* Puntos: dos casillas por juego, tú – rival. */
 .points-list { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .points-row { display: flex; align-items: center; gap: 8px; }
@@ -731,6 +744,15 @@ body.mesa-open { overflow: hidden; }
 .mesa-games span { margin-right: 3px; }
 .mesa-games i { width: 18px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .18); }
 .mesa-games i.on { background: #fff; }
+/* Campo de batalla del juego: una pastilla bajo el nombre; tocarla lo elige o lo cambia. */
+.mesa-bf {
+  align-self: flex-start; max-width: 100%; min-height: 32px; padding: 0 12px; border: 0; border-radius: 999px;
+  background: rgba(255, 255, 255, .12); color: #fff; font: inherit; font-size: 13px; cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mesa-bf.empty { background: transparent; color: #b4b4b4; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .25); }
+.mesa-bf:hover { background: rgba(255, 255, 255, .2); }
+.mesa-bf:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 
 /* Los puntos: el número es también el botón grande de +1 */
 .mesa-score {

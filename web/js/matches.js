@@ -4,12 +4,14 @@
 //            result ('win' | 'loss' | 'draw'), score ('2-1'… o null), points (puntos de cada juego:
 //            [[8, 7], [5, 8]], tuyos y del rival), first (true: empecé yo, false: el rival, null: sin
 //            apuntar), event, notes, rival (id de la cuenta del rival, si es un amigo), mirrorOf (si es
-//            la copia de una partida que apuntó el rival), updated }
-// Las Leyendas se guardan con un id "canónico" por Leyenda (no por impresión), para que la foil,
+//            la copia de una partida que apuntó el rival), battlefields (el Campo de batalla de cada
+//            uno en cada juego, al lado de sus puntos: [[tuyo, del rival], …], null si no se apuntó;
+//            [] si no hay ninguno), updated }
+// Las Leyendas y los Campos se guardan con un id "canónico" (no por impresión), para que la foil,
 // la Metal o la Signature cuenten como la misma al sacar estadísticas.
 
 import { store, newUuid } from './store.js';
-import { $, el, toast, cardImg } from './ui.js';
+import { $, el, toast, cardImg, baseName } from './ui.js';
 import { cloud, onCloudChange, fetchIncoming, dismissIncoming, mirrorId } from './cloud.js';
 
 const RESULTS = { win: 'Victoria', loss: 'Derrota', draw: 'Empate' };
@@ -56,14 +58,77 @@ export function legendTitle(card) {
 }
 export const legendChamp = (card) => legendTitle(card).split(' · ')[0];
 
+// ---------- Campos de batalla ----------
+
+let battlefields = []; // uno por Campo (la impresión normal), por nombre
+const canonicalBf = new Map(); // id de cualquier impresión → id de su Campo
+
+function buildBattlefields() {
+  const groups = new Map();
+  for (const c of ctx.cards) {
+    if (c.type !== 'Battlefield' || c.supertype === 'Token') continue;
+    const k = baseName(c).toLowerCase();
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(c);
+  }
+  for (const group of groups.values()) {
+    const main = group.find((c) => !/\(/.test(c.name)) ?? group[0];
+    for (const c of group) canonicalBf.set(c.id, main.id);
+    battlefields.push(main);
+  }
+  battlefields.sort((a, b) => baseName(a).localeCompare(baseName(b), 'es'));
+}
+
+export const canonicalBattlefield = (id) => (id ? canonicalBf.get(id) ?? id : null);
+
+/** Nombre de un Campo por su id ("Altar to Unity"), o null. */
+export const battlefieldName = (id) => { const c = id && ctx.byId.get(id); return c ? baseName(c) : null; };
+
+/**
+ * Cuadrícula para elegir un Campo de batalla, con buscador. `suggested` (los del mazo) van primero;
+ * `used` se marcan como ya jugados en esta partida. onpick(null) lo quita.
+ */
+export function battlefieldChooser(selected, onpick, { suggested = [], used = [] } = {}) {
+  let q = '';
+  const top = [...new Set(suggested.map(canonicalBattlefield).filter((id) => ctx.byId.has(id)))];
+  const grid = el('div', { class: 'legend-grid bf-grid' });
+  const opt = (c) => el('button', {
+    type: 'button', class: `legend-opt bf-opt${c.id === selected ? ' selected' : ''}`, onclick: () => onpick(c.id),
+  }, cardImg(c), el('span', { text: used.includes(c.id) && c.id !== selected ? `${baseName(c)} · ya jugado` : baseName(c) }));
+  const draw = () => {
+    const s = q.trim().toLowerCase();
+    const match = (c) => !s || baseName(c).toLowerCase().includes(s);
+    const mine = top.map((id) => ctx.byId.get(id)).filter(match);
+    const rest = battlefields.filter((c) => !top.includes(c.id) && match(c));
+    grid.replaceChildren(...[
+      mine.length > 0 && el('p', { class: 'bf-group muted small', text: 'De tu mazo' }),
+      ...mine.map(opt),
+      mine.length > 0 && rest.length > 0 && el('p', { class: 'bf-group muted small', text: 'Todos' }),
+      ...rest.map(opt),
+      !mine.length && !rest.length && el('p', { class: 'muted small', text: 'Ningún Campo con ese nombre.' }),
+    ].filter(Boolean));
+  };
+  draw();
+  return el('div', { class: 'legend-choose' },
+    el('div', { class: 'legend-search' }, el('input', { type: 'search', placeholder: 'Buscar Campo de batalla…', 'aria-label': 'Buscar Campo de batalla', oninput: (e) => { q = e.target.value; draw(); } })),
+    grid,
+    selected && el('button', { type: 'button', class: 'link small', onclick: () => onpick(null) }, 'Quitar el Campo'));
+}
+
+/** Los Campos del mazo (para ponerlos primero al elegir). */
+export const deckBattlefields = (deckId) => deckById(deckId)?.battlefields ?? [];
+
 // ---------- Datos ----------
 
 export const deckById = (id) => store.decks.find((d) => d.id === id);
 const lastDeck = () => store.matches.find((m) => m.deck && deckById(m.deck))?.deck ?? store.decks[0]?.id ?? null;
 
 export function blankMatch() {
-  return { id: newUuid(), at: Date.now(), deck: lastDeck(), my: null, opp: null, oppName: '', result: null, score: null, points: [[null, null]], first: null, event: '', notes: '', rival: null, mirrorOf: null };
+  return { id: newUuid(), at: Date.now(), deck: lastDeck(), my: null, opp: null, oppName: '', result: null, score: null, points: [[null, null]], battlefields: [], first: null, event: '', notes: '', rival: null, mirrorOf: null };
 }
+
+/** Los Campos de un juego: [tuyo, del rival]. */
+export const bfOf = (m, i) => m.battlefields?.[i] ?? [null, null];
 
 // ---------- Puntos ----------
 
@@ -92,7 +157,11 @@ export function deriveFromPoints(m) {
 }
 
 export function saveMatch(m) {
-  m.points = fullGames(m.points);
+  // Se quedan los juegos con puntos o con algún Campo; los Campos siguen al lado de sus puntos.
+  const games = (m.points ?? []).map((g, i) => [g, bfOf(m, i)])
+    .filter(([[a, b], [x, y]]) => (a != null && b != null) || x || y);
+  m.points = games.map(([g]) => g);
+  m.battlefields = games.some(([, [x, y]]) => x || y) ? games.map(([, f]) => [f[0] ?? null, f[1] ?? null]) : [];
   m.my = canonicalLegend(deckById(m.deck)?.legend) ?? m.my;
   m.updated = Date.now();
   const i = store.matches.findIndex((x) => x.id === m.id);
@@ -140,6 +209,9 @@ function matchRow(m) {
     m.first === true ? 'Empecé yo' : m.first === false ? 'Empezó el rival' : null,
     m.event,
   ].filter(Boolean).join(' · ');
+  // "Campos: Altar to Unity vs Aspirant's Climb · …", un par por juego.
+  const fields = (m.battlefields ?? []).filter(([a, b]) => a || b)
+    .map(([a, b]) => `${battlefieldName(a) ?? '?'} vs ${battlefieldName(b) ?? '?'}`).join(' · ');
   return el('li', { class: 'match-row', onclick: () => openSheet(m) },
     el('span', { class: `match-result ${m.result}`, title: RESULTS[m.result], 'aria-label': RESULTS[m.result] }, RESULT_SHORT[m.result]),
     el('div', { class: 'match-legends', 'aria-hidden': 'true' }, legendThumb(m.my), legendThumb(m.opp)),
@@ -147,6 +219,7 @@ function matchRow(m) {
       el('strong', { text: rival ? `contra ${rival}` : 'Rival sin apuntar' }),
       el('div', { class: 'muted small', text: deck ? deck.name : m.deck ? 'Mazo borrado' : 'Sin mazo' }),
       meta && el('div', { class: 'muted small', text: meta }),
+      fields && el('div', { class: 'muted small', text: `Campos: ${fields}` }),
     ),
   );
 }
@@ -299,6 +372,7 @@ async function mirrored({ match: o, author }) {
     id: await mirrorId(o.id), at: o.at, my: o.opp, opp: o.my, result: flip[o.result],
     score: o.score ? o.score.split('-').reverse().join('-') : null,
     points: o.points?.length ? o.points.map(([a, b]) => [b, a]) : [[null, null]],
+    battlefields: (o.battlefields ?? []).map(([a, b]) => [b, a]),
     first: o.first == null ? null : !o.first, event: o.event ?? '',
     oppName: author.username, rival: isFriend ? author.id : null, mirrorOf: o.id,
   };
@@ -368,7 +442,9 @@ function openSheet(existing, deckId = null, draft = null) {
   const m = existing ? structuredClone(existing) : draft ?? blankMatch();
   if (deckId) m.deck = deckId;
   if (!m.points?.length) m.points = [[null, null]];
+  m.battlefields = m.points.map((_, i) => [...bfOf(m, i)]); // uno por juego, al lado de sus puntos
   let choosing = false; // mostrando la cuadrícula de Leyendas
+  let pickingBf = null; // { i, side }: eligiendo el Campo de ese juego
   let q = '';
   let more = editing && !!(m.score || m.first !== null || m.event || m.notes); // "Más datos" abierto
 
@@ -418,12 +494,38 @@ function openSheet(existing, deckId = null, draft = null) {
           pointInput(g, 1, `Puntos del rival${m.points.length > 1 ? `, juego ${i + 1}` : ''}`),
           m.points.length > 1 && el('button', {
             type: 'button', class: 'icon-btn small', title: 'Quitar juego', 'aria-label': `Quitar juego ${i + 1}`,
-            onclick: () => { m.points.splice(i, 1); deriveFromPoints(m); draw(); },
+            onclick: () => { m.points.splice(i, 1); m.battlefields.splice(i, 1); pickingBf = null; deriveFromPoints(m); draw(); },
           }, '✕'))),
         m.points.length < MAX_GAMES && el('button', {
           type: 'button', class: 'link small points-add',
-          onclick: () => { m.points.push([null, null]); draw(); dlg.querySelectorAll('.points-row input')[m.points.length * 2 - 2]?.focus(); },
+          onclick: () => { m.points.push([null, null]); m.battlefields.push([null, null]); draw(); dlg.querySelectorAll('.points-row input')[m.points.length * 2 - 2]?.focus(); },
         }, m.points.length === 1 ? '+ Otro juego (al mejor de 3)' : '+ Otro juego')));
+
+    // Campos de batalla de cada juego: el tuyo y el del rival.
+    const bfButton = (i, side, label) => {
+      const id = m.battlefields[i][side];
+      const active = pickingBf?.i === i && pickingBf.side === side;
+      return el('button', {
+        type: 'button', class: `bf-pick${id ? '' : ' empty-pick'}${active ? ' active' : ''}`,
+        'aria-label': `${label}${m.points.length > 1 ? `, juego ${i + 1}` : ''}: ${battlefieldName(id) ?? 'sin apuntar'}`,
+        onclick: () => { pickingBf = active ? null : { i, side }; draw(); },
+      }, battlefieldName(id) ?? label);
+    };
+    const bfField = el('div', { class: 'match-field' },
+      el('span', { class: 'match-label', text: 'Campos de batalla (tuyo – rival)' }),
+      el('div', { class: 'bf-list' },
+        ...m.points.map((_, i) => el('div', { class: 'bf-row' },
+          m.points.length > 1 && el('span', { class: 'points-game muted small', text: `Juego ${i + 1}` }),
+          bfButton(i, 0, 'Tu Campo'),
+          bfButton(i, 1, 'El del rival')))),
+      pickingBf && battlefieldChooser(m.battlefields[pickingBf.i][pickingBf.side], (id) => {
+        m.battlefields[pickingBf.i][pickingBf.side] = id;
+        pickingBf = null;
+        draw();
+      }, {
+        suggested: pickingBf.side === 0 ? deckBattlefields(m.deck) : [],
+        used: m.battlefields.filter((_, j) => j !== pickingBf.i).map((f) => f[pickingBf.side]).filter(Boolean),
+      }));
 
     const decks = store.decks;
     dlg.replaceChildren(
@@ -448,6 +550,7 @@ function openSheet(existing, deckId = null, draft = null) {
             draw();
           })),
         pointsField,
+        bfField,
         el('label', { class: 'match-field' },
           el('span', { class: 'match-label', text: 'Tu mazo' }),
           el('select', { onchange: (e) => { m.deck = e.target.value || null; } },
@@ -525,6 +628,7 @@ export const editMatch = (m) => openSheet(m);
 export function initMatches(context) {
   ctx = context;
   buildLegends();
+  buildBattlefields();
   $('#btn-new-match').addEventListener('click', () => openSheet(null));
   store.onChange((what) => (what === 'matches' || what === 'decks') && render());
   // Las partidas espejo se miran al abrir la app y, como mucho, una vez por minuto al sincronizar.

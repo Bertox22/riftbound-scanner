@@ -9,13 +9,18 @@
 // Mesa (store.table, solo en este dispositivo, así una recarga no la pierde):
 // { id, started, bestOf (1 | 3), target (puntos para ganar un juego), me: { deck, legend },
 //   opp: { name, legend, account: { id, username } | null }, games: [[tuyos, rival], …] (el último es
-//   el que se juega), first: 'me' | 'opp' | null (quién empezó el primer juego), chooser: 'me' | 'opp' |
-//   null (ganó el sorteo y aún tiene que elegir quién empieza) }
+//   el que se juega), fields: [[tuyo, del rival], …] (el Campo de batalla de cada uno en cada juego),
+//   first: 'me' | 'opp' | null (quién empezó el primer juego), start: igual, pero del juego que se
+//   juega, chooser: 'me' | 'opp' | null (tiene que elegir quién empieza: en el primer juego, quien
+//   gana el sorteo; en los siguientes, quien perdió el anterior) }
 
 import { store } from './store.js';
 import { $, el, toast, cardImg } from './ui.js';
 import { cloud, searchProfiles } from './cloud.js';
-import { allLegends, legendTitle, legendChamp, canonicalLegend, deckById, blankMatch, deriveFromPoints, saveMatch, editMatch } from './matches.js';
+import {
+  allLegends, legendTitle, legendChamp, canonicalLegend, deckById, blankMatch, deriveFromPoints, saveMatch, editMatch,
+  battlefieldChooser, battlefieldName, canonicalBattlefield, deckBattlefields,
+} from './matches.js';
 
 let ctx; // { byId, showView }
 let wakeLock = null;
@@ -28,6 +33,14 @@ const TARGETS = [8, 11];
 const t = () => store.table;
 const current = () => t().games[t().games.length - 1];
 const oppLabel = (tb = t()) => tb.opp.name || 'Rival';
+/** Quién empieza el juego que se está jugando (las mesas de antes solo apuntaban el primero). */
+const starter = () => t().start ?? (t().games.length === 1 ? t().first : null);
+/** Los Campos del juego que se está jugando: [tuyo, del rival]. */
+const fieldsNow = () => {
+  const tb = t();
+  tb.fields ??= [];
+  return (tb.fields[tb.games.length - 1] ??= [null, null]);
+};
 
 // ---------- Iniciar partida ----------
 
@@ -169,7 +182,7 @@ function start(s, myLegend) {
     id: crypto.randomUUID?.() ?? String(Date.now()), started: Date.now(), bestOf: s.bestOf, target: s.target,
     me: { deck: s.deck, legend: myLegend },
     opp: { name: s.oppName.trim(), legend: s.oppLegend, account: s.account },
-    games: [[0, 0]], first: null,
+    games: [[0, 0]], fields: [[null, null]], first: null, start: null, chooser: null,
   });
   openTable();
 }
@@ -198,7 +211,8 @@ function half(side) {
   const won = leader() === side;
   const tint = DOMAIN_COLOR[(legend?.domain ?? []).find((d) => DOMAIN_COLOR[d])] ?? '#555';
   const name = side === 0 ? (cloud.profile?.display_name || cloud.username || 'Tú') : oppLabel(tb);
-  const startsHere = tb.games.length === 1 && tb.first === (side === 0 ? 'me' : 'opp');
+  const startsHere = starter() === (side === 0 ? 'me' : 'opp');
+  const field = fieldsNow()[side];
   const chooses = tb.chooser === (side === 0 ? 'me' : 'opp');
   const bump = (d) => {
     const g = current();
@@ -221,6 +235,11 @@ function half(side) {
         el('span', { text: 'Juegos' }),
         ...Array.from({ length: 2 }, (_, i) => el('i', { class: i < gamesWon(side) ? 'on' : '' })))),
     el('button', {
+      class: `mesa-bf${field ? '' : ' empty'}`, type: 'button',
+      'aria-label': field ? `Campo de batalla de ${name}: ${battlefieldName(field)}. Cambiar` : `Elegir el Campo de batalla de ${name}`,
+      onclick: () => pickField(side, name),
+    }, field ? battlefieldName(field) : '+ Campo de batalla'),
+    el('button', {
       class: 'mesa-score', type: 'button', 'aria-label': `Sumar un punto a ${name}`, onclick: () => bump(1),
     },
       // Un 6 o un 9 girados se confunden: van subrayados, como en los dados.
@@ -236,13 +255,16 @@ function half(side) {
     chooses && choosePanel(side));
 }
 
-/** Quien gana el sorteo elige quién empieza. Va en su mitad, así que lo lee de frente. */
+/**
+ * Quien elige quién empieza: en el primer juego, el que gana el sorteo; en los siguientes, el que
+ * perdió el anterior. Va en su mitad, así que lo lee de frente.
+ */
 function choosePanel(side) {
   const self = side === 0 ? 'me' : 'opp';
   const other = side === 0 ? 'opp' : 'me';
   const otherName = other === 'opp' ? oppLabel() : (cloud.profile?.display_name || cloud.username || 'tu rival');
   return el('div', { class: 'mesa-choose', role: 'group', 'aria-label': 'Elegir quién empieza' },
-    el('strong', { text: 'Has ganado el sorteo' }),
+    el('strong', { text: t().games.length === 1 ? 'Has ganado el sorteo' : 'Perdiste el juego anterior' }),
     el('span', { text: '¿Quién empieza?' }),
     el('button', { class: 'mesa-choice', type: 'button', onclick: () => chooseFirst(self) }, 'Empiezo yo'),
     el('button', { class: 'mesa-choice', type: 'button', onclick: () => chooseFirst(other) }, `Empieza ${otherName}`));
@@ -279,7 +301,9 @@ function bar() {
   const closeGame = tb.bestOf > 1 && over && !done;
   // Cerrar un juego sin llegar a los puntos (p. ej. si alguien se rinde).
   const canNext = tb.bestOf > 1 && n < 3 && !over && !(gamesWon(0) >= 2 || gamesWon(1) >= 2) && (a > 0 || b > 0);
-  const canDraw = n === 1 && !a && !b && !tb.chooser;
+  // Sorteo en el primer juego; en los siguientes elige quien perdió (si el anterior acabó empatado, sorteo).
+  const prev = tb.games[n - 2];
+  const canDraw = !a && !b && !tb.chooser && (n === 1 || (prev[0] === prev[1] && !starter()));
   const pill = (text, label, onclick, primary) => el('button', { class: `mesa-pill${primary ? ' primary' : ''}`, type: 'button', 'aria-label': label, onclick }, text);
   return el('div', { class: 'mesa-bar' },
     iconBtn('Salir de la mesa (la partida sigue guardada)', '<path d="M15 6l-6 6 6 6"/>', closeTable),
@@ -341,7 +365,8 @@ function drawFirst() {
       drawing = false;
       halves.forEach((h) => h.classList.remove('lit'));
       if (!t()) return;
-      t().first = null;
+      if (t().games.length === 1) t().first = null;
+      t().start = null;
       t().chooser = pick;
       store.saveTable();
       renderTable();
@@ -353,7 +378,8 @@ function drawFirst() {
 
 /** Apunta a quien haya elegido el ganador del sorteo como el que empieza. */
 function chooseFirst(who) {
-  t().first = who;
+  if (t().games.length === 1) t().first = who;
+  t().start = who;
   t().chooser = null;
   store.saveTable();
   renderTable();
@@ -370,29 +396,64 @@ function nextGame() {
   if (!a && !b) return toast('Este juego aún no tiene puntos.');
   const n = t().games.length;
   if (!confirm(`¿Terminar el juego ${n} (${a}–${b})? Se guarda y empieza el juego ${n + 1}.`)) return;
-  t().games.push([0, 0]);
+  const tb = t();
+  fieldsNow(); // que el juego cerrado tenga su sitio en los Campos
+  tb.games.push([0, 0]);
+  tb.fields.push([null, null]);
+  // El que perdió el juego elige quién empieza el siguiente (si quedó empatado, se sortea).
+  tb.start = null;
+  tb.chooser = a < b ? 'me' : b < a ? 'opp' : null;
   store.saveTable();
   renderTable();
   toast(`Juego ${n} guardado (${gamesWon(0)}–${gamesWon(1)}). Empieza el juego ${n + 1}.`);
+  if (tb.chooser) flash(tb.chooser === 'me' ? 0 : 1);
 }
 
 function reset() {
   if (!confirm('¿Reiniciar la partida? Los puntos vuelven a 0.')) return;
-  t().games = [[0, 0]];
-  t().first = null;
-  t().chooser = null;
+  const tb = t();
+  tb.games = [[0, 0]];
+  tb.fields = [tb.fields?.[0] ?? [null, null]]; // los Campos del primer juego siguen valiendo
+  tb.first = null;
+  tb.start = null;
+  tb.chooser = null;
   store.saveTable();
   renderTable();
 }
 
+/** Elegir el Campo de batalla de un jugador en el juego que se está jugando. */
+function pickField(side, name) {
+  const tb = t();
+  const dlg = $('#match-dialog');
+  const n = tb.games.length;
+  const used = (tb.fields ?? []).slice(0, n - 1).map((f) => f?.[side]).filter(Boolean);
+  dlg.replaceChildren(
+    el('div', { class: 'dialog-head' },
+      el('h2', { text: side === 0 ? 'Tu Campo de batalla' : `Campo de batalla de ${name}` }),
+      el('button', { class: 'icon-btn', type: 'button', title: 'Cerrar', 'aria-label': 'Cerrar', onclick: () => dlg.close() }, '✕')),
+    tb.bestOf > 1 && el('p', { class: 'muted small', text: `Juego ${n}` }),
+    battlefieldChooser(fieldsNow()[side], (id) => {
+      fieldsNow()[side] = canonicalBattlefield(id);
+      store.saveTable();
+      dlg.close();
+      renderTable();
+    }, { suggested: side === 0 ? deckBattlefields(tb.me.deck) : [], used }),
+  );
+  dlg.showModal();
+}
+
 /** La partida de la mesa, lista para el historial. */
 function toMatch(tb) {
-  const games = tb.games.filter(([a, b]) => a || b);
+  // Los juegos con puntos, cada uno con sus Campos.
+  const kept = tb.games.map((g, i) => [g, tb.fields?.[i] ?? [null, null]]).filter(([[a, b]]) => a || b);
+  const games = kept.map(([g]) => g);
+  const fields = kept.map(([, f]) => f);
   const friend = tb.opp.account && cloud.people?.find((p) => p.id === tb.opp.account.id)?.friend;
   const m = {
     ...blankMatch(), at: tb.started, deck: tb.me.deck, my: tb.me.legend, opp: tb.opp.legend,
     oppName: tb.opp.name, rival: friend ? tb.opp.account.id : null,
     points: games, first: tb.first === 'me' ? true : tb.first === 'opp' ? false : null,
+    battlefields: fields.some(([x, y]) => x || y) ? fields : [],
   };
   deriveFromPoints(m);
   if (!m.result) { // un marcador que no es de "al mejor de 3" (p. ej. con un juego empatado)
