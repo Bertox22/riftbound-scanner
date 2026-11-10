@@ -340,14 +340,14 @@ select option { background: var(--surface); color: var(--text); }
 /* Diálogos: flotan, así que son lo único con sombra. En el móvil salen desde abajo como una hoja. */
 dialog {
   width: min(720px, calc(100vw - 24px)); max-height: calc(100dvh - 32px); overflow: auto;
-  background: var(--surface); color: var(--text); border: 0; border-radius: 24px; padding: 20px;
+  --pad: 20px; background: var(--surface); color: var(--text); border: 0; border-radius: 24px; padding: var(--pad);
   box-shadow: 0 24px 64px rgba(0, 0, 0, .5);
 }
 dialog::backdrop { background: rgba(0, 0, 0, .7); }
 @media (max-width: 560px) {
   dialog {
     width: 100%; max-width: 100%; max-height: 92dvh; margin: auto 0 0;
-    border-radius: 24px 24px 0 0; padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    border-radius: 24px 24px 0 0; padding-bottom: calc(var(--pad) + env(safe-area-inset-bottom));
   }
 }
 .dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
@@ -476,6 +476,17 @@ button.dt-empty:focus-visible { outline: 2px solid var(--text); outline-offset: 
 .icon { display: inline-grid; place-items: center; }
 .icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; display: block; }
 .btn.icon-only { width: 36px; padding: 0; }
+/* Opciones hermanas (formatos de descarga) en una sola pastilla con separadores finos. */
+.btn-group { display: inline-flex; flex: none; border: 1px solid #444; border-radius: 999px; overflow: hidden; }
+.btn-group .btn { border: 0; border-radius: 0; }
+.btn-group .btn:first-child { padding-left: 16px; }
+.btn-group .btn:last-child { padding-right: 16px; }
+.btn-group .btn + .btn { box-shadow: inset 1px 0 0 #444; }
+.btn-group .btn:active { transform: none; background: #262626; }
+.btn-group:focus-within { border-color: #5a5a5a; }
+.btn-group .btn:focus-visible { outline-offset: -3px; border-radius: 999px; }
+/* Borrar el mazo queda apartado de las descargas. */
+.deck-delete { margin-left: 8px; }
 .pool { margin-top: 32px; }
 .pool .toggle { margin-top: 4px; }
 .pool .filter-row input[type=search] { flex: 1 1 160px; max-width: none; min-width: 140px; }
@@ -670,7 +681,7 @@ dialog input[type=date]:focus { outline: none; border-color: var(--muted); }
 .import-card { display: flex; align-items: center; gap: 8px; background: none; border: 0; color: var(--text); font: inherit; text-align: left; padding: 4px 0; cursor: pointer; }
 .import-search { margin-top: 6px; }
 .import-results { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
-.import-footer { position: sticky; bottom: -20px; background: var(--surface); border-top: 1px solid var(--surface-2); margin: 16px -20px -20px; padding: 12px 20px; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+.import-footer { position: sticky; bottom: calc(-1 * var(--pad)); background: var(--surface); border-top: 1px solid var(--surface-2); margin: 16px calc(-1 * var(--pad)) calc(-1 * var(--pad)); padding: 12px var(--pad); display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
 .import-footer .btn { margin-left: auto; }
 .slot-chip { display: inline-block; margin-top: 4px; font-size: 12px; font-weight: 500; padding: 2px 10px; border-radius: 999px; background: #333; color: var(--muted); }
 .slot-chip.legend, .slot-chip.champion { color: var(--accent); background: #2a2312; }
@@ -706,7 +717,7 @@ dialog[open]::backdrop { animation: backdrop-in .2s ease-out; }
 }
 
 /* Hoja "Añadir…" del mazo: la cabecera con el contador y "Listo" se queda fija al desplazar. */
-#picker-dialog .dialog-head { position: sticky; top: -20px; z-index: 2; margin: -20px -20px 8px; padding: 16px 20px 12px; background: var(--surface); }
+#picker-dialog .dialog-head { position: sticky; top: calc(-1 * var(--pad)); z-index: 2; margin: calc(-1 * var(--pad)) calc(-1 * var(--pad)) 8px; padding: calc(var(--pad) - 4px) var(--pad) 12px; background: var(--surface); }
 #picker-dialog .dialog-head h2 .muted { font-weight: 500; font-variant-numeric: tabular-nums; }
 .adder-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-bottom: 8px; }
 .adder-filters input[type=search] { flex: 1 1 200px; }
@@ -863,10 +874,17 @@ body.mesa-open { overflow: hidden; }
 
 /* Balance */
 .col-summary-row .actions { margin: 0; }
-.ledger-total { margin-bottom: 12px; background: var(--surface-2); }
+.ledger-head { display: grid; gap: 12px; margin-bottom: 16px; }
+.ledger-total { background: var(--surface-2); }
 .ledger-total strong { color: var(--accent); }
-.ledger-actions { margin: 0 0 16px; }
+.ledger-actions { margin: 0; }
 .ledger-actions .btn { flex: 1; }
+@media (min-width: 768px) {
+  /* En ancho, total y acciones comparten una sola franja. */
+  .ledger-head { padding: 16px 16px 16px 20px; border-radius: 16px; background: var(--surface-2); }
+  .ledger-head .ledger-total { padding: 0; background: none; }
+  .ledger-head .ledger-actions .btn { flex: none; }
+}
 .ledger-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
 .ledger-entry { border-radius: 14px; background: var(--surface-2); }
 .ledger-row { background: none; }
@@ -910,7 +928,7 @@ body.mesa-open { overflow: hidden; }
    desplazamiento, fina y gris, para que no pise las esquinas redondeadas. */
 dialog { scrollbar-width: thin; scrollbar-color: #3a3a3a transparent; }
 dialog > .dialog-head:first-child {
-  position: sticky; top: -20px; z-index: 3; margin: -20px -20px 12px; padding: 20px 20px 12px; background: var(--surface);
+  position: sticky; top: calc(-1 * var(--pad)); z-index: 3; margin: calc(-1 * var(--pad)) calc(-1 * var(--pad)) 12px; padding: var(--pad) var(--pad) 12px; background: var(--surface);
 }
 
 /* ---------- Portátil y ordenador ----------
@@ -918,18 +936,33 @@ dialog > .dialog-head:first-child {
    flotan centradas con aire arriba y abajo (no pegadas al borde) y las que son listas o formularios
    no se estiran a lo ancho. */
 @media (min-width: 561px) {
-  dialog { max-height: calc(100dvh - 96px); }
+  dialog { --pad: 28px; max-height: calc(100dvh - 120px); }
+  .dialog-head h2 { font-size: 22px; letter-spacing: -.01em; }
   #balance-dialog, #match-dialog, #picker-dialog:has(.history-list), #picker-dialog:has(.ledger-form) { max-width: 600px; }
+  /* Historial y Balance: listas con algo más de aire entre filas. */
+  .history-list, .ledger-list { gap: 8px; }
+  .history-row { padding: 10px 14px 10px 10px; }
 }
 @media (min-width: 768px) {
-  main { padding: 32px 24px 24px; }
-  /* El primer título de cada vista va pegado al principio: el aire ya lo da main. */
-  .view > .section-head:first-child, #deck-list-view > .section-head:first-child { margin-top: 0; }
-  .col-tabs { max-width: 360px; margin-bottom: 20px; }
-  .filters { gap: 10px; }
-  #col-summary { margin-top: 18px; }
-  .col-summary-row { margin: 18px 0 8px; }
-  .grid { gap: 20px 14px; margin-top: 12px; }
+  main { padding: 40px 24px 32px; }
+  /* El primer título de cada vista va pegado al principio: el aire ya lo da main. Es el título de la
+     página, así que va más grande que los de dentro. */
+  .view > .section-head:first-child, #deck-list-view > .section-head:first-child { margin: 0 0 24px; min-height: 44px; }
+  .view > .section-head:first-child h2, #deck-list-view > .section-head:first-child h2 { font-size: 22px; letter-spacing: -.01em; }
+  .view > .section-head:first-child .btn.small, #deck-list-view > .section-head:first-child .btn.small { min-height: 40px; padding: 0 18px; }
+  /* Colección: una barra arriba con las pestañas (Mis cartas · Intercambios) a la izquierda y Balance e
+     Historial a la derecha, como las acciones de Mazos y Partidas; debajo, filtros, resumen y cartas. */
+  #view-collection.active { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; align-items: center; }
+  #view-collection > * { grid-column: 1 / -1; }
+  #view-collection > .col-tabs { grid-column: 1; grid-row: 1; }
+  #view-collection .col-summary-row { display: contents; }
+  #view-collection .col-summary-row .actions { grid-column: 2; grid-row: 1; }
+  .col-summary-row .actions .btn { min-height: 40px; padding: 0 18px; }
+  .col-tabs { width: 360px; max-width: 100%; margin-bottom: 0; }
+  #view-trades .col-tabs { margin-bottom: 24px; }
+  .filters { gap: 10px; margin-top: 24px; }
+  .col-summary-row #col-summary { margin: 24px 0 0; }
+  .grid { gap: 20px 14px; margin-top: 16px; }
   /* Escanear: la cámara y su lista en una columna centrada, alineadas entre sí. */
   #view-scan { max-width: min(520px, 52.5vh); margin: 0 auto; } /* = el ancho de la cámara (3:4, hasta 70vh de alto) */
   .cam-controls { margin-top: 12px; }
@@ -939,6 +972,17 @@ dialog > .dialog-head:first-child {
   .match-stats { gap: 14px; }
   /* La lista de mazos, a dos columnas (el editor de cada mazo no cambia). */
   .deck-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .export-all { margin-top: 20px; }
+  /* Balance: el total a la izquierda y las dos acciones a su derecha, en la misma franja. */
+  .ledger-head { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+  .ledger-head .ledger-actions { flex-wrap: nowrap; }
+}
+/* Con ratón: lo que se puede tocar responde al pasar por encima (sin moverse con el scroll). */
+@media (hover: hover) and (pointer: fine) {
+  .tile .tile-img:not(:disabled) .thumb { transition: transform .18s ease, box-shadow .18s ease; }
+  .tile .tile-img:not(:disabled):hover .thumb { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0, 0, 0, .45); }
+  .deck-row:hover, .match-row:hover { transform: translateY(-1px); }
+  .deck-row:active, .match-row:active { transform: scale(.99); }
 }
 /* Con sitio de sobra, las pestañas pasan de la barra de abajo al centro de la de arriba. */
 @media (min-width: 1120px) {

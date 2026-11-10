@@ -490,10 +490,12 @@ function renderEditor() {
       el('button', { class: 'btn ghost small', onclick: closeEditor }, '← Mazos'),
       el('div', { class: 'actions' },
         el('button', { class: 'btn ghost small', onclick: () => { navigator.clipboard?.writeText(exportText(current)).then(() => toast('Lista copiada')); } }, 'Copiar lista'),
-        el('button', { class: 'btn ghost small', title: 'Lista en texto (.txt)', onclick: () => download(`${current.name}.txt`, exportText(current)) }, 'Texto'),
-        el('button', { class: 'btn ghost small', title: 'Excel con todas las columnas y un resumen del mazo', onclick: (e) => runExport(e.target, () => exportDeckExcel(current, exportCtx())) }, 'Excel'),
-        el('button', { class: 'btn ghost small', title: 'CSV con todas las columnas', onclick: (e) => runExport(e.target, () => exportDeckCsv(current, exportCtx())) }, 'CSV'),
-        el('button', { class: 'btn danger small icon-only', title: 'Borrar mazo', 'aria-label': 'Borrar mazo', onclick: () => {
+        // Los tres formatos de descarga van juntos en una sola pastilla; borrar, aparte.
+        el('div', { class: 'btn-group', role: 'group', 'aria-label': 'Descargar el mazo' },
+          el('button', { class: 'btn ghost small', title: 'Lista en texto (.txt)', onclick: () => download(`${current.name}.txt`, exportText(current)) }, 'Texto'),
+          el('button', { class: 'btn ghost small', title: 'Excel con todas las columnas y un resumen del mazo', onclick: (e) => runExport(e.target, () => exportDeckExcel(current, exportCtx())) }, 'Excel'),
+          el('button', { class: 'btn ghost small', title: 'CSV con todas las columnas', onclick: (e) => runExport(e.target, () => exportDeckCsv(current, exportCtx())) }, 'CSV')),
+        el('button', { class: 'btn danger small icon-only deck-delete', title: 'Borrar mazo', 'aria-label': 'Borrar mazo', onclick: () => {
           if (!confirm(`¿Borrar el mazo "${current.name}"?`)) return;
           store.decks = store.decks.filter((d) => d.id !== current.id);
           store.saveDecks();
