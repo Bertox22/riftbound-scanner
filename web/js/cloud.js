@@ -204,6 +204,19 @@ export async function unfollow(id) {
   await loadPeople();
 }
 
+/**
+ * Los mazos de un amigo (o de un perfil público), para apuntar con cuál jugó contra ti:
+ * [{ id, name, legend }], los más recientes primero.
+ */
+export async function fetchUserDecks(userId) {
+  if (!session || !userId) return [];
+  const sb = await getClient();
+  const { data, error } = await sb.from('decks').select('id,name,legend_id').eq('user_id', userId).is('deleted_at', null)
+    .order('updated_at', { ascending: false }).limit(50);
+  if (error) throw new Error(authMessage(error));
+  return data.map((r) => ({ id: r.id, name: r.name, legend: r.legend_id }));
+}
+
 // ---------- Partida espejo ----------
 // Un amigo apunta una partida con tu cuenta de rival: te llega para guardarla en tu historial (una
 // partida tuya con mirrorOf = la suya) o descartarla (la misma copia, pero ya borrada). La copia tiene
@@ -539,12 +552,21 @@ const matchKey = (m) => canon({
   at: m.at, deck: m.deck ?? null, my: m.my ?? null, opp: m.opp ?? null, oppName: m.oppName ?? '', result: m.result,
   score: m.score ?? null, points: m.points ?? [], first: m.first ?? null, event: m.event ?? '', notes: m.notes ?? '',
   rival: m.rival ?? null, mirrorOf: m.mirrorOf ?? null,
-  // Solo si hay Campos: así las partidas de antes no cuentan como cambiadas y no se vuelven a subir.
+  // Solo si los hay: así las partidas de antes no cuentan como cambiadas y no se vuelven a subir.
   ...(m.battlefields?.length ? { battlefields: m.battlefields } : {}),
+  ...(m.starts?.length ? { starts: m.starts } : {}),
+  ...(m.oppDeck ? { oppDeck: m.oppDeck } : {}),
 });
-// La columna de los Campos llega con 12_campos_partida.sql. Mientras no esté, las partidas se suben sin
-// ellos (y las que los tienen se reintentan en cada sincronización, hasta que la columna exista).
-let noBattlefieldColumn = false;
+// Columnas que llegan con archivos SQL posteriores (12_campos_partida.sql, 13_mazo_rival_turnos.sql).
+// Mientras falte alguna, las partidas se suben sin ese dato (y las que lo tienen se reintentan en cada
+// sincronización, hasta que la columna exista). `strip` quita el dato de la partida para la foto.
+const OPTIONAL_MATCH_COLUMNS = [
+  { cols: ['battlefields'], strip: (m) => ({ ...m, battlefields: [] }) },
+  { cols: ['game_starts'], strip: (m) => ({ ...m, starts: [] }) },
+  { cols: ['opponent_deck_id', 'opponent_deck_name'], strip: (m) => ({ ...m, oppDeck: null }) },
+];
+const missingMatchColumns = new Set(); // grupos de OPTIONAL_MATCH_COLUMNS que la base de datos no tiene
+const uploadedMatch = (m) => [...missingMatchColumns].reduce((x, g) => g.strip(x), m);
 const ledgerKey = (m) => canon({
   at: m.at, kind: m.kind, label: m.label ?? null, card: m.card ?? null, foil: !!m.foil, qty: m.qty, price: m.price,
   ownedBefore: m.ownedBefore ?? null, inCollection: !!m.inCollection,
@@ -569,7 +591,7 @@ function fromRow(r) {
 /** El mazo solo se enlaza si ya está en la nube (la base de datos lo exige). */
 function toMatchRow(uid, m, snap) {
   const [won, lost] = m.score ? m.score.split('-').map(Number) : [null, null];
-  return {
+  const row = {
     user_id: uid, id: m.id, played_at: new Date(m.at).toISOString(),
     deck_id: m.deck && snap.decks[m.deck] ? m.deck : null,
     my_legend_id: m.my ?? null, opponent_legend_id: m.opp ?? null,
@@ -578,9 +600,14 @@ function toMatchRow(uid, m, snap) {
     event: (m.event || '').slice(0, 80) || null, notes: (m.notes || '').slice(0, 500) || null,
     points: m.points?.length ? m.points : null,
     opponent_id: m.rival ?? null, mirror_of: m.mirrorOf ?? null,
-    ...(noBattlefieldColumn ? {} : { battlefields: m.battlefields?.length ? m.battlefields : null }),
+    battlefields: m.battlefields?.length ? m.battlefields : null,
+    game_starts: m.starts?.length ? m.starts : null,
+    opponent_deck_id: m.oppDeck?.id ?? null,
+    opponent_deck_name: m.oppDeck ? (m.oppDeck.name || '').slice(0, 80) || null : null,
     deleted_at: null,
   };
+  for (const g of missingMatchColumns) for (const c of g.cols) delete row[c];
+  return row;
 }
 function fromMatchRow(r) {
   return {
@@ -589,6 +616,8 @@ function fromMatchRow(r) {
     score: r.games_won != null && r.games_lost != null ? `${r.games_won}-${r.games_lost}` : null,
     points: r.points ?? [], first: r.went_first, event: r.event ?? '', notes: r.notes ?? '',
     rival: r.opponent_id ?? null, mirrorOf: r.mirror_of ?? null, battlefields: r.battlefields ?? [],
+    starts: r.game_starts ?? [],
+    oppDeck: r.opponent_deck_id ? { id: r.opponent_deck_id, name: r.opponent_deck_name ?? '' } : null,
     updated: Date.parse(r.updated_at),
   };
 }
@@ -781,15 +810,18 @@ async function push(uid, snap) {
       store.persist();
       ({ error } = await upsert());
     }
-    // La base de datos aún no tiene la columna de los Campos (falta 12_campos_partida.sql).
-    if (error && !noBattlefieldColumn && /battlefields/.test(error.message)) {
-      console.warn('Falta la columna matches.battlefields: las partidas se suben sin los Campos de batalla.');
-      noBattlefieldColumn = true;
+    // A la base de datos le falta alguna columna nueva (12_campos_partida.sql, 13_mazo_rival_turnos.sql):
+    // se sube sin ella. Puede faltar más de una, así que se repite mientras el error nombre otra.
+    for (;;) {
+      const g = error && OPTIONAL_MATCH_COLUMNS.find((x) => !missingMatchColumns.has(x) && x.cols.some((c) => error.message.includes(c)));
+      if (!g) break;
+      console.warn(`Falta la columna matches.${g.cols.join('/')}: las partidas se suben sin ese dato.`);
+      missingMatchColumns.add(g);
       ({ error } = await upsert());
     }
     if (error) throw error;
-    // Sin la columna, lo subido no lleva los Campos: la foto tampoco, para reintentarlo la próxima vez.
-    for (const m of chunk) snap.matches[m.id] = matchKey(noBattlefieldColumn ? { ...m, battlefields: [] } : m);
+    // Sin la columna, lo subido no lleva ese dato: la foto tampoco, para reintentarlo la próxima vez.
+    for (const m of chunk) snap.matches[m.id] = matchKey(uploadedMatch(m));
     writeSnap(snap);
   }
 

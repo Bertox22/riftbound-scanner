@@ -48,18 +48,24 @@ entre tus dispositivos.
     opcionales: lo que no tenga sección se coloca por tipo de carta) o archivos .txt, CSV y Excel.
 - **Partidas:** al acabar una partida apuntas el resultado, tu mazo, la Leyenda del rival (cada
   Leyenda sale una vez aunque tenga versión foil, Metal o Signature), los puntos de cada juego
-  (8–7, o hasta 3 juegos al mejor de 3: el resultado y el marcador se marcan solos), quién empezó,
-  el evento, la fecha y notas. Las estadísticas muestran el porcentaje de victorias (sin contar
+  (8–7, o hasta 3 juegos al mejor de 3: el resultado y el marcador se marcan solos), quién empezó
+  (al mejor de 3, cada juego), el evento, la fecha y notas. El marcador admite 3–0 y 0–3 por si se
+  juega el tercer juego aunque ya haya ganador. Si el rival es un amigo, eliges también con cuál de
+  sus mazos jugó (y su Leyenda se pone sola). Las estadísticas muestran el porcentaje de victorias (sin contar
   empates), el balance V–D–E, cómo te va empezando tú o el rival, y los resultados por mazo y contra
   cada Leyenda, con un filtro por mazo.
 - **Mesa (marcador en vivo):** en Partidas, «Iniciar partida» pide tu mazo (o tu Leyenda), el
-  rival (te sugiere cuentas al escribir; si no tiene cuenta, basta su nombre), su Leyenda, si es a un
+  rival (te sugiere cuentas al escribir; si no tiene cuenta, basta su nombre; si es un amigo, también
+  su mazo), su Leyenda, si es a un
   juego o al mejor de 3 y a cuántos puntos. La mesa ocupa toda la pantalla: cada jugador tiene su
   mitad (la del rival, girada), teñida con el color del dominio de su Leyenda, con sus puntos en
   grande, una pista hasta los puntos de victoria y los botones − y + en su borde (tocar el número
   también suma). Llegar a los puntos solo avisa («Gana el juego», en dorado): los juegos se cierran a
   mano con «Siguiente». La barra del medio tiene salir, «Sortear» (antes del primer punto: quien gana
-  elige en su mitad si empieza o empieza el otro, y eso queda apuntado en la partida), el juego y el marcador, reiniciar y «Terminar». Al terminar, la
+  elige en su mitad si empieza o empieza el otro, y eso queda apuntado en la partida; en los
+  siguientes juegos elige quien perdió el anterior, y queda apuntado quién empezó cada uno), el juego
+  y el marcador, reiniciar y «Terminar». Con 2–0, «Jugar el 3.º» deja jugar el tercer juego igualmente
+  (la partida acaba 3–0 o 2–1). Al terminar, la
   partida se guarda sola en tu historial (y si el rival es un amigo, le llega como partida espejo).
   La pantalla no se apaga y una recarga no pierde la partida.
 - **Cuenta (opcional):** el botón de la barra superior abre la cuenta. Con ella, colección, mazos y
@@ -75,7 +81,8 @@ entre tus dispositivos.
     las partidas del otro aunque el perfil sea privado.
   - **Partida espejo:** al apuntar una partida puedes elegir a un amigo como rival. A él le aparece
     en Partidas para guardarla en su historial con todo al revés (resultado, marcador, puntos,
-    Leyendas y quién empezó) o descartarla. En su perfil ves vuestro cara a cara («Tú contra X»).
+    Leyendas, quién empezó cada juego y los mazos: el que apuntó como tuyo pasa a ser tu mazo) o
+    descartarla. En su perfil ves vuestro cara a cara («Tú contra X»).
   - **¿Cuánto me falta?:** en el mazo de otro jugador ves qué cartas te faltan de tu colección y lo
     que costarían en Cardmarket, y puedes copiarlo a tus mazos.
 - **Intercambios (con cuenta, solo entre amigos):** en Colección → Intercambios (`#intercambios`).

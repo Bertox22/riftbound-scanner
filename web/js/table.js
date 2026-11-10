@@ -8,18 +8,20 @@
 //
 // Mesa (store.table, solo en este dispositivo, así una recarga no la pierde):
 // { id, started, bestOf (1 | 3), target (puntos para ganar un juego), me: { deck, legend },
-//   opp: { name, legend, account: { id, username } | null }, games: [[tuyos, rival], …] (el último es
+//   opp: { name, legend, account: { id, username } | null, deck: { id, name } | null (su mazo, si es
+//   un amigo) }, games: [[tuyos, rival], …] (el último es
 //   el que se juega), fields: [[tuyo, del rival], …] (el Campo de batalla de cada uno en cada juego),
 //   first: 'me' | 'opp' | null (quién empezó el primer juego), start: igual, pero del juego que se
-//   juega, chooser: 'me' | 'opp' | null (tiene que elegir quién empieza: en el primer juego, quien
+//   juega, starts: ['me' | 'opp' | null, …] (quién empezó cada juego), chooser: 'me' | 'opp' | null (tiene que elegir quién empieza: en el primer juego, quien
 //   gana el sorteo; en los siguientes, quien perdió el anterior) }
+// Al mejor de 3, con 2–0 se puede jugar el tercero igualmente («Jugar el 3.º»): acaba 3–0 o 2–1.
 
 import { store } from './store.js';
 import { $, el, toast, cardImg } from './ui.js';
 import { cloud, searchProfiles } from './cloud.js';
 import {
   allLegends, legendTitle, legendChamp, canonicalLegend, deckById, blankMatch, deriveFromPoints, saveMatch, editMatch,
-  battlefieldChooser, battlefieldName, canonicalBattlefield, deckBattlefields,
+  battlefieldChooser, battlefieldName, canonicalBattlefield, deckBattlefields, rivalDeckField,
 } from './matches.js';
 
 let ctx; // { byId, showView }
@@ -35,6 +37,8 @@ const current = () => t().games[t().games.length - 1];
 const oppLabel = (tb = t()) => tb.opp.name || 'Rival';
 /** Quién empieza el juego que se está jugando (las mesas de antes solo apuntaban el primero). */
 const starter = () => t().start ?? (t().games.length === 1 ? t().first : null);
+/** Quién empezó el juego i (las mesas de antes solo apuntaban el primero y el que se juega). */
+const startOfGame = (tb, i) => tb.starts?.[i] ?? (i === 0 ? tb.first : i === tb.games.length - 1 ? tb.start : null) ?? null;
 /** Los Campos del juego que se está jugando: [tuyo, del rival]. */
 const fieldsNow = () => {
   const tb = t();
@@ -80,7 +84,7 @@ export function openSetup() {
   if (t()) return openTable(); // ya hay una en marcha
   const dlg = $('#match-dialog');
   const lastDeck = store.matches.find((m) => m.deck && deckById(m.deck))?.deck ?? store.decks[0]?.id ?? null;
-  const s = { deck: lastDeck, legend: null, oppName: '', account: null, oppLegend: null, bestOf: 1, target: 8 };
+  const s = { deck: lastDeck, legend: null, oppName: '', account: null, oppDeck: null, oppLegend: null, bestOf: 1, target: 8 };
   let choosing = null; // 'me' | 'opp': mostrando la cuadrícula de Leyendas
   let found = []; // cuentas que coinciden con el nombre del rival
   let searchTimer = null;
@@ -132,6 +136,7 @@ export function openSetup() {
             oninput: (e) => {
               s.oppName = e.target.value;
               s.account = null;
+              s.oppDeck = null;
               clearTimeout(searchTimer);
               if (cloud.username && s.oppName.trim().length >= 2) {
                 searchTimer = setTimeout(async () => {
@@ -144,7 +149,7 @@ export function openSetup() {
           })),
         sugg.length > 0 && el('ul', { class: 'person-list opp-suggest' }, ...sugg.map((p) => el('li', {},
           el('button', {
-            type: 'button', class: 'person-open', onclick: () => { s.account = { id: p.id, username: p.username }; s.oppName = p.username; found = []; draw(); },
+            type: 'button', class: 'person-open', onclick: () => { s.account = { id: p.id, username: p.username }; s.oppName = p.username; s.oppDeck = null; found = []; draw(); },
           },
           el('span', { class: 'person-avatar', 'aria-hidden': 'true', text: (p.display_name || p.username)[0].toUpperCase() }),
           el('span', { class: 'grow' },
@@ -153,6 +158,12 @@ export function openSetup() {
         s.account && el('p', { class: 'muted small', text: friend
           ? `Es tu amigo: al terminar le llegará la partida para que la guarde en su historial.`
           : `@${s.account.username} no es tu amigo (no os seguís los dos): la partida se guarda solo con su nombre.` }),
+        // Con qué mazo juega tu amigo: al elegirlo, su Leyenda pasa a ser la del rival.
+        friend && rivalDeckField(s.account.id, s.account.username, s.oppDeck, (d) => {
+          s.oppDeck = d ? { id: d.id, name: d.name } : null;
+          if (d?.legend && ctx.byId.has(canonicalLegend(d.legend))) s.oppLegend = canonicalLegend(d.legend);
+          draw();
+        }, draw),
         el('div', { class: 'match-field' },
           el('span', { class: 'match-label', text: 'Leyenda del rival' }),
           choosing === 'opp'
@@ -181,8 +192,8 @@ function start(s, myLegend) {
   store.saveTable({
     id: crypto.randomUUID?.() ?? String(Date.now()), started: Date.now(), bestOf: s.bestOf, target: s.target,
     me: { deck: s.deck, legend: myLegend },
-    opp: { name: s.oppName.trim(), legend: s.oppLegend, account: s.account },
-    games: [[0, 0]], fields: [[null, null]], first: null, start: null, chooser: null,
+    opp: { name: s.oppName.trim(), legend: s.oppLegend, account: s.account, deck: s.account ? s.oppDeck : null },
+    games: [[0, 0]], fields: [[null, null]], starts: [null], first: null, start: null, chooser: null,
   });
   openTable();
 }
@@ -231,9 +242,10 @@ function half(side) {
       el('div', { class: 'mesa-who' },
         el('strong', { text: name }),
         legend && el('span', { text: legendChamp(legend) })),
-      tb.bestOf > 1 && el('div', { class: 'mesa-games', 'aria-label': `${gamesWon(side)} de 2 juegos ganados` },
+      tb.bestOf > 1 && el('div', { class: 'mesa-games', 'aria-label': `${gamesWon(side)} juego${gamesWon(side) === 1 ? '' : 's'} ganado${gamesWon(side) === 1 ? '' : 's'}` },
         el('span', { text: 'Juegos' }),
-        ...Array.from({ length: 2 }, (_, i) => el('i', { class: i < gamesWon(side) ? 'on' : '' })))),
+        // Dos casillas; tres si se juega el tercero con 2–0 y lo gana el mismo (3–0).
+        ...Array.from({ length: Math.max(2, gamesWon(side)) }, (_, i) => el('i', { class: i < gamesWon(side) ? 'on' : '' })))),
     el('button', {
       class: `mesa-bf${field ? '' : ' empty'}`, type: 'button',
       'aria-label': field ? `Campo de batalla de ${name}: ${battlefieldName(field)}. Cambiar` : `Elegir el Campo de batalla de ${name}`,
@@ -299,6 +311,8 @@ function bar() {
   const over = leader() !== null;
   const done = decided();
   const closeGame = tb.bestOf > 1 && over && !done;
+  // 2–0 en el segundo juego: se puede jugar el tercero igualmente (acaba 3–0 o 2–1).
+  const canThird = tb.bestOf > 1 && n === 2 && over && done;
   // Cerrar un juego sin llegar a los puntos (p. ej. si alguien se rinde).
   const canNext = tb.bestOf > 1 && n < 3 && !over && !(gamesWon(0) >= 2 || gamesWon(1) >= 2) && (a > 0 || b > 0);
   // Sorteo en el primer juego; en los siguientes elige quien perdió (si el anterior acabó empatado, sorteo).
@@ -313,6 +327,7 @@ function bar() {
       el('span', { text: tb.bestOf > 1 ? `${gamesWon(0)}–${gamesWon(1)} · a ${tb.target}` : `a ${tb.target} puntos` })),
     iconBtn('Reiniciar la partida', '<path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v5h5"/>', reset),
     canNext && pill('Siguiente', 'Cerrar este juego y empezar el siguiente', nextGame, false),
+    canThird && pill('Jugar el 3.º', 'Guardar el juego 2 y jugar el tercero aunque la partida ya esté decidida', nextGame, false),
     closeGame
       ? pill('Terminar juego', `Guardar el juego ${n} y empezar el juego ${n + 1}`, nextGame, true)
       : pill('Terminar', 'Terminar y guardar la partida', finish, done));
@@ -367,6 +382,7 @@ function drawFirst() {
       if (!t()) return;
       if (t().games.length === 1) t().first = null;
       t().start = null;
+      (t().starts ??= [])[t().games.length - 1] = null;
       t().chooser = pick;
       store.saveTable();
       renderTable();
@@ -380,6 +396,7 @@ function drawFirst() {
 function chooseFirst(who) {
   if (t().games.length === 1) t().first = who;
   t().start = who;
+  (t().starts ??= [])[t().games.length - 1] = who;
   t().chooser = null;
   store.saveTable();
   renderTable();
@@ -395,11 +412,16 @@ function nextGame() {
   const [a, b] = current();
   if (!a && !b) return toast('Este juego aún no tiene puntos.');
   const n = t().games.length;
-  if (!confirm(`¿Terminar el juego ${n} (${a}–${b})? Se guarda y empieza el juego ${n + 1}.`)) return;
+  const third = decided(); // 2–0: el tercero se juega aunque la partida ya esté decidida
+  if (!confirm(third
+    ? `¿Jugar el tercer juego? El juego ${n} (${a}–${b}) se guarda y la partida acabará 3–0 o 2–1.`
+    : `¿Terminar el juego ${n} (${a}–${b})? Se guarda y empieza el juego ${n + 1}.`)) return;
   const tb = t();
   fieldsNow(); // que el juego cerrado tenga su sitio en los Campos
+  tb.starts = tb.games.map((_, i) => startOfGame(tb, i)); // y en quién empezó (las mesas de antes)
   tb.games.push([0, 0]);
   tb.fields.push([null, null]);
+  tb.starts.push(null);
   // El que perdió el juego elige quién empieza el siguiente (si quedó empatado, se sortea).
   tb.start = null;
   tb.chooser = a < b ? 'me' : b < a ? 'opp' : null;
@@ -416,6 +438,7 @@ function reset() {
   tb.fields = [tb.fields?.[0] ?? [null, null]]; // los Campos del primer juego siguen valiendo
   tb.first = null;
   tb.start = null;
+  tb.starts = [null];
   tb.chooser = null;
   store.saveTable();
   renderTable();
@@ -445,14 +468,16 @@ function pickField(side, name) {
 /** La partida de la mesa, lista para el historial. */
 function toMatch(tb) {
   // Los juegos con puntos, cada uno con sus Campos.
-  const kept = tb.games.map((g, i) => [g, tb.fields?.[i] ?? [null, null]]).filter(([[a, b]]) => a || b);
+  const side = { me: true, opp: false };
+  const kept = tb.games.map((g, i) => [g, tb.fields?.[i] ?? [null, null], side[startOfGame(tb, i)] ?? null]).filter(([[a, b]]) => a || b);
   const games = kept.map(([g]) => g);
   const fields = kept.map(([, f]) => f);
   const friend = tb.opp.account && cloud.people?.find((p) => p.id === tb.opp.account.id)?.friend;
   const m = {
     ...blankMatch(), at: tb.started, deck: tb.me.deck, my: tb.me.legend, opp: tb.opp.legend,
     oppName: tb.opp.name, rival: friend ? tb.opp.account.id : null,
-    points: games, first: tb.first === 'me' ? true : tb.first === 'opp' ? false : null,
+    oppDeck: friend ? tb.opp.deck ?? null : null,
+    points: games, starts: kept.map(([, , s]) => s), first: side[startOfGame(tb, 0)] ?? null,
     battlefields: fields.some(([x, y]) => x || y) ? fields : [],
   };
   deriveFromPoints(m);

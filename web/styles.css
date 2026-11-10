@@ -523,6 +523,9 @@ dialog input[type=date]:focus { outline: none; border-color: var(--muted); }
   transition: background-color .15s, border-color .15s, color .15s;
 }
 .segmented.cols-3 { display: grid; grid-template-columns: repeat(3, 1fr); }
+.segmented.cols-4 { display: grid; grid-template-columns: repeat(4, 1fr); }
+.start-row .segmented { flex: 1; flex-wrap: nowrap; }
+.start-row .segmented button { flex: 1; }
 .segmented button:hover { background: #1c1c1c; color: var(--text); }
 .segmented button[aria-checked=true] { background: var(--text); border-color: transparent; color: #000; font-weight: 600; }
 .segmented button.win[aria-checked=true] { background: var(--ok); }

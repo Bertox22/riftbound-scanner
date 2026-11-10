@@ -18,6 +18,7 @@ aunque la app aún no las use.
 | `10_balance.sql` | — | Balance de compras y ventas (`ledger`), con borrado sincronizado (`deleted_at`) |
 | `11_correcciones.sql` | — | Corrige los triggers de mazos y partidas con upsert, oculta lo borrado a otros y añade `my_friends()`, límites de tamaño e índices |
 | `12_campos_partida.sql` | 2 · Registro de partidas | Campo de batalla de cada uno en cada juego (`matches.battlefields`) |
+| `13_mazo_rival_turnos.sql` | 2 · Registro de partidas | Mazo del rival amigo (`opponent_deck_id`, `opponent_deck_name`) y quién empezó cada juego (`game_starts`) |
 
 Las cartas no están en la base de datos: siguen en `web/data/cards.json`. Las tablas guardan el id
 de la carta (`ven-116-166`) y la app lo cruza con ese archivo, como hace hoy con el `localStorage`.
@@ -30,7 +31,7 @@ de la carta (`ven-116-166`) y la app lo cruza con ese archivo, como hace hoy con
    **Authentication → Emails → SMTP Settings:** un SMTP propio para que los correos lleguen (se usa
    Brevo: `smtp-relay.brevo.com`, puerto 587, con su usuario y clave SMTP; en Brevo, sin bloqueo de
    IP para las claves SMTP). El SMTP de prueba de Supabase solo envía a los miembros del proyecto.
-3. **SQL Editor:** pegar y ejecutar `01_cuentas.sql`, luego `02` a `12`, en orden. Para repetir un archivo,
+3. **SQL Editor:** pegar y ejecutar `01_cuentas.sql`, luego `02` a `13`, en orden. Para repetir un archivo,
    repite también todos los siguientes: cada uno cambia cosas de los anteriores, y uno suelto desharía esos cambios.
 4. **Project Settings → API:** copiar la *Project URL* y la clave *anon / publishable*. Son las únicas
    que van en la web. La clave *service_role / secret* no se pone nunca en la web.
