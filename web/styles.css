@@ -548,6 +548,8 @@ dialog input[type=date]:focus { outline: none; border-color: var(--muted); }
 }
 .legend-pick:hover { background: #2e2e2e; }
 .legend-pick.empty-pick { padding-left: 16px; color: var(--muted); }
+.legend-pick.locked { cursor: default; }
+.legend-pick.locked:hover { background: var(--surface-2); }
 .legend-pick .thumb.small { width: 40px; border-radius: 5px; }
 .legend-choose { display: flex; flex-direction: column; gap: 8px; }
 .legend-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; max-height: 320px; overflow: auto; padding: 2px; }

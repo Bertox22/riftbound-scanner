@@ -211,10 +211,10 @@ export async function unfollow(id) {
 export async function fetchUserDecks(userId) {
   if (!session || !userId) return [];
   const sb = await getClient();
-  const { data, error } = await sb.from('decks').select('id,name,legend_id').eq('user_id', userId).is('deleted_at', null)
+  const { data, error } = await sb.from('decks').select('id,name,legend_id,battlefields').eq('user_id', userId).is('deleted_at', null)
     .order('updated_at', { ascending: false }).limit(50);
   if (error) throw new Error(authMessage(error));
-  return data.map((r) => ({ id: r.id, name: r.name, legend: r.legend_id }));
+  return data.map((r) => ({ id: r.id, name: r.name, legend: r.legend_id, battlefields: r.battlefields ?? [] }));
 }
 
 // ---------- Partida espejo ----------

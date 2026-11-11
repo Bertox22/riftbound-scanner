@@ -22,6 +22,7 @@ import { cloud, searchProfiles } from './cloud.js';
 import {
   allLegends, legendTitle, legendChamp, canonicalLegend, deckById, blankMatch, deriveFromPoints, saveMatch, editMatch,
   battlefieldChooser, battlefieldName, canonicalBattlefield, deckBattlefields, rivalDeckField,
+  rivalDeckLegend, rivalDeckBattlefields, loadRivalDecks,
 } from './matches.js';
 
 let ctx; // { byId, showView }
@@ -74,6 +75,14 @@ function legendButton(id, label, onclick) {
     el('span', { class: 'muted small', text: card ? 'Cambiar' : '' }));
 }
 
+/** La Leyenda que viene del mazo del rival: se ve, pero no se cambia. */
+function lockedLegend(id) {
+  const card = ctx.byId.get(id);
+  return el('div', { class: 'legend-pick locked' }, cardImg(card, 'thumb small'),
+    el('span', { class: 'grow' }, legendTitle(card)),
+    el('span', { class: 'muted small', text: 'La de su mazo' }));
+}
+
 function segmented(name, options, value, onpick) {
   return el('div', { class: 'segmented', role: 'radiogroup', 'aria-label': name },
     ...options.map(([v, label]) => el('button', { type: 'button', role: 'radio', 'aria-checked': String(v === value), onclick: () => onpick(v) }, label)));
@@ -105,6 +114,9 @@ export function openSetup() {
     const pos = document.activeElement?.selectionStart;
     const sugg = suggestions();
     const friend = s.account && cloud.people?.find((p) => p.id === s.account.id)?.friend;
+    // Con el mazo de tu amigo, su Leyenda es la de ese mazo (no se elige).
+    const deckLegend = friend ? rivalDeckLegend(s.account.id, s.oppDeck, s.oppLegend) : null;
+    if (deckLegend) { s.oppLegend = deckLegend; if (choosing === 'opp') choosing = null; }
     dlg.replaceChildren(
       el('div', { class: 'dialog-head' },
         el('h2', { text: 'Iniciar partida' }),
@@ -166,9 +178,11 @@ export function openSetup() {
         }, draw),
         el('div', { class: 'match-field' },
           el('span', { class: 'match-label', text: 'Leyenda del rival' }),
-          choosing === 'opp'
-            ? legendChooser(s.oppLegend, (id) => { s.oppLegend = id; choosing = null; draw(); })
-            : legendButton(s.oppLegend, 'Elegir su Leyenda', () => { choosing = 'opp'; draw(); })),
+          deckLegend && ctx.byId.has(deckLegend)
+            ? lockedLegend(deckLegend)
+            : choosing === 'opp'
+              ? legendChooser(s.oppLegend, (id) => { s.oppLegend = id; choosing = null; draw(); })
+              : legendButton(s.oppLegend, 'Elegir su Leyenda', () => { choosing = 'opp'; draw(); })),
         el('div', { class: 'match-field' },
           el('span', { class: 'match-label', text: 'Formato' }),
           segmented('Formato', [[1, 'Un juego'], [3, 'Al mejor de 3']], s.bestOf, (v) => { s.bestOf = v; draw(); })),
@@ -460,9 +474,22 @@ function pickField(side, name) {
       store.saveTable();
       dlg.close();
       renderTable();
-    }, { suggested: side === 0 ? deckBattlefields(tb.me.deck) : [], used }),
+    }, {
+      used,
+      // Primero los del mazo de cada uno: el tuyo y, si es un amigo y se sabe su mazo, el suyo.
+      ...(side === 0
+        ? { suggested: deckBattlefields(tb.me.deck) }
+        : { suggested: rivalDeckBattlefields(tb.opp.account?.id, tb.opp.deck), from: `Del mazo de ${name}` }),
+    }),
   );
-  dlg.showModal();
+  if (!dlg.open) dlg.showModal();
+  // Los mazos de tu amigo aún no han llegado (p. ej. tras recargar): al llegar, se vuelve a pintar.
+  if (side === 1 && tb.opp.deck && tb.opp.account && !rivalDeckBattlefields(tb.opp.account.id, tb.opp.deck).length) {
+    const shown = dlg.firstChild;
+    loadRivalDecks(tb.opp.account.id).then(() => {
+      if (dlg.open && dlg.firstChild === shown && rivalDeckBattlefields(tb.opp.account.id, tb.opp.deck).length) pickField(side, name);
+    }, () => {});
+  }
 }
 
 /** La partida de la mesa, lista para el historial. */

@@ -91,7 +91,7 @@ export const battlefieldName = (id) => { const c = id && ctx.byId.get(id); retur
  * Cuadrícula para elegir un Campo de batalla, con buscador. `suggested` (los del mazo) van primero;
  * `used` se marcan como ya jugados en esta partida. onpick(null) lo quita.
  */
-export function battlefieldChooser(selected, onpick, { suggested = [], used = [] } = {}) {
+export function battlefieldChooser(selected, onpick, { suggested = [], used = [], from = 'De tu mazo' } = {}) {
   let q = '';
   const top = [...new Set(suggested.map(canonicalBattlefield).filter((id) => ctx.byId.has(id)))];
   const grid = el('div', { class: 'legend-grid bf-grid' });
@@ -104,7 +104,7 @@ export function battlefieldChooser(selected, onpick, { suggested = [], used = []
     const mine = top.map((id) => ctx.byId.get(id)).filter(match);
     const rest = battlefields.filter((c) => !top.includes(c.id) && match(c));
     grid.replaceChildren(...[
-      mine.length > 0 && el('p', { class: 'bf-group muted small', text: 'De tu mazo' }),
+      mine.length > 0 && el('p', { class: 'bf-group muted small', text: from }),
       ...mine.map(opt),
       mine.length > 0 && rest.length > 0 && el('p', { class: 'bf-group muted small', text: 'Todos' }),
       ...rest.map(opt),
@@ -202,6 +202,12 @@ function fromInputDate(value, prev) {
 
 // ---------- Lista ----------
 
+/** Nombre de un mazo que ya no existe: su Leyenda con "(borrado)", o "Mazo borrado" si no se sabe. */
+function deletedDeckName(legendId) {
+  const card = legendId && ctx.byId.get(legendId);
+  return card ? `${legendChamp(card)} (borrado)` : 'Mazo borrado';
+}
+
 export function legendThumb(id) {
   const card = ctx.byId.get(id);
   return card ? cardImg(card, 'thumb small') : el('div', { class: 'thumb small placeholder', 'aria-hidden': 'true' }, '?');
@@ -224,7 +230,7 @@ function matchRow(m) {
     startsText(m),
     m.event,
   ].filter(Boolean).join(' · ');
-  const decks = [deck ? deck.name : m.deck ? 'Mazo borrado' : 'Sin mazo', m.oppDeck?.name && `contra su «${m.oppDeck.name}»`].filter(Boolean).join(' ');
+  const decks = [deck ? deck.name : m.deck ? deletedDeckName(m.my) : 'Sin mazo', m.oppDeck?.name && `contra su «${m.oppDeck.name}»`].filter(Boolean).join(' ');
   // "Campos: Altar to Unity vs Aspirant's Climb · …", un par por juego.
   const fields = (m.battlefields ?? []).filter(([a, b]) => a || b)
     .map(([a, b]) => `${battlefieldName(a) ?? '?'} vs ${battlefieldName(b) ?? '?'}`).join(' · ');
@@ -317,8 +323,8 @@ function renderStats(list) {
 
   // Mazos con partidas (y los que ya no existen, si quedan partidas suyas).
   const deckIds = [...new Set(store.matches.map((m) => m.deck ?? 'none'))];
-  const deckName = (id) => (id === 'none' ? 'Sin mazo' : deckById(id)?.name ?? 'Mazo borrado');
   const deckLegend = (id) => canonicalLegend(deckById(id)?.legend) ?? store.matches.find((m) => (m.deck ?? 'none') === id)?.my;
+  const deckName = (id) => (id === 'none' ? 'Sin mazo' : deckById(id)?.name ?? deletedDeckName(deckLegend(id)));
   const filter = el('select', { 'aria-label': 'Mazo', onchange: (e) => { deckFilter = e.target.value; render(); } },
     el('option', { value: '', text: 'Todos los mazos', selected: !deckFilter }),
     ...deckIds.map((id) => el('option', { value: id, text: deckName(id), selected: id === deckFilter })));
@@ -376,35 +382,42 @@ function segmented(name, options, value, onpick, cls = '') {
     }, label)));
 }
 
+/** Tus amigos para elegir de rival: [[id, nombre visible, usuario]] (y el de la partida, si ya no lo es). */
+function rivalOptions(m) {
+  const options = (cloud.people ?? []).filter((p) => p.friend).map((p) => [p.id, p.display_name || p.username, p.username]);
+  if (m.rival && !options.some(([id]) => id === m.rival)) options.push([m.rival, m.oppName || 'Rival', m.oppName]);
+  return options;
+}
+
 /**
  * Rival con cuenta: uno de tus amigos. La partida le llega para que la guarde en su historial con el
- * resultado al revés. Solo sale si tienes amigos (o si la partida ya lleva uno).
+ * resultado al revés. Solo sale si tienes amigos (o si la partida ya lleva uno). Con un amigo, su nombre
+ * de usuario es el del rival (no se escribe a mano) y se puede apuntar con qué mazo jugó.
  */
-function rivalField(m, draw) {
-  const friends = (cloud.people ?? []).filter((p) => p.friend);
-  const options = friends.map((p) => [p.id, p.display_name || p.username, p.username]);
-  if (m.rival && !options.some(([id]) => id === m.rival)) options.push([m.rival, m.oppName || 'Rival', m.oppName]);
-  if (!options.length) return null;
+function rivalFields(m, draw) {
+  const options = rivalOptions(m);
+  if (!options.length) return [];
   const chosen = options.find(([id]) => id === m.rival);
-  return el('div', { class: 'match-field' },
-    el('span', { class: 'match-label', text: 'Contra un amigo (opcional)' }),
-    segmented('Rival con cuenta', [[null, 'Ninguno'], ...options.map(([id, label]) => [id, label])], m.rival ?? null, (v) => {
-      // El nombre del rival sigue al amigo elegido, salvo que se haya escrito otro a mano.
-      const prev = options.find(([id]) => id === m.rival);
-      if (prev && m.oppName === prev[2]) m.oppName = '';
-      if (v !== m.rival) m.oppDeck = null;
-      m.rival = v;
-      const next = options.find(([id]) => id === v);
-      if (next && !m.oppName) m.oppName = next[2];
-      draw();
-    }),
-    chosen && el('p', { class: 'muted small', text: m.mirrorOf ? `Copia de la partida que apuntó ${chosen[1]}.` : `Le llegará a ${chosen[1]} para que la guarde en su historial.` }),
-    // Con qué mazo jugó: al elegirlo, su Leyenda pasa a ser la del rival.
+  return [
+    el('div', { class: 'match-field' },
+      el('span', { class: 'match-label', text: 'Contra un amigo (opcional)' }),
+      segmented('Rival con cuenta', [[null, 'Ninguno'], ...options.map(([id, label]) => [id, label])], m.rival ?? null, (v) => {
+        const prev = options.find(([id]) => id === m.rival);
+        const next = options.find(([id]) => id === v);
+        if (v !== m.rival) m.oppDeck = null;
+        // Con un amigo el nombre es su usuario; al quitarlo, el nombre vuelve a estar vacío.
+        m.oppName = next ? next[2] : prev && m.oppName === prev[2] ? '' : m.oppName;
+        m.rival = v;
+        draw();
+      }),
+      chosen && el('p', { class: 'muted small', text: m.mirrorOf ? `Copia de la partida que apuntó ${chosen[1]}.` : `Le llegará a ${chosen[1]} para que la guarde en su historial.` })),
+    // Con qué mazo jugó: al elegirlo, su Leyenda pasa a ser la del rival (y sus Campos salen primero).
     chosen && rivalDeckField(m.rival, chosen[1], m.oppDeck, (d) => {
       m.oppDeck = d ? { id: d.id, name: d.name } : null;
       if (d?.legend && ctx.byId.has(canonicalLegend(d.legend))) m.opp = canonicalLegend(d.legend);
       draw();
-    }, draw));
+    }, draw),
+  ].filter(Boolean);
 }
 
 // ---------- Mazo del rival (si es un amigo) ----------
@@ -412,7 +425,7 @@ function rivalField(m, draw) {
 const rivalDecks = new Map(); // id de su cuenta → { at, list | null (cargando) | 'error' }
 
 /** Los mazos de un amigo ([{ id, name, legend }]); se piden a la nube como mucho una vez cada 5 minutos. */
-function loadRivalDecks(userId) {
+export function loadRivalDecks(userId) {
   const hit = rivalDecks.get(userId);
   if (hit?.promise && Date.now() - hit.at < 5 * 60_000) return hit.promise;
   const entry = { at: Date.now(), list: null };
@@ -422,6 +435,28 @@ function loadRivalDecks(userId) {
   rivalDecks.set(userId, entry);
   return entry.promise;
 }
+
+/** El mazo de un amigo ({ id, name, legend, battlefields }) si sus mazos ya llegaron; loaded: si llegaron. */
+function cachedRivalDeck(userId, deck) {
+  const list = userId && rivalDecks.get(userId)?.list;
+  if (!Array.isArray(list)) return { loaded: false, deck: null };
+  return { loaded: true, deck: (deck && list.find((d) => d.id === deck.id)) ?? null };
+}
+
+/**
+ * La Leyenda del rival cuando se sabe con qué mazo jugó un amigo: la de ese mazo, y no se puede poner
+ * otra. Mientras llegan sus mazos vale la que ya llevaba la partida. null si no hay mazo o no tiene Leyenda.
+ */
+export function rivalDeckLegend(userId, deck, current = null) {
+  if (!userId || !deck) return null;
+  const { loaded, deck: d } = cachedRivalDeck(userId, deck);
+  if (!loaded) return rivalDecks.get(userId)?.list === 'error' ? null : current;
+  const id = canonicalLegend(d?.legend);
+  return id && ctx.byId.has(id) ? id : null;
+}
+
+/** Los Campos de batalla del mazo con el que jugó un amigo ([] si no se sabe). */
+export const rivalDeckBattlefields = (userId, deck) => cachedRivalDeck(userId, deck).deck?.battlefields ?? [];
 
 /**
  * Desplegable para apuntar con qué mazo jugó un amigo (los suyos que puedes ver). `selected` es
@@ -549,6 +584,10 @@ function openSheet(existing, deckId = null, draft = null) {
   let more = editing && !!(m.score || (m.points.length === 1 && m.first != null) || m.event || m.notes); // "Más datos" abierto
 
   const draw = () => {
+    const rivalName = m.rival ? rivalOptions(m).find(([id]) => id === m.rival)?.[1] : null;
+    // Si es un amigo y se sabe su mazo, la Leyenda del rival es la de ese mazo (no se elige).
+    const deckLegend = rivalDeckLegend(m.rival, m.oppDeck, m.opp);
+    if (deckLegend) { m.opp = deckLegend; choosing = false; }
     const opp = ctx.byId.get(m.opp);
     const events = [...new Set(store.matches.map((x) => x.event).filter(Boolean))].slice(0, 12);
 
@@ -623,7 +662,10 @@ function openSheet(existing, deckId = null, draft = null) {
         pickingBf = null;
         draw();
       }, {
-        suggested: pickingBf.side === 0 ? deckBattlefields(m.deck) : [],
+        // Primero los del mazo de cada uno: el tuyo y, si es un amigo y se sabe su mazo, el suyo.
+        ...(pickingBf.side === 0
+          ? { suggested: deckBattlefields(m.deck) }
+          : { suggested: rivalDeckBattlefields(m.rival, m.oppDeck), from: `Del mazo de ${rivalName}` }),
         used: m.battlefields.filter((_, j) => j !== pickingBf.i).map((f) => f[pickingBf.side]).filter(Boolean),
       }));
 
@@ -664,25 +706,31 @@ function openSheet(existing, deckId = null, draft = null) {
             draw();
           })),
         pointsField,
-        bfField,
-        m.points.length > 1 && startsField,
         el('label', { class: 'match-field' },
           el('span', { class: 'match-label', text: 'Tu mazo' }),
-          el('select', { onchange: (e) => { m.deck = e.target.value || null; } },
+          el('select', { onchange: (e) => { m.deck = e.target.value || null; pickingBf = null; draw(); } },
             el('option', { value: '', text: 'Sin mazo', selected: !m.deck }),
             ...decks.map((d) => el('option', { value: d.id, text: d.name, selected: d.id === m.deck })),
-            m.deck && !deckById(m.deck) && el('option', { value: m.deck, text: 'Mazo borrado', selected: true }))),
+            m.deck && !deckById(m.deck) && el('option', { value: m.deck, text: deletedDeckName(m.my), selected: true }))),
+        // El rival: amigo y su mazo primero, porque de su mazo salen la Leyenda y los Campos.
+        ...rivalFields(m, draw),
         el('div', { class: 'match-field' },
           el('span', { class: 'match-label', text: 'Leyenda del rival' }),
-          choosing ? legendPicker() : el('button', {
-            type: 'button', class: `legend-pick${opp ? '' : ' empty-pick'}`, onclick: () => { choosing = true; draw(); dlg.querySelector('.legend-search input')?.focus(); },
-          }, opp ? cardImg(opp, 'thumb small') : null,
-          el('span', { class: 'grow' }, opp ? legendTitle(opp) : 'Elegir Leyenda'),
-          el('span', { class: 'muted small', text: opp ? 'Cambiar' : '' }))),
-        rivalField(m, draw),
-        el('label', { class: 'match-field' },
+          deckLegend && opp
+            ? el('div', { class: 'legend-pick locked' }, cardImg(opp, 'thumb small'),
+              el('span', { class: 'grow' }, legendTitle(opp)),
+              el('span', { class: 'muted small', text: 'La de su mazo' }))
+            : choosing ? legendPicker() : el('button', {
+              type: 'button', class: `legend-pick${opp ? '' : ' empty-pick'}`, onclick: () => { choosing = true; draw(); dlg.querySelector('.legend-search input')?.focus(); },
+            }, opp ? cardImg(opp, 'thumb small') : null,
+            el('span', { class: 'grow' }, opp ? legendTitle(opp) : 'Elegir Leyenda'),
+            el('span', { class: 'muted small', text: opp ? 'Cambiar' : '' }))),
+        // Con un amigo, su nombre ya es el de su cuenta.
+        !m.rival && el('label', { class: 'match-field' },
           el('span', { class: 'match-label', text: 'Nombre del rival (opcional)' }),
           el('input', { value: m.oppName, maxlength: 40, autocomplete: 'off', oninput: (e) => { m.oppName = e.target.value; } })),
+        bfField,
+        m.points.length > 1 && startsField,
         el('details', { class: 'match-more', open: more, ontoggle: (e) => { more = e.target.open; } },
           el('summary', { text: 'Más datos' }),
           el('div', { class: 'match-field' },
