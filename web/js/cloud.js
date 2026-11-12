@@ -121,7 +121,14 @@ export async function fetchProfilePage(username) {
   const own = profile.id === current?.user.id;
   const [deckRows, matchRows, colRows] = await Promise.all([
     selectAll(() => sb.from('decks').select('*').eq('user_id', profile.id).is('deleted_at', null).order('updated_at', { ascending: false }).order('id')),
-    selectAll(() => sb.from('matches').select('deck_id,my_legend_id,opponent_legend_id,result,games_won,games_lost,points').eq('user_id', profile.id).is('deleted_at', null).order('id')),
+    // De un perfil público, la vista public_matches (sin notas ni datos del rival); si no, la tabla (propias o de un amigo).
+    selectAll(() => {
+      const cols = 'deck_id,my_legend_id,opponent_legend_id,result,games_won,games_lost,points';
+      const q = profile.is_public
+        ? sb.from('public_matches').select(cols) // ya sin las borradas
+        : sb.from('matches').select(cols).is('deleted_at', null);
+      return q.eq('user_id', profile.id).order('id');
+    }),
     profile.is_public ? selectAll(() => sb.from('collection_items').select('card_id,normal,foil').eq('user_id', profile.id).order('card_id')) : [],
   ]);
   const decks = deckRows.map(fromRow).filter((d) => !own || profile.is_public || d.shared);
@@ -410,6 +417,7 @@ function authMessage(error) {
   if (/invalid login credentials/i.test(m)) return 'Correo o contraseña incorrectos.';
   if (/email not confirmed/i.test(m)) return 'Aún no has confirmado el correo: abre el enlace que te enviamos al crear la cuenta.';
   if (/rate limit|too many|security purposes/i.test(m)) return 'Demasiados intentos seguidos. Espera unos minutos y vuelve a probar.';
+  if (/LIMITE_FILAS/.test(m)) return 'Tu cuenta ha llegado al máximo de datos guardados en la nube. Borra algo para seguir sincronizando.';
   if (/LIMITE_MAZOS/.test(m)) return 'Tu cuenta ya tiene 15 mazos: borra alguno para que se sincronicen los demás.';
   if (/signups? (are|is) disabled|signup.*not allowed/i.test(m)) return 'Ahora mismo no se pueden crear cuentas nuevas (está desactivado en Supabase).';
   if (/password.*(6|characters|short)/i.test(m)) return 'La contraseña debe tener al menos 6 caracteres.';
