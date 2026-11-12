@@ -254,7 +254,7 @@ function setCode(value, idx) {
 function collectorKey(set, number) {
   let n = String(number ?? '').trim().replace(/\s*\/\s*\d+$/, '');
   if (!n) return null;
-  n = /^\d+$/.test(n) ? n.padStart(3, '0') : n.toLowerCase();
+  n = n.toLowerCase().replace(/^\d+/, (d) => d.padStart(3, '0')); // "1" -> "001", "90a" -> "090a"; "sp3" igual
   return `${set.toLowerCase()}-${n}`;
 }
 
@@ -400,10 +400,10 @@ export function matchRows(data, map, idx) {
       }
     }
 
-    let qty = map.qty != null ? parseQty(get(r, 'qty')) : 1;
+    let qty = map.qty != null ? parseQty(get(r, 'qty')) : null;
     let foilQty = map.foilQty != null ? parseQty(get(r, 'foilQty')) ?? 0 : 0;
     if (map.foil != null && truthy(get(r, 'foil'))) { foilQty += qty ?? 1; qty = 0; }
-    qty ??= map.qty != null && foilQty ? 0 : 1;
+    qty ??= foilQty ? 0 : 1; // sin copias indicadas: 1, salvo que la fila ya traiga sus foil
     if (!qty && !foilQty) continue; // filas con 0 copias
     const section = map.section != null ? deckSection(get(r, 'section')) : null;
     out.push({ raw: r, label: name || String(get(r, 'code') || `${get(r, 'set')} ${get(r, 'number')}`).trim(), card, status, note, qty, foilQty, section });

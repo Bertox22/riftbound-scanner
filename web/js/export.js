@@ -306,7 +306,11 @@ function writeDeckList(ws, deck, { byId, owned }) {
   styleHeader(ws.getRow(3));
   ws.views = [{ state: 'frozen', ySplit: 3 }];
   let r = 4, value = 0;
-  for (const [title, cards] of deckSections(deck, byId)) {
+  const sections = deckSections(deck, byId);
+  // Copias de cada carta en todo el mazo (el Campeón sale también en el principal).
+  const need = {};
+  for (const [, cards] of sections) for (const [c, n] of cards) need[c.id] = (need[c.id] || 0) + n;
+  for (const [title, cards] of sections) {
     r++;
     ws.getCell(`A${r}`).value = title;
     ws.getCell(`A${r}`).font = { bold: true };
@@ -315,7 +319,7 @@ function writeDeckList(ws, deck, { byId, owned }) {
       const price = round2(unitPrice(c.id));
       const row = ws.getRow(r++);
       row.values = [n, c.name, cardCode(c), typeLabel(c), c.energy ?? null, owned(c.id), price];
-      if (owned(c.id) < n) row.getCell(6).font = { color: { argb: 'FFC0392B' }, bold: true }; // te faltan copias
+      if (owned(c.id) < need[c.id]) row.getCell(6).font = { color: { argb: 'FFC0392B' }, bold: true }; // te faltan copias
       row.getCell(7).numFmt = '0.00';
       value += (price ?? 0) * n;
     }
