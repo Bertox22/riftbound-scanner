@@ -183,7 +183,7 @@ def file_id(card_id):
     return card_id.replace("*", "s")
 
 
-def download(card):
+def download(card, retry=True):
     src = CACHE / f"{file_id(card['id'])}.jpg"
     if not src.exists():
         for attempt in range(3):
@@ -191,7 +191,9 @@ def download(card):
                 img = Image.open(io.BytesIO(get(card["image"]))).convert("RGB")
                 h = round(img.height * CACHE_WIDTH / img.width) if img.width < img.height else CACHE_WIDTH
                 w = CACHE_WIDTH if img.width < img.height else round(img.width * CACHE_WIDTH / img.height)
-                img.resize((w, h), Image.LANCZOS).save(src, "JPEG", quality=92)
+                tmp = src.with_suffix(".tmp")  # se escribe aparte: cortar a mitad no deja un .jpg roto
+                img.resize((w, h), Image.LANCZOS).save(tmp, "JPEG", quality=92)
+                tmp.replace(src)
                 break
             except Exception as exc:  # noqa: BLE001
                 if attempt == 2:
@@ -200,7 +202,15 @@ def download(card):
                 time.sleep(2)
     thumb = THUMBS / f"{file_id(card['id'])}.webp"
     if not thumb.exists():
-        img = Image.open(src).convert("RGB")
+        try:
+            img = Image.open(src).convert("RGB")
+        except OSError as exc:
+            # Imagen de la caché a medias (de antes de escribirla aparte): se borra y se descarga otra vez.
+            src.unlink(missing_ok=True)
+            if retry:
+                return download(card, retry=False)
+            print(f"  ERROR {card['id']}: {exc}")
+            return
         scale = THUMB_WIDTH / min(img.size)
         img.resize((round(img.width * scale), round(img.height * scale)), Image.LANCZOS).save(thumb, "WEBP", quality=80)
 
@@ -360,6 +370,10 @@ def main():
         if strict:
             raise SourceError(f"No se pudieron leer las erratas: {exc}") from exc
         print(f"No se pudieron leer las erratas: {exc}")
+    if only and (DATA / "cards.json").exists():
+        # Solo se han pedido esos sets: las cartas de los demás se quedan como estaban.
+        kept = [c for c in json.loads((DATA / "cards.json").read_text(encoding="utf-8")) if c["set"] not in only]
+        cards = sorted(kept + cards, key=lambda c: (c["set"], c["number"], c["id"]))
     if strict and not only:
         # Una fuente que de repente devuelve menos cartas es casi seguro un fallo suyo, no cartas retiradas.
         previous = {c["id"] for c in json.loads((DATA / "cards.json").read_text(encoding="utf-8"))}
