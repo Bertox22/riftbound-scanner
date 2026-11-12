@@ -40,6 +40,7 @@ async function loadLists(owner) {
       lists[name] = new Map(rows.map((r) => [keyOf(r.card_id, r.foil), r.quantity]));
     }
     listsState = 'ready';
+    applyCompleted(); // los intercambios hechos que llegaron antes que las listas
   } catch (err) {
     console.error(err);
     if (listsOwner === owner) listsState = 'error';
@@ -439,6 +440,8 @@ export async function refreshTrades(force = false) {
 /** Los intercambios hechos que aún no están en mi colección (también si los marcó el otro). */
 async function applyCompleted() {
   await listsLoaded;
+  // Sin las listas no se podrían descontar de Ofrezco y Busco: se aplica cuando se carguen.
+  if (listsState !== 'ready') return;
   for (const t of (trades ?? []).filter((x) => x.status === 'completed' && !x.applied && !applying.has(x.id))) {
     applying.add(t.id);
     try {
