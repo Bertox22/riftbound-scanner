@@ -21,6 +21,10 @@ const LEGACY_DOMAIN = 'usuarios.riftbound-scanner.app'; // cuentas antiguas: el 
 const SYNC_KEY = 'rb.sync.v1';
 const PUSH_DELAY = 2000;
 const PAGE = 1000; // filas por petición (el máximo de la API)
+// updated_at es now(): la hora en que empezó la transacción, no en la que se confirmó. Una subida de
+// otro dispositivo puede llegar con una marca algo anterior a la última bajada, así que cada bajada
+// repasa también este margen (volver a ver filas ya bajadas no cambia nada).
+const PULL_OVERLAP = 60_000;
 
 export const USERNAME_RE = /^[A-Za-z0-9_]{3,20}$/;
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -567,6 +571,10 @@ const OPTIONAL_MATCH_COLUMNS = [
 ];
 const missingMatchColumns = new Set(); // grupos de OPTIONAL_MATCH_COLUMNS que la base de datos no tiene
 const uploadedMatch = (m) => [...missingMatchColumns].reduce((x, g) => g.strip(x), m);
+// Mazo que existe aquí pero aún no está en la nube (la partida sube sin él): la foto lo guarda sin
+// mazo, para que la partida se vuelva a subir con su deck_id cuando el mazo suba.
+const deckPending = (m, snap) => !!m.deck && !snap.decks[m.deck] && store.decks.some((d) => d.id === m.deck);
+const snapMatch = (m, snap) => (deckPending(m, snap) ? { ...m, deck: null } : m);
 const ledgerKey = (m) => canon({
   at: m.at, kind: m.kind, label: m.label ?? null, card: m.card ?? null, foil: !!m.foil, qty: m.qty, price: m.price,
   ownedBefore: m.ownedBefore ?? null, inCollection: !!m.inCollection,
@@ -813,7 +821,9 @@ async function push(uid, snap) {
     // A la base de datos le falta alguna columna nueva (12_campos_partida.sql, 13_mazo_rival_turnos.sql):
     // se sube sin ella. Puede faltar más de una, así que se repite mientras el error nombre otra.
     for (;;) {
-      const g = error && OPTIONAL_MATCH_COLUMNS.find((x) => !missingMatchColumns.has(x) && x.cols.some((c) => error.message.includes(c)));
+      // Solo errores de columna inexistente (PostgREST PGRST204, Postgres 42703), no otros que la nombren.
+      const missing = error && (error.code === 'PGRST204' || error.code === '42703');
+      const g = missing && OPTIONAL_MATCH_COLUMNS.find((x) => !missingMatchColumns.has(x) && x.cols.some((c) => error.message.includes(c)));
       if (!g) break;
       console.warn(`Falta la columna matches.${g.cols.join('/')}: las partidas se suben sin ese dato.`);
       missingMatchColumns.add(g);
@@ -821,7 +831,7 @@ async function push(uid, snap) {
     }
     if (error) throw error;
     // Sin la columna, lo subido no lleva ese dato: la foto tampoco, para reintentarlo la próxima vez.
-    for (const m of chunk) snap.matches[m.id] = matchKey(uploadedMatch(m));
+    for (const m of chunk) snap.matches[m.id] = matchKey(uploadedMatch(snapMatch(m, snap)));
     writeSnap(snap);
   }
 
@@ -864,7 +874,7 @@ async function push(uid, snap) {
 async function pull(uid, snap) {
   const sb = await getClient();
   snap.deckPull ??= snap.lastPull; // foto de antes de separar las marcas
-  const newer = (q, since) => (since ? q.gt('updated_at', since) : q);
+  const newer = (q, since) => (since ? q.gt('updated_at', new Date(Date.parse(since) - PULL_OVERLAP).toISOString()) : q);
   const colRows = await selectAll(() => newer(sb.from('collection_items').select('card_id,normal,foil,updated_at').eq('user_id', uid), snap.lastPull).order('updated_at').order('card_id'));
   const deckRows = await selectAll(() => newer(sb.from('decks').select('*').eq('user_id', uid), snap.deckPull).order('updated_at').order('id'));
 
@@ -907,10 +917,7 @@ async function pull(uid, snap) {
 
   // Partidas, con su propia marca: sin ella (foto antigua) se bajan todas.
   const matchSince = snap.matchPull;
-  const matchRows = await selectAll(() => {
-    const q = sb.from('matches').select('*').eq('user_id', uid);
-    return (matchSince ? q.gt('updated_at', matchSince) : q).order('updated_at').order('id');
-  });
+  const matchRows = await selectAll(() => newer(sb.from('matches').select('*').eq('user_id', uid), matchSince).order('updated_at').order('id'));
   for (const r of matchRows) {
     snap.matchPull = maxStamp(snap.matchPull, r.updated_at);
     const i = store.matches.findIndex((m) => m.id === r.id);
@@ -923,19 +930,16 @@ async function pull(uid, snap) {
     const match = fromMatchRow(r);
     // El mazo que la nube no enlaza (no estaba subido) se conserva si aquí sí lo tenemos.
     if (!match.deck && i >= 0) match.deck = store.matches[i].deck;
-    snap.matches[r.id] = matchKey(match);
+    snap.matches[r.id] = matchKey(r.deck_id ? match : snapMatch(match, snap));
     if (dirty) continue;
     if (i < 0) { store.matches.push(match); changed = true; }
-    else if (matchKey(store.matches[i]) !== snap.matches[r.id]) { store.matches[i] = match; changed = true; }
+    else if (matchKey(store.matches[i]) !== matchKey(match)) { store.matches[i] = match; changed = true; }
   }
   if (changed) store.matches.sort(byDate);
 
   // Balance, igual que las partidas.
   const ledgerSince = snap.ledgerPull;
-  const ledgerRows = await selectAll(() => {
-    const q = sb.from('ledger').select('*').eq('user_id', uid);
-    return (ledgerSince ? q.gt('updated_at', ledgerSince) : q).order('updated_at').order('id');
-  });
+  const ledgerRows = await selectAll(() => newer(sb.from('ledger').select('*').eq('user_id', uid), ledgerSince).order('updated_at').order('id'));
   let ledgerChanged = false;
   for (const r of ledgerRows) {
     snap.ledgerPull = maxStamp(snap.ledgerPull, r.updated_at);
