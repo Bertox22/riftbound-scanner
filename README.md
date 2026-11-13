@@ -46,43 +46,55 @@ entre tus dispositivos.
     trofeo apunta una partida con ese mazo ya elegido.
   - Se pueden importar listas de cualquier web (secciones Legend/Champion/Main Deck/Runes/Battlefields
     opcionales: lo que no tenga sección se coloca por tipo de carta) o archivos .txt, CSV y Excel.
-- **Partidas:** al acabar una partida apuntas el resultado, tu mazo, la Leyenda del rival (cada
-  Leyenda sale una vez aunque tenga versión foil, Metal o Signature), los puntos de cada juego
-  (8–7, o hasta 3 juegos al mejor de 3: el resultado y el marcador se marcan solos), quién empezó
-  (al mejor de 3, cada juego), el evento, la fecha y notas. El marcador admite 3–0 y 0–3 por si se
-  juega el tercer juego aunque ya haya ganador. Si el rival es un amigo, eliges también con cuál de
-  sus mazos jugó (y su Leyenda se pone sola). Las estadísticas cuentan juegos, no partidas (al mejor de 3, un 2–1 son
-  dos victorias y una derrota, y un 0–3, tres derrotas): el porcentaje de victorias (sin contar
-  empates), el balance V–D–E, cómo te va en los juegos que empiezas tú o el rival, y los resultados
-  por mazo y contra cada Leyenda, con un filtro por mazo.
+- **Partidas:** al acabar una partida apuntas primero tu mazo y el rival, y después el resto: la
+  Leyenda del rival (cada Leyenda sale una vez aunque tenga versión foil, Metal o Signature), los
+  puntos de cada juego (8–7, o hasta 3 juegos al mejor de 3: el resultado y el marcador se marcan
+  solos), el Campo de batalla de cada uno en cada juego, quién empezó (al mejor de 3, cada juego), el
+  evento, la fecha y notas. El marcador admite 3–0 y 0–3 por si se juega el tercer juego aunque ya
+  haya ganador. Si el rival es un amigo, no hace falta escribir su nombre (es su usuario): eliges con
+  cuál de sus mazos jugó, su Leyenda queda fija («La de su mazo») y al elegir su Campo salen primero
+  los de ese mazo. Un mazo que has borrado sigue saliendo con su Leyenda, como «Akali (borrado)», en
+  las estadísticas, el filtro y el historial.
+  - Las estadísticas cuentan juegos, no partidas (al mejor de 3, un 2–1 son dos victorias y una
+    derrota, y un 0–3, tres derrotas; junto a las partidas se ven los juegos: «5 partidas · 11
+    juegos»): el porcentaje de victorias (sin contar empates), el balance V–D–E, cómo te va en los
+    juegos que empiezas tú o el rival, y los resultados por mazo y contra cada Leyenda, con un filtro
+    por mazo. El balance de cada mazo y los perfiles cuentan igual.
 - **Mesa (marcador en vivo):** en Partidas, «Iniciar partida» pide tu mazo (o tu Leyenda), el
   rival (te sugiere cuentas al escribir; si no tiene cuenta, basta su nombre; si es un amigo, también
   su mazo), su Leyenda, si es a un
   juego o al mejor de 3 y a cuántos puntos. La mesa ocupa toda la pantalla: cada jugador tiene su
   mitad (la del rival, girada), teñida con el color del dominio de su Leyenda, con sus puntos en
   grande, una pista hasta los puntos de victoria y los botones − y + en su borde (tocar el número
-  también suma). Llegar a los puntos solo avisa («Gana el juego», en dorado): los juegos se cierran a
-  mano con «Siguiente». La barra del medio tiene salir, «Sortear» (antes del primer punto: quien gana
-  elige en su mitad si empieza o empieza el otro, y eso queda apuntado en la partida; en los
+  también suma). Llegar a los puntos solo avisa («Gana el juego», en dorado): los juegos y la
+  partida se cierran a mano. La barra del medio tiene salir, «Sortear» (antes del primer punto: quien
+  gana elige en su mitad si empieza o empieza el otro, y eso queda apuntado en la partida; en los
   siguientes juegos elige quien perdió el anterior, y queda apuntado quién empezó cada uno), el juego
-  y el marcador, reiniciar y «Terminar». Con 2–0, «Jugar el 3.º» deja jugar el tercer juego igualmente
-  (la partida acaba 3–0 o 2–1). Al terminar, la
-  partida se guarda sola en tu historial (y si el rival es un amigo, le llega como partida espejo).
-  La pantalla no se apaga y una recarga no pierde la partida.
-- **Cuenta (opcional):** el botón de la barra superior abre la cuenta. Con ella, colección, mazos y
-  partidas se guardan en la nube y aparecen en todos tus dispositivos. Sin cuenta la app funciona
+  y el marcador, reiniciar y una sola acción en blanco:
+  - Al mejor de 3, cuando alguien gana un juego, **«Terminar juego»** lo guarda y empieza el
+    siguiente. «Siguiente» cierra un juego sin llegar a los puntos (por ejemplo, si alguien se rinde).
+  - **«Terminar»**, cuando la partida ya tiene ganador, la guarda sola en tu historial (y si el rival
+    es un amigo, le llega como partida espejo). Si se termina a medias, avisa antes.
+  - Con 2–0, «Jugar el 3.º» deja jugar el tercer juego igualmente (la partida acaba 3–0 o 2–1).
+
+  En cada juego se elige el Campo de batalla de cada jugador (primero los del mazo; los ya jugados
+  salen marcados) y queda apuntado en la partida. La pantalla no se apaga y una recarga no pierde la
+  partida.
+- **Cuenta (opcional):** el botón de la barra superior abre la cuenta. Con ella, colección, mazos,
+  partidas y balance se guardan en la nube y aparecen en todos tus dispositivos. Sin cuenta la app funciona
   igual, solo en el dispositivo. Ver [Cuentas y sincronización](#cuentas-y-sincronización).
 - **Perfil y amigos (con cuenta):**
   - En la cuenta editas tu perfil (nombre visible, ciudad, «Sobre ti») y eliges si es público.
     Cada mazo se puede compartir por separado desde el editor («Compartir este mazo»).
   - Tu perfil tiene su enlace, `#@usuario` (y `#@usuario/mazo` para un mazo): muestra tus
     estadísticas, las Leyendas que más juegas y los mazos que compartes. Los perfiles públicos se
-    ven sin cuenta.
+    ven sin cuenta; quien no es tu amigo ve tus partidas sin las notas ni los datos del rival.
   - Con el botón de la lupa (arriba, junto a la cuenta) buscas jugadores y los sigues. Si os seguís los dos sois amigos: veis los mazos y
     las partidas del otro aunque el perfil sea privado.
   - **Partida espejo:** al apuntar una partida puedes elegir a un amigo como rival. A él le aparece
     en Partidas para guardarla en su historial con todo al revés (resultado, marcador, puntos,
-    Leyendas, quién empezó cada juego y los mazos: el que apuntó como tuyo pasa a ser tu mazo) o
+    Leyendas, Campos de batalla, quién empezó cada juego y los mazos: el que apuntó como tuyo pasa a
+    ser tu mazo) o
     descartarla. En su perfil ves vuestro cara a cara («Tú contra X»).
   - **¿Cuánto me falta?:** en el mazo de otro jugador ves qué cartas te faltan de tu colección y lo
     que costarían en Cardmarket, y puedes copiarlo a tus mazos.
@@ -134,6 +146,8 @@ marcha están en [`supabase/README.md`](supabase/README.md).
   último que sube. Los mazos y partidas borrados se marcan (`deleted_at`) para que el borrado llegue
   a los demás dispositivos. Lo que se cambia mientras se sincroniza no se pisa: se sube en la vuelta
   siguiente. Si no caben todos los mazos (15 por cuenta), se sincroniza todo lo demás y la app avisa.
+  Cada cuenta tiene además un máximo de datos por tabla, muy por encima del uso normal; si se llega,
+  la app lo dice.
 - **La primera vez** que una cuenta con datos entra en un dispositivo con datos, la app pregunta qué
   hacer con las cartas, los mazos y las partidas, cada cosa por separado: juntar, quedarse con lo de
   la cuenta o con lo del dispositivo. Las cartas se pueden juntar sin duplicar (la cantidad mayor de
@@ -148,8 +162,14 @@ marcha están en [`supabase/README.md`](supabase/README.md).
 
 Negro neutro con capas por luminosidad y tipografía Inter con cifras tabulares. El dorado queda
 para los datos (copias, precios, la carta reconocida, el porcentaje de victorias). Botones en
-pastilla (el principal en blanco), casillas como interruptores, diálogos como hoja inferior en el
-móvil y animaciones que respetan "reducir movimiento". El recuadro guía del escáner no cambia de
+pastilla (el principal en blanco y a la derecha), casillas como interruptores, diálogos como hoja
+inferior en el móvil con la cabecera fija al desplazar, y animaciones que respetan "reducir
+movimiento".
+
+En portátil y ordenador (desde 768 px), Colección tiene una barra con las pestañas a la izquierda y
+Balance e Historial a la derecha, y las hojas flotan centradas con margen. Desde 1120 px las pestañas
+pasan al centro de la barra de arriba, las estadísticas y los mazos van a dos columnas y Escanear
+queda en una columna centrada. El recuadro guía del escáner no cambia de
 tamaño ni de posición: `scanner.js` recorta con él.
 
 ## Cómo funciona el reconocimiento
@@ -191,6 +211,8 @@ supabase/            esquema de la base de datos (scripts SQL por fases) y su RE
 python -m http.server 8000 --directory web
 ```
 
+(En Windows, `py` en lugar de `python`.)
+
 Abre http://localhost:8000. En el PC la cámara funciona en `localhost`; en el móvil hace falta que
 la web se sirva por **HTTPS** (los navegadores no dejan usar la cámara en http).
 
@@ -206,6 +228,9 @@ la web se sirva por **HTTPS** (los navegadores no dejan usar la cámara en http)
 4. El flujo `.github/workflows/pages.yml` publica la carpeta `web/` en cada push. La app queda en
    `https://<tu-usuario>.github.io/riftbound-scanner/`. Ábrela en el móvil y usa
    "Añadir a pantalla de inicio" para tenerla como una app.
+5. GitHub Pages deja guardar los archivos unos 10 minutos. Para que cada publicación llegue entera,
+   `styles.css`, `app.js` y el resto de módulos (con el `importmap` de `index.html`) llevan la misma
+   versión, `?v=65`: al publicar cambios de estilos o de código, súbela en todos a la vez.
 
 Sin cuenta, la colección, los mazos y las partidas se guardan solo en el navegador (localStorage:
 `rb.collection.v1`, `rb.decks.v1`, `rb.matches.v1`, `rb.ledger.v1`). Usa **Colección → Exportar copia** de vez en
