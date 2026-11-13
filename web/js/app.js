@@ -8,7 +8,7 @@ import { initAccount } from './account-ui.js';
 import { initMatches } from './matches.js';
 import { initProfile, routeProfile } from './profile.js';
 import { initTable } from './table.js';
-import { initTrades, showTrades, tradeBlock } from './trades.js';
+import { initTrades, showTrades, tradeBlock, wantButton } from './trades.js';
 import { initLedger } from './ledger.js';
 import { importBackup } from './backup.js';
 import { initBack } from './back.js';
@@ -474,14 +474,17 @@ $('#photo-input').addEventListener('change', async (e) => {
 
 // ---------- Colección ----------
 
-const col = { q: '', set: '', type: '', domain: '', owned: true, errata: false, sort: 'set' };
+const col = { q: '', set: '', type: '', domain: '', rarity: '', owned: true, errata: false, sort: 'set' };
 $('#col-set').append(...sets.map(([id, name]) => el('option', { value: id, text: `${name} (${id})` })));
 // En el orden de TYPE_ES ("Campeón" justo después de "Unidad"); los tipos desconocidos, al final.
 const present = new Set([...cards.map((c) => c.type), 'Champion']);
 const types = [...Object.keys(TYPE_ES).filter((t) => present.has(t)), ...[...present].filter((t) => !(t in TYPE_ES))];
 $('#col-type').append(...types.map((t) => el('option', { value: t, text: TYPE_ES[t] || t })));
 $('#col-domain').append(...Object.entries(DOMAIN_ES).map(([d, es]) => el('option', { value: d, text: es })));
-for (const [key, sel, ev] of [['q', '#col-search', 'input'], ['set', '#col-set', 'change'], ['type', '#col-type', 'change'], ['domain', '#col-domain', 'change'], ['sort', '#col-sort', 'change']]) {
+const rarities = new Set(cards.map((c) => c.rarity));
+$('#col-rarity').append(...[...Object.keys(RARITY_ES).filter((r) => rarities.has(r)), ...[...rarities].filter((r) => !(r in RARITY_ES))]
+  .map((r) => el('option', { value: r, text: RARITY_ES[r] || r })));
+for (const [key, sel, ev] of [['q', '#col-search', 'input'], ['set', '#col-set', 'change'], ['type', '#col-type', 'change'], ['domain', '#col-domain', 'change'], ['rarity', '#col-rarity', 'change'], ['sort', '#col-sort', 'change']]) {
   $(sel).addEventListener(ev, (e) => { col[key] = e.target.value; renderCollection(); });
 }
 $('#col-owned').addEventListener('change', (e) => { col.owned = e.target.checked; renderCollection(); });
@@ -575,6 +578,98 @@ function openHistory() {
 }
 $('#btn-col-history').addEventListener('click', openHistory);
 
+// ---------- Progreso por set ----------
+
+// Set base = las cartas numeradas del 1 al total impreso ("sfd-001-221" … "sfd-221-221"); las
+// variantes ("007a"), las que pasan del total, las runas y los tokens cuentan solo "con variantes".
+// Los sets de promos no tienen base: solo "tienes X de Y".
+const setInfo = sets.map(([id, name]) => {
+  const all = cards.filter((c) => c.set === id);
+  const promo = all.every((c) => c.rarity === 'Promo');
+  const totals = new Map();
+  for (const c of all) { const t = c.id.split('-').at(-1); totals.set(t, (totals.get(t) ?? 0) + 1); }
+  const total = [...totals].sort((a, b) => b[1] - a[1])[0][0];
+  const re = new RegExp(`^[a-z]+-(\\d+)-${total}$`);
+  const base = promo ? [] : all.filter((c) => { const m = re.exec(c.id); return m && +m[1] <= +total; });
+  return { id, name, all, base: base.length ? base : null };
+}).sort((a, b) => !a.base - !b.base); // los de promos, al final
+
+const SET_PAGE = 60;
+const pct = (have, of) => `${Math.floor((100 * have) / of)} %`;
+const missingOf = (list) => list.filter((c) => !store.owned(c.id))
+  .sort((a, b) => (unitPrice(b.id) ?? -1) - (unitPrice(a.id) ?? -1));
+const costOf = (list) => list.reduce((a, c) => a + (unitPrice(c.id) ?? 0), 0);
+const haveOf = (list) => list.filter((c) => store.owned(c.id)).length;
+
+function progressBar(have, of) {
+  return el('div', { class: 'rate-bar' }, el('span', { style: `width:${(100 * have) / of}%` }));
+}
+
+function openSets(start = null) {
+  const dlg = $('#picker-dialog');
+  let open = start; // null: la lista de sets · { set, variants, limit }
+  const close = el('button', { class: 'icon-btn', title: 'Cerrar', 'aria-label': 'Cerrar', onclick: () => dlg.close() }, '✕');
+
+  const listView = () => [
+    el('div', { class: 'dialog-head' }, el('h2', { text: 'Progreso por set' }), close),
+    el('p', { class: 'muted small', text: 'Cuenta las cartas numeradas del set (del 1 al total), con al menos una copia normal o foil. Las variantes y showcase van aparte.' }),
+    el('ul', { class: 'set-list' }, ...setInfo.map((s) => {
+      const main = s.base ?? s.all;
+      const have = haveOf(main);
+      return el('li', {},
+        el('button', { class: 'set-row', onclick: () => { open = { set: s, variants: !s.base, limit: SET_PAGE }; draw(); } },
+          el('div', { class: 'set-row-head' },
+            el('strong', { text: s.name }),
+            el('span', { class: 'set-count', text: s.base ? `${have}/${main.length} · ${pct(have, main.length)}` : `${have}/${main.length}` })),
+          s.base && progressBar(have, main.length),
+          el('span', { class: 'muted small', text: s.base ? `Con variantes y showcase: ${haveOf(s.all)}/${s.all.length}` : 'Promos: sin set base' })));
+    })),
+  ];
+
+  const detailView = () => {
+    const { set: s, variants } = open;
+    const list = variants || !s.base ? s.all : s.base;
+    const missing = missingOf(list);
+    const have = list.length - missing.length;
+    const cost = costOf(missing);
+    return [
+      el('div', { class: 'dialog-head' },
+        el('button', { class: 'icon-btn', title: 'Volver', 'aria-label': 'Volver', onclick: () => { open = null; draw(); } }, '‹'),
+        el('h2', { class: 'grow', text: s.name }), close),
+      el('p', { class: 'set-big', text: `${have}/${list.length} · ${pct(have, list.length)}` }),
+      progressBar(have, list.length),
+      s.base && el('div', { class: 'segmented set-scope' },
+        el('button', { 'aria-checked': String(!variants), onclick: () => { open = { ...open, variants: false, limit: SET_PAGE }; draw(); } }, `Set base (${s.base.length})`),
+        el('button', { 'aria-checked': String(variants), onclick: () => { open = { ...open, variants: true, limit: SET_PAGE }; draw(); } }, `Con variantes (${s.all.length})`)),
+      el('p', { text: missing.length
+        ? `Te faltan ${missing.length} carta${missing.length === 1 ? '' : 's'}${cost ? ` · ≈ ${eur(cost)} en Cardmarket` : ''}`
+        : '✓ Lo tienes completo.' }),
+      el('div', { class: 'actions' },
+        el('button', { class: 'btn ghost small', onclick: () => showSetInCollection(s.id) }, 'Ver en la colección'),
+        wantButton(missing.map((c) => [c.id, 1]), 'btn primary small')),
+      missing.length > 0 && el('ul', { class: 'history-list' }, ...missing.slice(0, open.limit).map((c) =>
+        historyRow(c, [cardCode(c), RARITY_ES[c.rarity] || c.rarity, unitPrice(c.id) != null && eur(unitPrice(c.id))].filter(Boolean).join(' · '),
+          el('span')))),
+      missing.length > open.limit && el('button', { class: 'btn ghost small more', onclick: () => { open.limit += SET_PAGE; draw(); } }, `Mostrar más (${missing.length - open.limit})`),
+    ];
+  };
+
+  const draw = () => dlg.replaceChildren(...(open ? detailView() : listView()).filter(Boolean));
+  draw();
+  if (!dlg.open) dlg.showModal();
+}
+
+function showSetInCollection(id) {
+  Object.assign(col, { set: id, owned: false });
+  $('#col-set').value = id;
+  $('#col-owned').checked = false;
+  $('#picker-dialog').close();
+  renderCollection();
+  $('#col-grid').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+$('#btn-col-sets').addEventListener('click', () => openSets());
+
 function renderCollection(keepLimit = false) {
   if (!keepLimit) { colLimit = COL_PAGE; justEmptied.clear(); }
   const q = col.q.trim().toLowerCase();
@@ -584,6 +679,7 @@ function renderCollection(keepLimit = false) {
     (!col.set || c.set === col.set) &&
     matchesType(c, col.type) &&
     (!col.domain || c.domain.includes(col.domain)) &&
+    (!col.rarity || c.rarity === col.rarity) &&
     (!q || `${c.name} ${c.tags.join(' ')} ${c.text} ${cardCode(c)}`.toLowerCase().includes(q)));
   const sorters = {
     set: (a, b) => 0,
@@ -693,6 +789,48 @@ const APP_VERSION = new URL(import.meta.url).searchParams.get('v') ?? 'dev';
  * Junto a la versión, si la app está lista para usarse sin conexión; al tocarlo, el detalle de lo que
  * hay guardado. Sirve para ver en el móvil qué falta antes de poner el modo avión.
  */
+// Miniaturas sin conexión: se guardan según se ven (sw.js, caché rb-sw-thumbs); este botón baja de una
+// vez las que faltan, a la misma caché, y el service worker las sirve de ahí.
+const THUMBS = 'rb-sw-thumbs';
+const THUMB_MB = 31; // todas juntas, más o menos
+const thumbUrls = [...new Set(cards.map((c) => c.thumb).filter(Boolean))].map((t) => new URL(t, location.href).href);
+let thumbJob = null; // { done, total, stop } mientras se descargan
+
+async function missingThumbs() {
+  if (!(await caches.has(THUMBS))) return thumbUrls;
+  const saved = new Set((await (await caches.open(THUMBS)).keys()).map((r) => r.url));
+  return thumbUrls.filter((u) => !saved.has(u));
+}
+
+async function saveAllThumbs() {
+  const todo = await missingThumbs();
+  if (!todo.length) return offlineStatus();
+  const mb = Math.max(1, Math.round((THUMB_MB * todo.length) / thumbUrls.length));
+  if (!confirm(`Se descargarán ${todo.length} miniaturas (unos ${mb} MB). Mejor con wifi. ¿Seguir?`)) return;
+  const cache = await caches.open(THUMBS);
+  const job = thumbJob = { done: 0, total: todo.length, failed: 0, stop: false };
+  offlineStatus();
+  let next = 0;
+  const worker = async () => {
+    while (!job.stop && next < todo.length) {
+      const url = todo[next++];
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(res.status);
+        await cache.put(url, res);
+      } catch { job.failed++; }
+      job.done++;
+      if (job.done % 25 === 0) offlineStatus();
+    }
+  };
+  await Promise.all(Array.from({ length: 6 }, worker));
+  thumbJob = null;
+  if (job.stop) toast('Descarga de miniaturas parada. Lo guardado se queda.');
+  else if (job.failed) toast(`Faltan ${job.failed} miniaturas (¿sin conexión?). Vuelve a probar más tarde.`, 5000);
+  else toast('Miniaturas guardadas: ya se ven sin conexión.');
+  offlineStatus();
+}
+
 let swError = null; // el error al registrar el service worker, si lo hubo: se muestra siempre
 let statusRun = 0; // varias comprobaciones a la vez: solo escribe la última
 async function offlineStatus() {
@@ -712,6 +850,8 @@ async function offlineStatus() {
     ['Motor del modelo', (await has('rb-sw-libs', 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort-wasm-simd-threaded.wasm')) ? 'guardado' : 'no'],
     ['Hilos del escáner', self.crossOriginIsolated ? 'varios' : '1'],
   ];
+  const thumbsLeft = (await missingThumbs().catch(() => thumbUrls)).length;
+  checks.push(['Miniaturas', `${thumbUrls.length - thumbsLeft} de ${thumbUrls.length} guardadas`]);
   if (swError) checks.unshift(['Error al instalar', swError]);
   const ready = !swError && !!navigator.serviceWorker.controller && checks.slice(2, 6).every(([, v]) => /^guardad/.test(v));
   if (run !== statusRun) return; // ya hay una comprobación más reciente
@@ -721,7 +861,24 @@ async function offlineStatus() {
       box.querySelector('.app-version-detail').hidden = !open;
       e.currentTarget.setAttribute('aria-expanded', String(open));
     } }, `${base} · ${ready ? 'lista sin conexión' : swError ? 'sin conexión no disponible (toca para ver)' : 'aún no lista sin conexión'}`),
-    el('dl', { class: 'app-version-detail', hidden: true }, ...checks.flatMap(([k, v]) => [el('dt', { text: k }), el('dd', { text: v })])));
+    el('dl', { class: 'app-version-detail', hidden: box.querySelector('.app-version-detail')?.hidden ?? true }, ...checks.flatMap(([k, v]) => [el('dt', { text: k }), el('dd', { text: v })])),
+    ...thumbsLine(thumbsLeft, !!navigator.serviceWorker.controller));
+  box.querySelector('.app-version-btn').setAttribute('aria-expanded', String(!box.querySelector('.app-version-detail').hidden));
+}
+
+/** Debajo de la versión: guardar todas las miniaturas, el progreso o que ya están. */
+function thumbsLine(left, controlled) {
+  if (thumbJob) {
+    return [el('div', { class: 'thumbs-line' },
+      el('span', { text: `Guardando miniaturas… ${thumbJob.done}/${thumbJob.total}` }),
+      el('button', { class: 'btn ghost small', type: 'button', onclick: () => { thumbJob.stop = true; } }, 'Parar'))];
+  }
+  if (!controlled) return []; // sin service worker no servirían de nada
+  if (!left) return [el('div', { class: 'thumbs-line', text: 'Miniaturas guardadas ✓' })];
+  const mb = Math.max(1, Math.round((THUMB_MB * left) / thumbUrls.length));
+  return [el('div', { class: 'thumbs-line' },
+    el('button', { class: 'btn ghost small', type: 'button', onclick: saveAllThumbs },
+      left === thumbUrls.length ? `Guardar todas las miniaturas (${mb} MB)` : `Guardar las ${left} miniaturas que faltan (${mb} MB)`))];
 }
 const localHost = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
 if ('serviceWorker' in navigator && (!localHost || new URLSearchParams(location.search).has('sw'))) {

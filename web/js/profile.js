@@ -8,7 +8,7 @@ import { unitPrice, eur } from './prices.js';
 import { store } from './store.js';
 import { cloud, onCloudChange, fetchProfilePage } from './cloud.js';
 import { followButton } from './friends.js';
-import { tradeBox } from './trades.js';
+import { tradeBox, wantButton } from './trades.js';
 import { openFriends } from './account-ui.js';
 import { record, recordText, rateText, countText, groupBy, statRow, legendThumb, legendChamp, canonicalLegend } from './matches.js';
 
@@ -171,7 +171,8 @@ function missingBox(deck) {
   if (!count) return el('p', { class: 'ok missing-ok', text: '✓ Tienes todas las cartas de este mazo en tu colección.' });
   return el('details', { class: 'missing' },
     el('summary', { text: `Te faltan ${count} carta${count === 1 ? '' : 's'} de tu colección${cost ? ` (≈ ${eur(cost)} en Cardmarket)` : ''}` }),
-    el('ul', {}, missing.map(([c, n]) => el('li', { text: `${n}× ${c.name} (${cardCode(c)})${unitPrice(c.id) != null ? ` · ${eur(unitPrice(c.id) * n)}` : ''}` }))));
+    el('ul', {}, missing.map(([c, n]) => el('li', { text: `${n}× ${c.name} (${cardCode(c)})${unitPrice(c.id) != null ? ` · ${eur(unitPrice(c.id) * n)}` : ''}` }))),
+    el('div', { class: 'actions' }, wantButton(missing.map(([c, n]) => [c.id, n]))));
 }
 
 function openDeck(deck) {

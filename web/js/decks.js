@@ -18,6 +18,7 @@ import { unitPrice, eur } from './prices.js';
 import { deckRecord, newMatch } from './matches.js';
 import { cloud } from './cloud.js';
 import { copyProfileLink } from './profile.js';
+import { wantButton } from './trades.js';
 
 const MAIN_TYPES = new Set(['Unit', 'Spell', 'Gear']);
 const MAIN_SIZE = 40, RUNES = 12, BATTLEFIELDS = 3, MAX_COPIES = 3, MAX_SIGNATURE = 3, SIDEBOARD = 10;
@@ -523,6 +524,7 @@ function renderEditor() {
     v.missing.length > 0 ? el('details', { class: 'missing' },
       el('summary', { text: `Te faltan ${v.missing.reduce((a, [, n]) => a + n, 0)} cartas de tu colección${missingCost(v.missing) ? ` (≈ ${eur(missingCost(v.missing))} en Cardmarket)` : ''}` }),
       el('ul', {}, v.missing.map(([c, n]) => el('li', { text: `${n}× ${c.name} (${cardCode(c)})${unitPrice(c.id) != null ? ` · ${eur(unitPrice(c.id) * n)}` : ''}` }))),
+      el('div', { class: 'actions' }, wantButton(v.missing.map(([c, n]) => [c.id, n]))),
     ) : '',
     // Tablero: Leyenda y Campeón | mazo principal; debajo, Runas | Campos | Sideboard.
     el('div', { class: 'deck-board' },

@@ -61,6 +61,52 @@ function setQty(list, id, foil, qty) {
   refresh();
 }
 
+/** ¿Se puede añadir a Busco ahora? (con sesión y las listas ya leídas) */
+export const wantsReady = () => !!cloud.username && listsState === 'ready';
+
+/**
+ * Añade a Busco (cualquier versión) lo que falta: [[id, copias]]. Lo que ya buscas no se duplica,
+ * solo sube hasta esas copias. Devuelve cuántas cartas cambiaron, o null si no se puede.
+ */
+export async function addWants(entries) {
+  if (!wantsReady()) return null;
+  const changed = [];
+  for (const [id, n] of entries) {
+    const qty = Math.min(99, n);
+    if (qtyOf('want', id, false) + qtyOf('want', id, true) >= qty) continue;
+    lists.want.set(keyOf(id, false), qty - qtyOf('want', id, true));
+    changed.push({ card_id: id, foil: false, quantity: lists.want.get(keyOf(id, false)) });
+  }
+  refresh();
+  if (changed.length) {
+    try {
+      await setTradeListItems('want', changed);
+    } catch (err) {
+      writeFailed(err);
+      return null;
+    }
+  }
+  return changed.length;
+}
+
+/** Botón «Añadir a Busco» para lo que falta ([[id, copias]]); sin sesión, nada. */
+export function wantButton(entries, cls = 'btn ghost small') {
+  if (!cloud.username || !entries.length) return '';
+  const cards = entries.length;
+  return el('button', {
+    class: cls,
+    onclick: async (e) => {
+      const btn = e.currentTarget;
+      if (!wantsReady()) return toast('Las listas de intercambio aún se están cargando. Prueba en un momento.');
+      if (cards > 20 && !confirm(`¿Añadir ${cards} cartas a tu lista Busco?`)) return;
+      btn.disabled = true;
+      const n = await addWants(entries);
+      btn.disabled = false;
+      if (n != null) toast(n ? `${n} carta${n === 1 ? '' : 's'} añadida${n === 1 ? '' : 's'} a Busco` : 'Ya estaban todas en Busco');
+    },
+  }, cards === 1 ? 'Añadir a Busco' : `Añadir las ${cards} a Busco`);
+}
+
 function writeFailed(err) {
   console.error(err);
   toast(`No se pudo guardar la lista: ${err.message}`, 4000);
