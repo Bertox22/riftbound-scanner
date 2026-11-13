@@ -7,7 +7,13 @@ funciona sin conexión.
 
 **App:** https://bertox22.github.io/riftbound-scanner/
 
-**Novedades de la versión 72 (noviembre de 2026), en Partidas y la Mesa:**
+**Novedades de la versión 73 (noviembre de 2026):** la pestaña **Partidas** rediseñada para que no
+sea una lista interminable. Un panel de resumen (el % de victorias en grande, las cifras a su lado,
+la forma reciente y la evolución con eje) y un panel de desglose con pestañas (Mazos, Leyendas rivales,
+Tus Campos, Campos rivales, Eventos) en vez de cinco secciones apiladas. En el móvil, los filtros van
+en una fila. Los perfiles de los amigos usan el mismo aspecto.
+
+**Novedades de la versión 72, en Partidas y la Mesa:**
 - **Estadísticas por Campo de batalla:** cómo te va con cada Campo tuyo y contra cada Campo del
   rival, por juegos.
 - **Forma reciente:** tus últimas 10 partidas (V, D, E), la racha actual y la mejor, y la gráfica de
@@ -140,9 +146,15 @@ funciona sin conexión.
     juegos»): el porcentaje de victorias (sin contar empates), el balance V–D–E, cómo te va en los
     juegos que empiezas tú o el rival, y los resultados por mazo, por evento, contra cada Leyenda,
     con cada Campo tuyo y contra cada Campo del rival, con filtros por mazo y por evento. El balance de
-    cada mazo y los perfiles cuentan igual. Las secciones se pliegan tocando el título (con cuántos
-    hay); cada una recuerda si la dejaste abierta. Los Campos solo cuentan en los juegos que los
-    tienen apuntados (un 2–1 sin los puntos de cada juego no sabe qué Campo fue con qué resultado).
+    cada mazo y los perfiles cuentan igual. Los Campos solo cuentan en los juegos que los tienen
+    apuntados (un 2–1 sin los puntos de cada juego no sabe qué Campo fue con qué resultado).
+  - **Cómo se ve:** los dos filtros en una fila; un **resumen** en un solo panel (el % de victorias
+    en grande; al lado V–D, partidas y empezando tú o el rival; la forma reciente; y en el PC, a la
+    derecha, la evolución con su eje y una línea en el 50 %); y un **desglose** en otro panel con
+    pestañas (Mazos, Leyendas rivales, Tus Campos, Campos rivales, Eventos; solo las que tienen datos,
+    y recuerda la última). Cada fila lleva el V–D y el % con su barra; con menos de 3 juegos el % va en
+    gris porque aún dice poco. Se ven 6 filas y el resto con «Ver todas». Los perfiles de los amigos
+    usan el mismo resumen y la misma lista.
   - **Forma reciente:** las últimas 10 partidas de la más antigua a la más nueva (V, D o E; al
     mantener el dedo, la fecha y el rival), su balance, la racha actual («Racha 3 V») y la mejor
     racha de victorias. Con 3 partidas o más, la gráfica del % de victorias acumulado (toca un punto
