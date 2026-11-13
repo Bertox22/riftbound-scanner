@@ -414,17 +414,6 @@ function rateBar(r) {
   return el('div', { class: 'rate-bar', 'aria-hidden': 'true' }, el('span', { style: `width: ${r.rate ?? 0}%` }));
 }
 
-export function statRow(thumb, name, r) {
-  return el('li', { class: 'stat-row' },
-    thumb,
-    el('div', { class: 'grow' },
-      el('div', { class: 'stat-row-top' },
-        el('span', { class: 'stat-row-name', text: name }),
-        el('span', { class: 'stat-row-rate', text: rateText(r) })),
-      rateBar(r),
-      el('div', { class: 'muted small', text: `${recordText(r)} · ${countText(r)}` })));
-}
-
 // Eventos: texto libre; se agrupan sin mayúsculas ni espacios de más («tienda X» = «Tienda  X»).
 const eventKey = (m) => (m.event ?? '').trim().replace(/\s+/g, ' ').toLowerCase() || 'none';
 /** Clave de evento → cómo se escribe más a menudo (la primera vez que empata, la más reciente). */
@@ -554,6 +543,31 @@ function breakdown(tabs) {
   };
   draw();
   return box;
+}
+
+/**
+ * Para el perfil de otro jugador, con la misma pinta que Partidas: el resumen solo con las cifras
+ * (sin forma ni gráfica) y una lista del desglose con su título en vez de pestañas.
+ */
+export function summaryPanel(list) {
+  const all = record(list);
+  const cell = (label, value, sub) => el('div', { class: 'ov-cell' },
+    el('span', { class: 'ov-label', text: label }), el('strong', { text: value }), sub && el('span', { class: 'ov-sub', text: sub }));
+  return el('section', { class: 'stats-overview compact', 'aria-label': 'Resumen' },
+    el('div', { class: 'ov-lead' },
+      el('span', { class: 'ov-label', text: 'Victorias' }),
+      el('strong', { text: rateText(all) }),
+      el('span', { class: 'ov-sub', text: all.draw ? 'sin contar empates' : 'de los juegos jugados' })),
+    el('div', { class: 'ov-strip' },
+      cell(all.draw ? 'V–D–E' : 'V–D', recordText(all)),
+      cell(all.matches === 1 ? 'Partida' : 'Partidas', String(all.matches), all.games !== all.matches ? `${all.games} juegos` : null)));
+}
+
+/** rows: [[miniatura, nombre, récord], …] */
+export function rowsPanel(title, rows) {
+  return el('section', { class: 'stats-breakdown', 'aria-label': title },
+    el('h3', { class: 'bd-title', text: title }),
+    el('ul', { class: 'bd-list', style: `--rows: ${Math.ceil(rows.length / 2)}` }, ...rows.map(([thumb, name, r]) => breakdownRow(thumb, name, r))));
 }
 
 /** Una fila del desglose. Con menos de 3 juegos el % va en gris: aún dice poco. */

@@ -12,7 +12,7 @@ import { cloud, onCloudChange, fetchProfilePage, fetchMatchesWith, resendMatches
 import { followButton } from './friends.js';
 import { tradeBox, wantButton } from './trades.js';
 import { openFriends } from './account-ui.js';
-import { record, recordText, rateText, countText, groupBy, statRow, legendThumb, legendChamp, canonicalLegend, openMirrored, sameGame, linked, matchLine, flipped } from './matches.js';
+import { record, recordText, rateText, countText, groupBy, summaryPanel, rowsPanel, legendThumb, legendChamp, canonicalLegend, openMirrored, sameGame, linked, matchLine, flipped } from './matches.js';
 
 let ctx; // { cards, byId, openCard, showView }
 let page = null; // lo último que se ha cargado: { profile, own, decks, matches, collection }
@@ -162,13 +162,9 @@ function stats(matches) {
   const all = record(matches);
   const byLegend = groupBy(matches.filter((m) => m.my_legend_id), (m) => canonicalLegend(m.my_legend_id)).slice(0, 5);
   return [
-    el('div', { class: 'stats-summary' },
-      el('div', { class: 'stats-big' }, el('strong', { text: rateText(all) }), el('span', { class: 'muted small', text: 'victorias' })),
-      el('div', { class: 'stats-big' }, el('strong', { text: recordText(all) }), el('span', { class: 'muted small', text: all.draw ? 'V–D–E' : 'V–D' })),
-      el('div', { class: 'stats-big' }, el('strong', { text: String(all.matches) }), el('span', { class: 'muted small', text: `${all.matches === 1 ? 'partida' : 'partidas'}${all.games !== all.matches ? ` · ${all.games} juegos` : ''}` }))),
-    byLegend.length > 0 && el('h3', { class: 'stats-title', text: 'Leyendas que más juega' }),
-    byLegend.length > 0 && el('ul', { class: 'stat-list' },
-      ...byLegend.map(([id, r]) => statRow(legendThumb(id), ctx.byId.get(id) ? legendChamp(ctx.byId.get(id)) : 'Leyenda', r))),
+    summaryPanel(matches),
+    byLegend.length > 0 && rowsPanel('Leyendas que más juega',
+      byLegend.map(([id, r]) => [legendThumb(id), ctx.byId.get(id) ? legendChamp(ctx.byId.get(id)) : 'Leyenda', r])),
   ];
 }
 

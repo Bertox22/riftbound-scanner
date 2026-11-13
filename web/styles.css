@@ -636,7 +636,6 @@ dialog input[type=date]:focus { outline: none; border-color: var(--muted); }
 .match-stats { display: flex; flex-direction: column; gap: 12px; margin-bottom: 8px; }
 .match-stats:empty { display: none; }
 .stats-filter select { width: 100%; max-width: 320px; }
-.stats-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .stats-big { display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; border-radius: 16px; background: var(--surface); min-width: 0; }
 .stats-big strong { font-size: 26px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .stats-big:first-child strong { color: var(--accent); }
@@ -719,17 +718,16 @@ dialog input[type=date]:focus { outline: none; border-color: var(--muted); }
 .bd-row.few .rate-bar span { background: var(--faint); }
 .bd-more { margin-top: 12px; }
 @media (max-width: 480px) { .bd-n { display: none; } }
+.bd-title { margin: 0; padding: 16px 0 6px; font-size: 14px; font-weight: 600; }
+#profile-view .stats-overview + .stats-breakdown { margin-top: 12px; }
+/* Sin gráfica (pocas partidas, o el perfil de otro): la cifra y la tira, una al lado de la otra. */
+@media (min-width: 640px) {
+  .stats-overview:not(.has-chart) { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); align-items: center; }
+  .stats-overview:not(.has-chart) .ov-form { grid-column: 1 / -1; }
+}
 @media (min-width: 860px) {
   .bd-list { grid-template-rows: repeat(var(--rows), auto); grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
 }
-.stat-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.stat-row { display: flex; align-items: center; gap: 12px; padding: 8px 14px 8px 8px; border-radius: 14px; background: var(--surface); }
-.stat-row .thumb.small { width: 36px; border-radius: 5px; }
-.stat-row .thumb.small.bf { width: 50px; aspect-ratio: 335 / 240; object-fit: cover; }
-.stat-row-top { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; }
-.stat-row-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.stat-row-rate { font-weight: 600; font-variant-numeric: tabular-nums; flex: none; }
-.stat-row .muted { color: var(--faint); }
 .rate-bar { height: 4px; border-radius: 99px; background: var(--surface-2); margin: 6px 0 4px; overflow: hidden; }
 .rate-bar span { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
 @media (max-width: 400px) { .stats-big { padding: 12px; } .stats-big strong { font-size: 22px; } }
@@ -1117,9 +1115,6 @@ dialog > .dialog-head:first-child {
   /* Escanear: la cámara y su lista en una columna centrada, alineadas entre sí. */
   #view-scan { max-width: min(520px, 52.5vh); margin: 0 auto; } /* = el ancho de la cámara (3:4, hasta 70vh de alto) */
   .cam-controls { margin-top: 12px; }
-  /* Estadísticas: las listas por mazo y por Leyenda, a dos columnas. */
-  .stat-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .stats-summary { gap: 10px; }
   .match-stats { gap: 14px; }
   /* La lista de mazos, a dos columnas (el editor de cada mazo no cambia). */
   .deck-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
