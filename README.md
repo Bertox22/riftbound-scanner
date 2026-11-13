@@ -7,7 +7,24 @@ funciona sin conexión.
 
 **App:** https://bertox22.github.io/riftbound-scanner/
 
-**Últimas mejoras (versiones 66 a 69, noviembre de 2026):**
+**Novedades de la versión 70 (noviembre de 2026):**
+- **Progreso por set:** botón «Sets» en Colección. Cuántas cartas tienes de cada set («Vendetta
+  91/166 · 54 %», contando las numeradas del 1 al total; las variantes y showcase aparte), cuántas te
+  faltan y lo que costarían en Cardmarket, la lista de las que faltan (las más caras primero) y «Ver en
+  la colección».
+- **Filtro por rareza** en Colección (Común, Infrecuente, Rara, Épica, Showcase, Promo).
+- **Valor de la colección:** botón «Valor». Gráfica de cuánto valían tus cartas cada día (7 días, 30
+  días o todo; toca la gráfica para ver un día) y lo que más sube y más baja. En la ficha de cada carta,
+  la gráfica de su precio. Hay precios desde el 25 de octubre de 2026.
+- **Añadir a «Busco» lo que falta**, de un toque: desde un set incompleto y desde «Te faltan…» de un
+  mazo (tuyo o de otro jugador). Lo que ya buscabas no se duplica.
+- **Guardar todas las miniaturas** para verlas sin conexión (unos 31 MB), al final de Escanear, con
+  el progreso y «Parar».
+- **Partidas entre vosotros:** en el perfil de un amigo, sus partidas contra ti que no tienes (para
+  apuntártelas, por ejemplo si la descartaste o la borraste) y las tuyas contra él que no tiene (para
+  enviárselas otra vez). Ver «Perfil y amigos».
+
+**Mejoras anteriores (versiones 66 a 69):**
 - **Sin conexión:** tras abrirla una vez con internet, abre y funciona sin cobertura (escáner,
   colección, mazos, partidas y Mesa). Detalles en «Sin conexión», más abajo.
 - **Escáner más rápido:** hasta 4 hilos del procesador, unas 2,8 veces más rápido en un PC con el
@@ -29,8 +46,15 @@ funciona sin conexión.
   Cada carta escaneada tiene su fila con − n + (suma o quita copias de la colección al momento; con
   0 desaparece) y al tocarla se abre una hoja con copias normales y foil, la versión, la ficha y
   "Quitar".
-- **Colección:** filtros por set, tipo (incluido "Campeón", que son las unidades Campeón) y dominio,
-  cantidades normales/foil, exportación a Excel/CSV y copia de seguridad en JSON.
+- **Colección:** filtros por set, tipo (incluido "Campeón", que son las unidades Campeón), dominio y
+  rareza, cantidades normales/foil, exportación a Excel/CSV y copia de seguridad en JSON.
+  - **Sets:** el progreso de cada set (las cartas numeradas del 1 al total impreso, con al menos una
+    copia normal o foil; aparte, «con variantes y showcase»). En cada set, lo que falta y su coste en
+    Cardmarket, «Ver en la colección» y, con cuenta, «Añadir las N a Busco». Los sets de promos solo
+    dicen cuántas tienes.
+  - **Valor:** cómo ha cambiado el valor de tu colección (7 días, 30 días o todo) y tus cartas que
+    más suben y más bajan. Se calcula con las cartas que tienes hoy y el precio de cada día, así que no
+    tiene huecos. La ficha de cada carta lleva la gráfica de su precio.
   - **Importar copia (JSON):** si tienes datos aquí y en la copia, la app pregunta qué hacer con
     cartas, mazos, partidas y balance por separado (juntar sin duplicar, sumar, quedarte con los de la
     copia o dejar los tuyos), con lo que quedará en cada caso. Cerrar la hoja no cambia nada, juntar
@@ -118,6 +142,14 @@ funciona sin conexión.
     Leyendas, Campos de batalla, quién empezó cada juego y los mazos: el que apuntó como tuyo pasa a
     ser tu mazo) o
     descartarla. En su perfil ves vuestro cara a cara («Tú contra X»).
+  - **Partidas entre vosotros:** en el perfil de un amigo salen sus partidas contra ti que no tienes en
+    tu historial («Apuntar en mi historial») y las tuyas contra él que no tiene («Enviársela», que le
+    vuelve a sacar el aviso aunque la hubiera descartado). Solo se puede apuntar una partida quien era
+    su rival con cuenta, y cada uno una sola vez (lo comprueba la base de datos). Si los dos apuntasteis
+    la misma partida por separado (menos de 1 h entre las dos, resultado y Leyendas cruzados), se aparta
+    en «parece que ya la tenéis» para no duplicarla.
+  - **Añadir a Busco:** en «Te faltan…» de un mazo (tuyo o de otro), las cartas que faltan pasan a tu
+    lista Busco de un toque.
   - **¿Cuánto me falta?:** en el mazo de otro jugador ves qué cartas te faltan de tu colección y lo
     que costarían en Cardmarket, y puedes copiarlo a tus mazos.
 - **Intercambios (con cuenta, solo entre amigos):** en Colección, con el selector «Mis cartas /
@@ -140,7 +172,7 @@ Escanear, sale de la app.
 
 **Sin conexión:** después de abrirla una vez con internet, la app abre y funciona sin conexión (en una
 tienda o un torneo sin cobertura): escáner, colección, mazos, partidas y Mesa. Las miniaturas que ya
-has visto también salen; las imágenes grandes de la ficha y lo que va a la cuenta necesitan internet,
+has visto también salen, y al final de Escanear puedes guardarlas todas de una vez (unos 31 MB); las imágenes grandes de la ficha y lo que va a la cuenta necesitan internet,
 y los cambios se suben al volver. Con conexión siempre se abre la última versión; si la app llevaba
 tiempo abierta en segundo plano y se ha publicado otra, avisa con «Recargar».
 
@@ -148,6 +180,8 @@ tiempo abierta en segundo plano y se ha publicado otra, avisa con «Recargar».
 La colección muestra el precio de cada carta y el valor total, se puede ordenar por precio, el escáner
 avisa cuando una carta vale 5 € o más (o cuando existe una versión con la misma ilustración mucho más
 cara, como las Showcase firmadas) y las exportaciones llevan las columnas "Precio €" y "Valor €".
+Cada noche también se añade el día a `web/data/price-history.json` (un precio por carta y día, en
+céntimos; pasados 90 días, uno por semana), del que salen la hoja «Valor» y la gráfica de la ficha.
 Las runas de arte alternativo ("Showcase") solo existen en foil y se valoran como tales.
 
 **Erratas:** las cartas cuyo texto oficial ha cambiado respecto al impreso usan el texto vigente
@@ -229,14 +263,17 @@ web/                 la app (estática, se puede publicar tal cual)
   js/                app.js (escáner y colección), decks.js, matches.js (partidas),
                      cloud.js, merge.js y account-ui.js (cuenta y sincronización), profile.js (página de
                      perfil), friends.js (seguir y amigos), trades.js (intercambios), table.js (mesa), ledger.js (balance), store.js (localStorage),
-                     import-ui.js, importer.js, export.js, backup.js (importar copia), back.js (botón atrás), prices.js, recognizer.js, scanner.js
+                     import-ui.js, importer.js, export.js, backup.js (importar copia), back.js (botón atrás), prices.js,
+                     pricehistory.js (historial de precios y gráficas), recognizer.js, scanner.js
   data/cards.json    datos de las cartas
+  data/prices.json   precios del día; data/price-history.json, el historial
   data/index.*       embeddings de referencia
   models/            modelo ONNX
   thumbs/            miniaturas
 tools/
   fetch_cards.py     descarga cartas e imágenes (galería oficial + Riftcodex) y aplica erratas
   errata.py          erratas desde la base de datos de riftbound.gg
+  price_history.py   añade cada noche el día a price-history.json (--backfill: lo rehace desde git)
   build_index.py     calcula los embeddings de referencia
   calibrate.py       mide la precisión y propone umbrales
   eval_models.py     comparativa de modelos (usada para elegir DINOv2)
