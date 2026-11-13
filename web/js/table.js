@@ -35,7 +35,8 @@ let drawing = false; // el sorteo está en marcha
 // El color del primer dominio de cada Leyenda tiñe su mitad (identidad, no datos).
 const DOMAIN_COLOR = { Fury: '#e5484d', Calm: '#3fc07a', Mind: '#4c8dff', Body: '#f08c3a', Chaos: '#a066e8', Order: '#e2b955' };
 const TARGETS = [8, 11];
-const TIMERS = [[0, 'Sin'], [30, '30 min'], [50, '50 min'], [60, '60 min']];
+// Sin temporizador por defecto (partidas tranquilas); para torneos se elige al iniciar y se recuerda.
+const TIMERS = [[0, 'No'], [30, '30 min'], [50, '50 min'], [60, '60 min']];
 const UNDO_MAX = 30;
 let clockTimer = null; // el intervalo que mueve el reloj mientras la mesa está abierta
 
@@ -99,7 +100,7 @@ export function openSetup() {
   if (t()) return openTable(); // ya hay una en marcha
   const dlg = $('#match-dialog');
   const lastDeck = store.matches.find((m) => m.deck && deckById(m.deck))?.deck ?? store.decks[0]?.id ?? null;
-  const s = { deck: lastDeck, legend: null, oppName: '', account: null, oppDeck: null, oppLegend: null, bestOf: 1, target: 8, timer: store.settings.tableTimer ?? 50 };
+  const s = { deck: lastDeck, legend: null, oppName: '', account: null, oppDeck: null, oppLegend: null, bestOf: 1, target: 8, timer: store.settings.tableTimer ?? 0 };
   let choosing = null; // 'me' | 'opp': mostrando la cuadrícula de Leyendas
   let found = []; // cuentas que coinciden con el nombre del rival
   let searchTimer = null;
@@ -464,7 +465,7 @@ function openMenu() {
               btn(tm.endsAt == null ? 'Seguir' : 'Pausar', () => (tm.endsAt == null ? resumeTimer : pauseTimer)(tm), 'primary')),
             el('div', { class: 'actions' },
               btn('Volver a empezar', () => newTimer(Math.round(tm.total / 60000)), 'ghost'),
-              btn('Quitar', () => setTimer(null), 'ghost')))
+              btn('Desactivar', () => setTimer(null), 'ghost')))
           : el('div', { class: 'actions' },
             ...TIMERS.filter(([m]) => m).map(([m, label]) => btn(label, () => newTimer(m))))),
       el('div', { class: 'match-field' },
