@@ -19,7 +19,8 @@ funciona sin conexión.
 - **Aviso de versión nueva** («Recargar») si la app llevaba tiempo abierta, e iconos para instalarla
   en Android y iPhone. La versión en uso sale en pequeño al final de Escanear.
 - **Móvil:** el valor de la colección se ve entero arriba («364 · 97,48 €») y los Campos de cada
-  partida van uno por juego («J1 Ruined Monastery – Threshold of the Gray»).
+  partida van uno por juego («J1 Ruined Monastery – Threshold of the Gray»). En Partidas, «Por mazo»
+  y «Contra cada Leyenda» se pliegan para que la lista no sea interminable.
 
 - **Escanear:** pones cada carta dentro del recuadro y se añade sola en cuanto la reconoce (con
   vibración y pitido). Si duda, te enseña las candidatas para que toques la correcta. Para añadir
@@ -78,7 +79,8 @@ funciona sin conexión.
     derrota, y un 0–3, tres derrotas; junto a las partidas se ven los juegos: «5 partidas · 11
     juegos»): el porcentaje de victorias (sin contar empates), el balance V–D–E, cómo te va en los
     juegos que empiezas tú o el rival, y los resultados por mazo y contra cada Leyenda, con un filtro
-    por mazo. El balance de cada mazo y los perfiles cuentan igual.
+    por mazo. El balance de cada mazo y los perfiles cuentan igual. «Por mazo» y «Contra cada
+    Leyenda» se pliegan tocando el título (con cuántos hay); cada una recuerda si la dejaste abierta.
 - **Mesa (marcador en vivo):** en Partidas, «Iniciar partida» pide tu mazo (o tu Leyenda), el
   rival (te sugiere cuentas al escribir; si no tiene cuenta, basta su nombre; si es un amigo, también
   su mazo), su Leyenda, si es a un

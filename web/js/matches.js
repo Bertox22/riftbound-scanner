@@ -354,13 +354,31 @@ function renderStats(list) {
         el('span', { class: 'muted small', text: label }),
         el('strong', { text: rateText(r) }),
         el('span', { class: 'muted small', text: r.games ? recordText(r) : '' })))),
-    byDeck.length > 1 && el('h3', { class: 'stats-title', text: 'Por mazo' }),
-    byDeck.length > 1 && el('ul', { class: 'stat-list' },
-      ...byDeck.map(([id, r]) => statRow(legendThumb(deckLegend(id)), deckName(id), r))),
-    byOpp.length > 0 && el('h3', { class: 'stats-title', text: 'Contra cada Leyenda' }),
-    byOpp.length > 0 && el('ul', { class: 'stat-list' },
-      ...byOpp.map(([id, r]) => statRow(legendThumb(id), legendChamp(ctx.byId.get(id)), r))),
+    byDeck.length > 1 && foldable('decks', 'Por mazo', el('ul', { class: 'stat-list' },
+      ...byDeck.map(([id, r]) => statRow(legendThumb(deckLegend(id)), deckName(id), r)))),
+    byOpp.length > 0 && foldable('legends', 'Contra cada Leyenda', el('ul', { class: 'stat-list' },
+      ...byOpp.map(([id, r]) => statRow(legendThumb(id), legendChamp(ctx.byId.get(id)), r)))),
   ].filter(Boolean));
+}
+
+/**
+ * Sección de estadísticas plegable: el título se toca para abrirla o cerrarla. Se recuerda en este
+ * dispositivo (store.settings.statsOpen); la primera vez, abierta si tiene 3 filas o menos.
+ */
+function foldable(key, title, list) {
+  const count = list.children.length;
+  const open = store.settings.statsOpen?.[key] ?? count <= 3;
+  const fold = el('details', { class: 'stats-fold', open },
+    el('summary', { class: 'stats-title' }, title, el('span', { class: 'stats-count', text: count })),
+    list);
+  // Al pintarla abierta el navegador también avisa: eso no es una elección y no se guarda.
+  let painted = !open;
+  fold.addEventListener('toggle', () => {
+    if (!painted) { painted = true; if (fold.open === open) return; }
+    store.settings.statsOpen = { ...store.settings.statsOpen, [key]: fold.open };
+    store.saveSettings();
+  });
+  return fold;
 }
 
 function render() {
