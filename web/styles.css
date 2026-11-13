@@ -657,7 +657,10 @@ dialog input[type=date]:focus { outline: none; border-color: var(--muted); }
 .form-chart .line-chart-wrap { margin: 6px 0 0; }
 .form-chart .line-chart { height: 80px; }
 .stats-title { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin: 16px 0 0; }
-#match-history-head { margin: 24px 0 12px; }
+.history-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 24px 0 12px; }
+.history-head .stats-title { margin: 0; }
+.stats-filter { display: flex; flex-wrap: wrap; gap: 8px; }
+.stats-filter select { flex: 1 1 180px; }
 /* «Por mazo» y «Contra cada Leyenda» se pliegan: el título es la cabecera, con el número y una flecha. */
 .stats-fold > summary {
   display: flex; align-items: center; gap: 8px; padding: 6px 0; cursor: pointer; list-style: none;

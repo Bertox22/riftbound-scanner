@@ -119,8 +119,8 @@ export function collectionRows(cards, collection) {
 
 // ---------- Utilidades de archivo ----------
 
-function toCsv(header, rows) {
-  return '﻿' + [header, ...rows].map((r) => r.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+export function toCsv(header, rows, sep = ',') {
+  return '﻿' + [header, ...rows].map((r) => r.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(sep)).join('\r\n');
 }
 
 let excelLib;

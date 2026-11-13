@@ -13,9 +13,10 @@
 // la Metal o la Signature cuenten como la misma al sacar estadísticas.
 
 import { store, newUuid } from './store.js';
-import { $, el, toast, cardImg, baseName } from './ui.js';
+import { $, el, toast, cardImg, baseName, download } from './ui.js';
 import { cloud, onCloudChange, fetchIncoming, dismissIncoming, mirrorId, fetchUserDecks } from './cloud.js';
 import { lineChart, dayText } from './pricehistory.js';
+import { toCsv } from './export.js';
 
 const RESULTS = { win: 'Victoria', loss: 'Derrota', draw: 'Empate' };
 const RESULT_SHORT = { win: 'V', loss: 'D', draw: 'E' };
@@ -25,6 +26,7 @@ const MAX_GAMES = 3; // al mejor de 3
 
 let ctx; // { cards, byId, openCard }
 let deckFilter = ''; // estadísticas e historial de un solo mazo ('' = todos, 'none' = sin mazo)
+let eventFilter = ''; // y de un solo evento (su eventKey; '' = todos, 'none' = sin evento)
 let legends = []; // una carta por Leyenda, ordenadas por campeón
 const canonicalOf = new Map(); // id de cualquier impresión → id de su Leyenda
 
@@ -396,7 +398,57 @@ export function statRow(thumb, name, r) {
       el('div', { class: 'muted small', text: `${recordText(r)} · ${countText(r)}` })));
 }
 
-const filtered = () => store.matches.filter((m) => !deckFilter || (m.deck ?? 'none') === deckFilter);
+// Eventos: texto libre; se agrupan sin mayúsculas ni espacios de más («tienda X» = «Tienda  X»).
+const eventKey = (m) => (m.event ?? '').trim().replace(/\s+/g, ' ').toLowerCase() || 'none';
+/** Clave de evento → cómo se escribe más a menudo (la primera vez que empata, la más reciente). */
+function eventNames() {
+  const counts = new Map();
+  for (const m of store.matches) {
+    const k = eventKey(m);
+    if (k === 'none') continue;
+    const name = m.event.trim().replace(/\s+/g, ' ');
+    if (!counts.has(k)) counts.set(k, new Map());
+    counts.get(k).set(name, (counts.get(k).get(name) ?? 0) + 1);
+  }
+  return new Map([...counts].map(([k, names]) => [k, [...names].sort((a, b) => b[1] - a[1])[0][0]]));
+}
+
+const filtered = () => store.matches.filter((m) => (!deckFilter || (m.deck ?? 'none') === deckFilter)
+  && (!eventFilter || eventKey(m) === eventFilter));
+
+/**
+ * Las partidas que se ven (con los filtros) a CSV, una fila por partida. Con «;» y BOM: así lo abre
+ * bien Excel en castellano con doble clic. Fechas como 2026-11-13 18:30, que se ordenan solas.
+ */
+function exportMatchesCsv() {
+  const list = filtered().slice().sort((a, b) => a.at - b.at);
+  if (!list.length) return toast('No hay partidas que exportar.');
+  const pad = (n) => String(n).padStart(2, '0');
+  const when = (t) => { const d = new Date(t); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  const legend = (id) => { const c = id && ctx.byId.get(id); return c ? legendTitle(c) : ''; };
+  const who = (s) => (s === true ? 'yo' : s === false ? 'rival' : '');
+  const events = eventNames(); // el evento como se agrupa en las estadísticas («tienda  x» → «Tienda X»)
+  const rows = list.map((m) => {
+    const n = Math.max(m.points?.length ?? 0, m.battlefields?.length ?? 0, 1);
+    const fields = Array.from({ length: n }, (_, i) => bfOf(m, i))
+      .map(([a, b], i) => (a || b ? `${n > 1 ? `J${i + 1}: ` : ''}${battlefieldName(a) ?? '?'} – ${battlefieldName(b) ?? '?'}` : ''))
+      .filter(Boolean).join(' | ');
+    return [
+      when(m.at), deckNameOf(m.deck ?? 'none'), legend(m.my),
+      m.oppName ?? '', legend(m.opp), m.oppDeck?.name ?? '',
+      RESULTS[m.result] ?? '', m.score?.replace('-', '–') ?? '', pointsText(m.points),
+      fields, Array.from({ length: n }, (_, i) => who(startOf(m, i))).filter(Boolean).join(', '),
+      events.get(eventKey(m)) ?? '', m.notes ?? '',
+    ];
+  });
+  const header = ['Fecha', 'Mazo', 'Mi Leyenda', 'Rival', 'Leyenda del rival', 'Mazo del rival', 'Resultado', 'Marcador', 'Puntos', 'Campos (mío – rival)', 'Empezó', 'Evento', 'Notas'];
+  download('partidas_riftbound.csv', toCsv(header, rows, ';'), 'text/csv');
+  toast(`${list.length} partida${list.length === 1 ? '' : 's'} exportada${list.length === 1 ? '' : 's'}.`);
+}
+
+/** La Leyenda y el nombre de un mazo, aunque ya no exista (sale de sus partidas). */
+const deckLegendOf = (id) => canonicalLegend(deckById(id)?.legend) ?? store.matches.find((m) => (m.deck ?? 'none') === id)?.my;
+const deckNameOf = (id) => (id === 'none' ? 'Sin mazo' : deckById(id)?.name ?? deletedDeckName(deckLegendOf(id)));
 
 function renderStats(list) {
   const box = $('#match-stats');
@@ -409,11 +461,19 @@ function renderStats(list) {
 
   // Mazos con partidas (y los que ya no existen, si quedan partidas suyas).
   const deckIds = [...new Set(store.matches.map((m) => m.deck ?? 'none'))];
-  const deckLegend = (id) => canonicalLegend(deckById(id)?.legend) ?? store.matches.find((m) => (m.deck ?? 'none') === id)?.my;
-  const deckName = (id) => (id === 'none' ? 'Sin mazo' : deckById(id)?.name ?? deletedDeckName(deckLegend(id)));
+  const deckLegend = deckLegendOf, deckName = deckNameOf;
   const filter = el('select', { 'aria-label': 'Mazo', onchange: (e) => { deckFilter = e.target.value; render(); } },
     el('option', { value: '', text: 'Todos los mazos', selected: !deckFilter }),
     ...deckIds.map((id) => el('option', { value: id, text: deckName(id), selected: id === deckFilter })));
+  // Filtro por evento: solo si alguna partida tiene evento.
+  const events = eventNames();
+  const eventName = (k) => (k === 'none' ? 'Sin evento' : events.get(k));
+  const eventSelect = events.size > 0 && el('select', { 'aria-label': 'Evento', onchange: (e) => { eventFilter = e.target.value; render(); } },
+    el('option', { value: '', text: 'Todos los eventos', selected: !eventFilter }),
+    ...[...events.keys()].sort((a, b) => events.get(a).localeCompare(events.get(b), 'es'))
+      .map((k) => el('option', { value: k, text: events.get(k), selected: k === eventFilter })),
+    store.matches.some((m) => eventKey(m) === 'none') && el('option', { value: 'none', text: 'Sin evento', selected: eventFilter === 'none' }));
+  const byEvent = !eventFilter && events.size > 0 ? groupBy(list, eventKey) : [];
 
   const byDeck = deckFilter ? [] : groupBy(list, (m) => m.deck ?? 'none');
   const byOpp = groupBy(list.filter((m) => m.opp), (m) => m.opp);
@@ -424,7 +484,7 @@ function renderStats(list) {
 
   // replaceChildren escribiría "false" con las secciones que no tocan: se quitan antes.
   box.replaceChildren(...[
-    el('div', { class: 'stats-filter' }, filter),
+    el('div', { class: 'stats-filter' }, filter, eventSelect || null),
     el('div', { class: 'stats-summary' },
       el('div', { class: 'stats-big' },
         el('strong', { text: rateText(all) }),
@@ -443,6 +503,8 @@ function renderStats(list) {
     formBox(list),
     byDeck.length > 1 && foldable('decks', 'Por mazo', el('ul', { class: 'stat-list' },
       ...byDeck.map(([id, r]) => statRow(legendThumb(deckLegend(id)), deckName(id), r)))),
+    byEvent.length > 1 && foldable('events', 'Por evento', el('ul', { class: 'stat-list' },
+      ...byEvent.map(([k, r]) => statRow(null, eventName(k), r)))),
     byOpp.length > 0 && foldable('legends', 'Contra cada Leyenda', el('ul', { class: 'stat-list' },
       ...byOpp.map(([id, r]) => statRow(legendThumb(id), legendChamp(ctx.byId.get(id)), r)))),
     byMyBf.length > 0 && foldable('myBf', 'Con cada Campo tuyo', el('ul', { class: 'stat-list' },
@@ -475,6 +537,7 @@ function foldable(key, title, list) {
 function render() {
   renderIncoming();
   if (deckFilter && !store.matches.some((m) => (m.deck ?? 'none') === deckFilter)) deckFilter = '';
+  if (eventFilter && !store.matches.some((m) => eventKey(m) === eventFilter)) eventFilter = '';
   const list = filtered();
   renderStats(list);
   const n = store.matches.length;
@@ -943,6 +1006,7 @@ export function initMatches(context) {
   buildLegends();
   buildBattlefields();
   $('#btn-new-match').addEventListener('click', () => openSheet(null));
+  $('#btn-match-csv').addEventListener('click', exportMatchesCsv);
   store.onChange((what) => (what === 'matches' || what === 'decks') && render());
   // Las partidas espejo se miran al abrir la app y, como mucho, una vez por minuto al sincronizar.
   onCloudChange(() => cloud.state === 'idle' && refreshIncoming());
