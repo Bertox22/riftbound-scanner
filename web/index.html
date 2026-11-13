@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=75">
+  <link rel="stylesheet" href="styles.css?v=76">
   <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.wasm.min.js"></script>
 </head>
 <body>
@@ -24,7 +24,7 @@
       <span>Riftbound<span class="brand-sub"> Scanner</span></span>
     </h1>
     <div class="topbar-end">
-      <span id="owned-count" class="pill">0 cartas</span>
+      <button id="owned-count" class="pill pill-btn" type="button" aria-haspopup="dialog">0 cartas</button>
       <button id="btn-people" class="account-btn people-btn" type="button" title="Buscar jugadores" aria-label="Buscar jugadores" hidden>
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="8" r="3.5"/><path d="M3.5 19a6.5 6.5 0 0 1 10.2-5.3"/><circle cx="17" cy="16" r="3"/><path d="M19.2 18.2 21 20"/></svg>
       </button>
@@ -83,6 +83,7 @@
         <div class="filter-row">
           <label class="toggle"><input type="checkbox" id="col-owned" checked><span>Solo las que tengo</span></label>
           <label class="toggle"><input type="checkbox" id="col-errata"><span>Con errata</span></label>
+          <label class="toggle"><input type="checkbox" id="col-banned"><span>Baneadas</span></label>
           <select id="col-sort">
             <option value="set">Orden: set y número</option>
             <option value="name">Orden: nombre</option>
@@ -218,32 +219,33 @@
   <script type="importmap">
   {
     "imports": {
-      "./js/account-ui.js": "./js/account-ui.js?v=75",
-      "./js/back.js": "./js/back.js?v=75",
-      "./js/backup.js": "./js/backup.js?v=75",
-      "./js/cloud.js": "./js/cloud.js?v=75",
-      "./js/deckimage.js": "./js/deckimage.js?v=75",
-      "./js/decks.js": "./js/decks.js?v=75",
-      "./js/export.js": "./js/export.js?v=75",
-      "./js/friends.js": "./js/friends.js?v=75",
-      "./js/import-ui.js": "./js/import-ui.js?v=75",
-      "./js/importer.js": "./js/importer.js?v=75",
-      "./js/ledger.js": "./js/ledger.js?v=75",
-      "./js/matches.js": "./js/matches.js?v=75",
-      "./js/merge.js": "./js/merge.js?v=75",
-      "./js/pricehistory.js": "./js/pricehistory.js?v=75",
-      "./js/prices.js": "./js/prices.js?v=75",
-      "./js/profile.js": "./js/profile.js?v=75",
-      "./js/recognizer.js": "./js/recognizer.js?v=75",
-      "./js/scanner.js": "./js/scanner.js?v=75",
-      "./js/store.js": "./js/store.js?v=75",
-      "./js/table.js": "./js/table.js?v=75",
-      "./js/testhand.js": "./js/testhand.js?v=75",
-      "./js/trades.js": "./js/trades.js?v=75",
-      "./js/ui.js": "./js/ui.js?v=75"
+      "./js/account-ui.js": "./js/account-ui.js?v=76",
+      "./js/back.js": "./js/back.js?v=76",
+      "./js/bans.js": "./js/bans.js?v=76",
+      "./js/backup.js": "./js/backup.js?v=76",
+      "./js/cloud.js": "./js/cloud.js?v=76",
+      "./js/deckimage.js": "./js/deckimage.js?v=76",
+      "./js/decks.js": "./js/decks.js?v=76",
+      "./js/export.js": "./js/export.js?v=76",
+      "./js/friends.js": "./js/friends.js?v=76",
+      "./js/import-ui.js": "./js/import-ui.js?v=76",
+      "./js/importer.js": "./js/importer.js?v=76",
+      "./js/ledger.js": "./js/ledger.js?v=76",
+      "./js/matches.js": "./js/matches.js?v=76",
+      "./js/merge.js": "./js/merge.js?v=76",
+      "./js/pricehistory.js": "./js/pricehistory.js?v=76",
+      "./js/prices.js": "./js/prices.js?v=76",
+      "./js/profile.js": "./js/profile.js?v=76",
+      "./js/recognizer.js": "./js/recognizer.js?v=76",
+      "./js/scanner.js": "./js/scanner.js?v=76",
+      "./js/store.js": "./js/store.js?v=76",
+      "./js/table.js": "./js/table.js?v=76",
+      "./js/testhand.js": "./js/testhand.js?v=76",
+      "./js/trades.js": "./js/trades.js?v=76",
+      "./js/ui.js": "./js/ui.js?v=76"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=75"></script>
+  <script type="module" src="js/app.js?v=76"></script>
 </body>
 </html>

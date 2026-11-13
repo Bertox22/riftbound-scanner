@@ -7,6 +7,12 @@ funciona sin conexión.
 
 **App:** https://bertox22.github.io/riftbound-scanner/
 
+**Novedades de la versión 76:** **cartas baneadas marcadas** como las de errata (marca roja «Baneada»,
+aviso al escanearlas, línea en la ficha y filtro «Baneadas» en Colección), con los baneos de Radiance
+(desde el 23 de noviembre de 2026) y los anteriores; la lista está en `web/js/bans.js`. Y el contador
+de arriba (cartas · valor) **se puede pulsar** y abre un resumen: valor, cartas normales y foil, y el
+valor de cada tipo.
+
 **Novedades de la versión 75:** en el perfil de un amigo, **«Tú contra X» se puede pulsar** y abre
 todas las partidas entre los dos, cada una con si la tenéis ambos o a quién le falta, y desde ahí
 «Enviársela» o «Apuntar en mi historial». Ver «Partidas entre vosotros» en «Perfil y amigos».

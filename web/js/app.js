@@ -13,6 +13,7 @@ import { initLedger } from './ledger.js';
 import { importBackup } from './backup.js';
 import { loadHistory, cardSeries, collectionSeries, rangeStart, movers, lineChart, dayText, changeText, pctText } from './pricehistory.js';
 import { initBack } from './back.js';
+import { banInfo } from './bans.js';
 import { cloud, fetchRemovedCards } from './cloud.js';
 import { loadPrices, pricesDate, priceInfo, unitPrice, entryValue, eur, usd, VALUABLE_EUR } from './prices.js';
 import { $, el, toast, cardImg, cardCode, baseName, download, matchesType, DOMAIN_ES, TYPE_ES, RARITY_ES } from './ui.js';
@@ -76,10 +77,74 @@ function updateOwnedCount() {
   const word = ` carta${total === 1 ? '' : 's'}`;
   const pill = $('#owned-count');
   pill.replaceChildren(String(total), el('span', { class: 'pill-word', text: word }), ...(value ? [` · ${eur(value)}`] : []));
-  pill.title = `${total}${word}${value ? ` · valor ≈ ${eur(value)}` : ''}`;
+  pill.title = `${total}${word}${value ? ` · valor ≈ ${eur(value)}` : ''} · ver resumen`;
 }
-store.onChange((what) => what === 'collection' && updateOwnedCount());
+store.onChange((what) => {
+  if (what !== 'collection') return;
+  updateOwnedCount();
+  if (summaryOpen()) openSummary();
+});
 updateOwnedCount();
+
+// ---------- Resumen de la colección (al pulsar el contador de arriba) ----------
+
+const summaryOpen = () => $('#picker-dialog').open && $('#picker-dialog').dataset.view === 'summary';
+
+function collectionSummary() {
+  const s = { normal: 0, foil: 0, distinct: 0, valueNormal: 0, valueFoil: 0, unpriced: 0 };
+  for (const [id, e] of Object.entries(store.collection)) {
+    if (e.n + e.f === 0) continue;
+    s.distinct++;
+    s.normal += e.n;
+    s.foil += e.f;
+    const pn = unitPrice(id, false), pf = unitPrice(id, true);
+    s.valueNormal += (pn ?? 0) * e.n;
+    s.valueFoil += (pf ?? 0) * e.f;
+    if ((e.n && pn == null) || (e.f && pf == null)) s.unpriced++;
+  }
+  return s;
+}
+
+function openSummary() {
+  const dlg = $('#picker-dialog');
+  const s = collectionSummary();
+  const total = s.normal + s.foil;
+  const value = s.valueNormal + s.valueFoil;
+  const plural = (n, one, many) => `${n.toLocaleString('es-ES')} ${n === 1 ? one : many}`;
+  const cell = (label, big, sub) => el('div', { class: 'ov-cell' },
+    el('span', { class: 'ov-label', text: label }),
+    el('strong', { text: big }),
+    sub && el('span', { class: 'ov-sub', text: sub }));
+  const go = (fn) => () => { dlg.close(); fn(); };
+
+  dlg.dataset.view = 'summary';
+  dlg.replaceChildren(...[
+    el('div', { class: 'dialog-head' },
+      el('h2', { text: 'Tu colección' }),
+      el('button', { class: 'icon-btn', title: 'Cerrar', 'aria-label': 'Cerrar', onclick: () => dlg.close() }, '✕')),
+    el('div', { class: 'summary-lead' },
+      el('span', { class: 'ov-label', text: 'Valor aproximado' }),
+      el('strong', { text: eur(value) }),
+      el('span', { class: 'ov-sub', text: [
+        plural(total, 'carta', 'cartas'),
+        pricesDate() && `precios de Cardmarket del ${new Date(pricesDate()).toLocaleDateString('es-ES')}`,
+      ].filter(Boolean).join(' · ') })),
+    el('div', { class: 'ov-strip summary-strip' },
+      cell('Cartas', total.toLocaleString('es-ES'), plural(s.distinct, 'distinta', 'distintas')),
+      cell('Foil', s.foil.toLocaleString('es-ES'), total ? `${Math.round((100 * s.foil) / total)} % del total` : null),
+      cell('Valor normales', eur(s.valueNormal), plural(s.normal, 'copia', 'copias')),
+      cell('Valor foil', eur(s.valueFoil), plural(s.foil, 'copia', 'copias'))),
+    s.unpriced > 0 && el('p', { class: 'muted small', text: `${plural(s.unpriced, 'carta no tiene', 'cartas no tienen')} precio y no ${s.unpriced === 1 ? 'cuenta' : 'cuentan'} en el valor.` }),
+    el('div', { class: 'actions summary-actions' },
+      el('button', { class: 'btn primary small', onclick: go(() => showView('collection')) }, 'Ver mis cartas'),
+      el('button', { class: 'btn ghost small', onclick: () => { delete dlg.dataset.view; openValue(); } }, 'Evolución del valor'),
+      el('button', { class: 'btn ghost small', onclick: () => { delete dlg.dataset.view; openSets(); } }, 'Progreso por set')),
+  ].filter(Boolean));
+  if (!dlg.open) dlg.showModal();
+}
+
+$('#owned-count').addEventListener('click', openSummary);
+$('#picker-dialog').addEventListener('close', (e) => delete e.currentTarget.dataset.view);
 
 // ---------- Ficha de carta ----------
 
@@ -164,6 +229,7 @@ function openCard(card) {
           el('p', { text: [TYPE_ES[card.type] || card.type, card.supertype].filter(Boolean).join(' · ') + (card.domain.length ? ` · ${card.domain.map((d) => DOMAIN_ES[d] || d).join(' / ')}` : '') }),
           stats && el('p', { text: stats }),
           card.tags.length > 0 && el('p', { class: 'muted', text: card.tags.join(', ') }),
+          banInfo(card) && el('p', { class: 'ban-note', text: banInfo(card).text }),
           card.errata && el('p', { class: 'errata-note', text: '⚠ Errata: el texto oficial vigente difiere del impreso en la carta.' }),
           card.text && el('p', { class: 'card-text', text: readableText(card.text) }),
           card.printedText && el('details', { class: 'printed' }, el('summary', { text: 'Texto impreso (antiguo)' }), el('p', { class: 'card-text muted', text: readableText(card.printedText) })),
@@ -279,6 +345,7 @@ function addScanned(card) {
   const twin = pricierTwin(card);
   if (price >= VALUABLE_EUR) toast(`💰 ¡Carta valiosa! ${card.name}: ${eur(price)}`, 4500);
   else if (twin) toast(`💰 Mira bien esta carta: la versión ${cardCode(twin.card)} vale ${eur(twin.price)}`, 5000);
+  else if (banInfo(card)) toast(`⛔ ${card.name}: ${banInfo(card).text.replace(/^⛔ /, '').replace(/^B/, 'b')}`, 4000);
   else if (card.errata) toast(`⚠ ${card.name} tiene errata: su texto oficial ha cambiado`, 3500);
 }
 
@@ -336,6 +403,11 @@ function versionSelect(entry, onChange) {
 }
 
 /** Insignia foil: solo el número, en plateado. */
+function banBadge(card) {
+  const b = banInfo(card);
+  return b && el('span', { class: `badge banned${card.errata ? ' below' : ''}`, title: b.text.replace(/^⛔ /, ''), text: b.label });
+}
+
 function foilBadge(n) {
   return n > 0 && el('span', { class: 'badge foil', title: `${n} foil`, 'aria-label': `${n} foil` }, n);
 }
@@ -398,7 +470,7 @@ function renderRecent() {
       el('button', { class: 'tile-img', title: `Editar ${card.name}`, onclick: () => openScanned(entry) }, cardImg(card, 'thumb small'), foilBadge(entry.f)),
       el('div', { class: 'grow' },
         el('button', { class: 'link', onclick: () => openScanned(entry) }, el('strong', { text: card.name })),
-        el('div', { class: 'muted small', text: `${cardCode(card)}${card.errata ? ' · ⚠ Errata' : ''} · tienes ${store.owned(card.id)}` }),
+        el('div', { class: 'muted small', text: `${cardCode(card)}${banInfo(card) ? ` · ⛔ ${banInfo(card).label}` : ''}${card.errata ? ' · ⚠ Errata' : ''} · tienes ${store.owned(card.id)}` }),
         price != null && el('div', { class: `small ${price >= VALUABLE_EUR ? 'price-hot' : 'muted'}`, text: eur(price) }),
         versionSelect(entry, () => renderRecent()),
       ),
@@ -493,7 +565,7 @@ $('#photo-input').addEventListener('change', async (e) => {
 
 // ---------- Colección ----------
 
-const col = { q: '', set: '', type: '', domain: '', rarity: '', owned: true, errata: false, sort: 'set' };
+const col = { q: '', set: '', type: '', domain: '', rarity: '', owned: true, errata: false, banned: false, sort: 'set' };
 $('#col-set').append(...sets.map(([id, name]) => el('option', { value: id, text: `${name} (${id})` })));
 // En el orden de TYPE_ES ("Campeón" justo después de "Unidad"); los tipos desconocidos, al final.
 const present = new Set([...cards.map((c) => c.type), 'Champion']);
@@ -508,6 +580,7 @@ for (const [key, sel, ev] of [['q', '#col-search', 'input'], ['set', '#col-set',
 }
 $('#col-owned').addEventListener('change', (e) => { col.owned = e.target.checked; renderCollection(); });
 $('#col-errata').addEventListener('change', (e) => { col.errata = e.target.checked; renderCollection(); });
+$('#col-banned').addEventListener('change', (e) => { col.banned = e.target.checked; renderCollection(); });
 
 const COL_PAGE = 120;
 let colLimit = COL_PAGE;
@@ -749,6 +822,7 @@ function renderCollection(keepLimit = false) {
   let list = cards.filter((c) =>
     (!col.owned || store.owned(c.id) > 0 || justEmptied.has(c.id)) &&
     (!col.errata || c.errata) &&
+    (!col.banned || banInfo(c)) &&
     (!col.set || c.set === col.set) &&
     matchesType(c, col.type) &&
     (!col.domain || c.domain.includes(col.domain)) &&
@@ -775,7 +849,7 @@ function renderCollection(keepLimit = false) {
     const e = store.collection[c.id];
     const n = e ? e.n + e.f : 0;
     return el('div', { class: `tile ${n ? '' : 'dim'}` },
-      el('button', { class: 'tile-img', onclick: () => openCard(c) }, cardImg(c), n > 0 && el('span', { class: 'badge', text: `×${n}` }), foilBadge(e?.f), c.errata && el('span', { class: 'badge errata', title: 'Tiene errata', text: 'Errata' })),
+      el('button', { class: 'tile-img', onclick: () => openCard(c) }, cardImg(c), n > 0 && el('span', { class: 'badge', text: `×${n}` }), foilBadge(e?.f), c.errata && el('span', { class: 'badge errata', title: 'Tiene errata', text: 'Errata' }), banBadge(c)),
       el('div', { class: 'tile-info' },
         el('span', { class: 'tile-name', title: c.name, text: c.name }),
         el('span', { class: 'tile-code muted small', text: cardCode(c) }),
