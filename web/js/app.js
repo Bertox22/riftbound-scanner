@@ -688,10 +688,58 @@ else routeProfile();
 // este archivo, así que al publicar con otra ?v= se instala solo el nuevo. En el PC (localhost) solo
 // con ?sw en la dirección, para probarlo sin que estorbe al desarrollo.
 const APP_VERSION = new URL(import.meta.url).searchParams.get('v') ?? 'dev';
-$('#app-version').textContent = `Versión ${APP_VERSION}`;
+
+/**
+ * Junto a la versión, si la app está lista para usarse sin conexión; al tocarlo, el detalle de lo que
+ * hay guardado. Sirve para ver en el móvil qué falta antes de poner el modo avión.
+ */
+let swError = null; // el error al registrar el service worker, si lo hubo: se muestra siempre
+let statusRun = 0; // varias comprobaciones a la vez: solo escribe la última
+async function offlineStatus() {
+  const run = ++statusRun;
+  const box = $('#app-version');
+  const base = `Versión ${APP_VERSION}`;
+  if (!('serviceWorker' in navigator) || !self.caches) return void (box.textContent = `${base} · este navegador no permite usarla sin conexión`);
+  const names = await caches.keys().catch(() => []);
+  const has = async (cache, path) => names.includes(cache) && !!(await (await caches.open(cache)).match(new URL(path, location.href).href).catch(() => null));
+  const reg = await navigator.serviceWorker.getRegistration().catch(() => null);
+  const checks = [
+    ['Service worker', reg?.active ? `activo (${reg.active.scriptURL.split('?v=')[1] ?? '?'})` : reg?.installing || reg?.waiting ? 'instalándose' : 'no instalado'],
+    ['Controla esta página', navigator.serviceWorker.controller ? 'sí' : reg?.active ? 'no (se abrió antes de instalarlo: ciérrala y vuelve a abrirla)' : 'no'],
+    ['Página y código', names.includes(`rb-sw-shell-${APP_VERSION}`) ? 'guardados' : 'no'],
+    ['Datos de cartas', (await has('rb-sw-data', 'data/cards.json')) ? 'guardados' : 'no'],
+    ['Modelo del escáner', names.includes('rb-model') ? 'guardado' : 'no (se guarda al cargar el escáner)'],
+    ['Motor del modelo', (await has('rb-sw-libs', 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort-wasm-simd-threaded.wasm')) ? 'guardado' : 'no'],
+    ['Hilos del escáner', self.crossOriginIsolated ? 'varios' : '1'],
+  ];
+  if (swError) checks.unshift(['Error al instalar', swError]);
+  const ready = !swError && !!navigator.serviceWorker.controller && checks.slice(2, 6).every(([, v]) => /^guardad/.test(v));
+  if (run !== statusRun) return; // ya hay una comprobación más reciente
+  box.replaceChildren(
+    el('button', { class: 'app-version-btn', type: 'button', 'aria-expanded': 'false', onclick: (e) => {
+      const open = box.querySelector('.app-version-detail').hidden;
+      box.querySelector('.app-version-detail').hidden = !open;
+      e.currentTarget.setAttribute('aria-expanded', String(open));
+    } }, `${base} · ${ready ? 'lista sin conexión' : swError ? 'sin conexión no disponible (toca para ver)' : 'aún no lista sin conexión'}`),
+    el('dl', { class: 'app-version-detail', hidden: true }, ...checks.flatMap(([k, v]) => [el('dt', { text: k }), el('dd', { text: v })])));
+}
 const localHost = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
 if ('serviceWorker' in navigator && (!localHost || new URLSearchParams(location.search).has('sw'))) {
-  navigator.serviceWorker.register(`sw.js?v=${APP_VERSION}`).catch((err) => console.warn('Sin modo sin conexión:', err));
+  navigator.serviceWorker.register(`sw.js?v=${APP_VERSION}`).then((reg) => {
+    offlineStatus();
+    // Al terminar de instalarse (o de cambiar de versión) se vuelve a mirar.
+    const watch = (w) => w?.addEventListener('statechange', offlineStatus);
+    watch(reg.installing || reg.waiting);
+    reg.addEventListener('updatefound', () => watch(reg.installing));
+  }).catch((err) => {
+    console.warn('Sin modo sin conexión:', err);
+    swError = err?.message || String(err);
+    offlineStatus();
+  });
+  navigator.serviceWorker.addEventListener('controllerchange', offlineStatus);
+  modelReady.then(offlineStatus, offlineStatus); // el modelo se guarda al cargar el escáner
+} else {
+  $('#app-version').textContent = `Versión ${APP_VERSION}`;
 }
 
 // Versión nueva publicada con la app abierta (en el móvil se queda días en segundo plano): al volver a

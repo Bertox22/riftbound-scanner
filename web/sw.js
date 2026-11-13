@@ -7,7 +7,7 @@
 // Cómo se sirve cada cosa:
 //   - La página: primero internet (como siempre); si no contesta en 3 s, la guardada al instalar.
 //   - CSS y módulos JS con ?v=: los guardados al instalar (cada versión es un archivo distinto).
-//   - Datos (cartas, precios, índice del reconocimiento): primero internet; sin él, lo último bajado.
+//   - Datos (cartas, precios, índice del reconocimiento): primero internet (4 s); sin él, lo último bajado.
 //   - Librerías de jsdelivr (versión fija), la fuente y las miniaturas: lo guardado; si no está, se
 //     baja y se guarda.
 //   - Lo demás (Supabase, imágenes grandes de Riot, el modelo, que ya se guarda aparte) no se toca.
@@ -33,6 +33,9 @@ const LIB_FILES = [`${ORT}ort.wasm.min.js`, `${ORT}ort-wasm-simd-threaded.mjs`, 
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap'];
 const DATA_FILES = ['data/cards.json', 'data/prices.json', 'data/index.json'];
 const PAGE_TIMEOUT = 3000;
+// Con mala cobertura las peticiones pueden quedarse colgadas en vez de fallar: pasado este tiempo se
+// usa lo guardado (si lo hay) y lo bajado llega a la caché para la próxima vez.
+const DATA_TIMEOUT = 4000;
 const LOCAL = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
 
 const abs = (path) => new URL(path, self.registration.scope).href;
@@ -95,15 +98,18 @@ async function networkFirst(request, cacheName, { ms = 0, key = request, store =
     }
     return res;
   });
+  network.catch(() => {}); // si falla después de haber servido lo guardado, no es un error
   const cached = () => cache.match(key);
+  // Una respuesta de error (un 5xx, un portal wifi…) no gana a lo guardado.
+  const orCached = async (res) => (res.ok || res.type === 'opaqueredirect' ? res : (await cached()) ?? res);
   if (!ms) {
-    try { return await network; } catch (err) { return (await cached()) ?? Promise.reject(err); }
+    try { return await orCached(await network); } catch (err) { return (await cached()) ?? Promise.reject(err); }
   }
   // Con tiempo límite: si internet no contesta a tiempo, lo guardado; si no hay nada guardado, se espera.
   const timeout = new Promise((resolve) => setTimeout(resolve, ms, 'timeout'));
   try {
     const first = await Promise.race([network, timeout]);
-    if (first !== 'timeout') return first;
+    if (first !== 'timeout') return orCached(first);
     return (await cached()) ?? await network;
   } catch (err) {
     return (await cached()) ?? Promise.reject(err);
@@ -145,11 +151,11 @@ self.addEventListener('fetch', (event) => {
       event.respondWith(LOCAL ? networkFirst(request, SHELL, { store: false })
         : caches.match(request).then((hit) => hit ?? fetch(request)));
     } else if (path.startsWith('data/')) {
-      event.respondWith(networkFirst(request, DATA));
+      event.respondWith(networkFirst(request, DATA, { ms: DATA_TIMEOUT }));
     } else if (path.startsWith('thumbs/')) {
       event.respondWith(cacheFirst(request, IMAGES));
     } else if (path === 'manifest.webmanifest' || path === 'icon.svg' || path.startsWith('icons/')) {
-      event.respondWith(networkFirst(request, SHELL));
+      event.respondWith(networkFirst(request, SHELL, { ms: PAGE_TIMEOUT }));
     }
     return; // models/ y lo demás, como siempre
   }
@@ -158,6 +164,6 @@ self.addEventListener('fetch', (event) => {
   } else if (url.hostname === 'fonts.gstatic.com') {
     event.respondWith(cacheFirst(request, LIBS));
   } else if (url.hostname === 'fonts.googleapis.com') {
-    event.respondWith(networkFirst(request, LIBS));
+    event.respondWith(networkFirst(request, LIBS, { ms: PAGE_TIMEOUT }));
   }
 });

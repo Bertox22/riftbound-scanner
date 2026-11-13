@@ -7,7 +7,7 @@ funciona sin conexión.
 
 **App:** https://bertox22.github.io/riftbound-scanner/
 
-**Últimas mejoras (versiones 66 a 68, noviembre de 2026):**
+**Últimas mejoras (versiones 66 a 69, noviembre de 2026):**
 - **Sin conexión:** tras abrirla una vez con internet, abre y funciona sin cobertura (escáner,
   colección, mazos, partidas y Mesa). Detalles en «Sin conexión», más abajo.
 - **Escáner más rápido:** hasta 4 hilos del procesador, unas 2,8 veces más rápido en un PC con el
@@ -17,7 +17,8 @@ funciona sin conexión.
 - **Importar copia (JSON) sin riesgo:** pregunta por cartas, mazos, partidas y balance por separado,
   cerrar no cambia nada y deja «Deshacer». Antes «Cancelar» reemplazaba todos tus datos.
 - **Aviso de versión nueva** («Recargar») si la app llevaba tiempo abierta, e iconos para instalarla
-  en Android y iPhone. La versión en uso sale en pequeño al final de Escanear.
+  en Android y iPhone. La versión en uso sale en pequeño al final de Escanear, con «lista sin
+  conexión» o no; al tocarla, el detalle de lo que hay guardado (y el error, si no se pudo instalar).
 - **Móvil:** el valor de la colección se ve entero arriba («364 · 97,48 €») y los Campos de cada
   partida van uno por juego («J1 Ruined Monastery – Threshold of the Gray»). En Partidas, «Por mazo»
   y «Contra cada Leyenda» se pliegan para que la lista no sea interminable.
@@ -270,7 +271,7 @@ http://localhost:8000/?sw (y en local pide siempre primero los archivos al servi
    "Añadir a pantalla de inicio" para tenerla como una app.
 5. GitHub Pages deja guardar los archivos unos 10 minutos. Para que cada publicación llegue entera,
    `styles.css`, `app.js` y el resto de módulos (con el `importmap` de `index.html`) llevan la misma
-   versión, `?v=68`: al publicar cambios de estilos o de código, súbela en todos a la vez. El service
+   versión, `?v=69`: al publicar cambios de estilos o de código, súbela en todos a la vez. El service
    worker (`sw.js`) toma la versión de ahí solo: no hay que tocarlo.
 
 Sin cuenta, la colección, los mazos y las partidas se guardan solo en el navegador (localStorage:

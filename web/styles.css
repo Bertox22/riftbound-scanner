@@ -66,6 +66,15 @@ p { margin: 8px 0; }
 }
 /* La versión publicada, discreta, al final de Escanear (para saber si ya ha llegado la nueva). */
 .app-version { margin: 28px 0 8px; text-align: center; font-size: 11px; color: var(--faint); letter-spacing: .02em; }
+.app-version-btn { border: 0; background: none; padding: 4px 8px; font: inherit; color: inherit; cursor: pointer; }
+.app-version-btn:hover { color: var(--muted); }
+.app-version-detail {
+  display: grid; grid-template-columns: auto auto; justify-content: center; gap: 2px 10px;
+  margin: 6px auto 0; text-align: left;
+}
+.app-version-detail[hidden] { display: none; }
+.app-version-detail dt { color: var(--muted); }
+.app-version-detail dd { margin: 0; }
 .topbar-end { display: flex; align-items: center; gap: 8px; min-width: 0; }
 /* Botón de cuenta: el punto dice cómo va la sincronización (verde al día, ámbar subiendo, rojo error). */
 .account-btn {
