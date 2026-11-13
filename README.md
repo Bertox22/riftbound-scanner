@@ -2,9 +2,22 @@
 
 Aplicación web para registrar tu colección de cartas de **Riftbound** con la cámara del móvil,
 armar mazos con las cartas que tienes y apuntar tus partidas. Con una cuenta, todo se sincroniza
-entre tus dispositivos.
+entre tus dispositivos. Se instala en el móvil como una app ("Añadir a pantalla de inicio") y
+funciona sin conexión.
 
 **App:** https://bertox22.github.io/riftbound-scanner/
+
+**Últimas mejoras (versiones 66 y 67, noviembre de 2026):**
+- **Sin conexión:** tras abrirla una vez con internet, abre y funciona sin cobertura (escáner,
+  colección, mazos, partidas y Mesa). Detalles en «Sin conexión», más abajo.
+- **Escáner más rápido:** hasta 4 hilos del procesador, unas 2,8 veces más rápido en un PC con el
+  mismo resultado (en iPhone, como antes). Ver [Cómo funciona el reconocimiento](#cómo-funciona-el-reconocimiento).
+- **Botón «atrás» del móvil:** cierra la hoja abierta, sale de la Mesa y vuelve de cualquier pestaña a
+  Escanear, en vez de salir de la app.
+- **Importar copia (JSON) sin riesgo:** pregunta por cartas, mazos, partidas y balance por separado,
+  cerrar no cambia nada y deja «Deshacer». Antes «Cancelar» reemplazaba todos tus datos.
+- **Aviso de versión nueva** («Recargar») si la app llevaba tiempo abierta, e iconos para instalarla
+  en Android y iPhone.
 
 - **Escanear:** pones cada carta dentro del recuadro y se añade sola en cuanto la reconoce (con
   vibración y pitido). Si duda, te enseña las candidatas para que toques la correcta. Para añadir
@@ -207,7 +220,7 @@ y no sirve con este modelo: sus capas cuantizadas dan resultados erróneos.
 ```
 web/                 la app (estática, se puede publicar tal cual)
   index.html, styles.css, manifest.webmanifest, icon.svg, icons/ (PNG para instalarla)
-  sw.js              service worker: guarda la app y los datos para usarla sin conexión
+  sw.js              service worker: app y datos sin conexión, y cabeceras para los hilos del escáner
   js/                app.js (escáner y colección), decks.js, matches.js (partidas),
                      cloud.js, merge.js y account-ui.js (cuenta y sincronización), profile.js (página de
                      perfil), friends.js (seguir y amigos), trades.js (intercambios), table.js (mesa), ledger.js (balance), store.js (localStorage),
