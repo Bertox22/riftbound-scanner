@@ -6,11 +6,11 @@ import { $, el, toast, cardImg, cardCode, DOMAIN_ES } from './ui.js';
 import { missingFor, copyToMyDecks } from './decks.js';
 import { unitPrice, eur } from './prices.js';
 import { store } from './store.js';
-import { cloud, onCloudChange, fetchProfilePage } from './cloud.js';
+import { cloud, onCloudChange, fetchProfilePage, fetchMatchesWith, resendMatches } from './cloud.js';
 import { followButton } from './friends.js';
 import { tradeBox, wantButton } from './trades.js';
 import { openFriends } from './account-ui.js';
-import { record, recordText, rateText, countText, groupBy, statRow, legendThumb, legendChamp, canonicalLegend } from './matches.js';
+import { record, recordText, rateText, countText, groupBy, statRow, legendThumb, legendChamp, canonicalLegend, openMirrored, sameGame, linked, matchLine, flipped } from './matches.js';
 
 let ctx; // { cards, byId, openCard, showView }
 let page = null; // lo último que se ha cargado: { profile, own, decks, matches, collection }
@@ -71,6 +71,90 @@ function headToHead(profile) {
     el('span', { class: 'muted small', text: `${rateText(r)} · ${countText(r)}` }));
 }
 
+// ---------- Partidas entre vosotros ----------
+// Las suyas contra ti que no tienes en tu historial (para apuntártelas) y las tuyas contra él que no
+// tiene (para enviárselas otra vez). La base de datos asegura lo importante: solo el rival puede
+// guardar la copia de una partida y cada cuenta una sola vez (id fijo e índice único). Lo que parece
+// la misma partida apuntada por los dos por separado (sameGame) se aparta para no duplicarla.
+
+let between = null; // { id, state: loading | ready | error, theirs: [partidas suyas, desde su lado] }
+const sent = new Set(); // ids reenviados en esta visita
+
+function loadBetween(profile) {
+  between = { id: profile.id, state: 'loading', theirs: [] };
+  fetchMatchesWith(profile.id).then((theirs) => {
+    if (between?.id === profile.id) between = { id: profile.id, state: 'ready', theirs };
+  }, (err) => {
+    console.error(err);
+    if (between?.id === profile.id) between = { id: profile.id, state: 'error', theirs: [] };
+  }).then(() => page?.profile?.id === profile.id && render());
+}
+
+function betweenRow(m, button, note) {
+  return el('li', { class: 'incoming-row' },
+    el('span', { class: `match-result ${m.result}`, 'aria-hidden': 'true' }, { win: 'V', loss: 'D', draw: 'E' }[m.result] ?? '?'),
+    el('div', { class: 'grow' },
+      el('strong', { class: 'small', text: matchLine(m) }),
+      note && el('div', { class: 'muted small', text: note }),
+      el('div', { class: 'actions' }, button)));
+}
+
+function betweenBox(profile) {
+  if (!cloud.username || !isFriend(profile.id)) return null;
+  if (between?.id !== profile.id) loadBetween(profile);
+  if (between.state === 'loading') return null;
+  if (between.state === 'error') return el('p', { class: 'muted small', text: 'No se pudieron mirar las partidas entre vosotros.' });
+  const name = profile.display_name || profile.username;
+  const { theirs } = between;
+  const mine = store.matches.filter((m) => m.rival === profile.id);
+  const split = (list, isDup) => [list.filter((x) => !isDup(x)), list.filter(isDup)];
+
+  // Suyas contra ti que no tienes: ni su copia ni la original de la que es copia.
+  const [forMe, forMeDup] = split(theirs.filter((r) => !store.matches.some((m) => linked(m, r))),
+    (r) => mine.some((m) => sameGame(m, r)));
+  // Tuyas (originales) contra él que no tiene.
+  const [forHim, forHimDup] = split(mine.filter((m) => !m.mirrorOf && !theirs.some((r) => linked(m, r))),
+    (m) => theirs.some((r) => sameGame(m, r)));
+  if (!forMe.length && !forMeDup.length && !forHim.length && !forHimDup.length) return null;
+
+  const author = { id: profile.id, username: profile.username, display_name: profile.display_name };
+  const take = (r) => el('button', { class: 'btn primary small', onclick: () => openMirrored(r, author) }, 'Apuntar en mi historial');
+  const send = async (list, btn) => {
+    btn.disabled = true;
+    try {
+      const n = await resendMatches(list.map((m) => m.id), profile.id);
+      list.forEach((m) => sent.add(m.id));
+      toast(n === list.length
+        ? `${n === 1 ? 'Enviada' : `${n} enviadas`}: a ${name} le saldrá el aviso para guardarla${n === 1 ? '' : 's'}`
+        : `Enviadas ${n} de ${list.length}: las demás aún no se han subido a la nube. Prueba tras sincronizar.`, 5000);
+      render();
+    } catch (err) {
+      toast(err.message);
+      btn.disabled = false;
+    }
+  };
+  const giveBtn = (m) => (sent.has(m.id)
+    ? el('span', { class: 'history-done', text: 'Enviada ✓' })
+    : el('button', { class: 'btn ghost small', onclick: (e) => send([m], e.currentTarget) }, 'Enviársela'));
+  const dupNote = 'Parece la misma que otra que ya está apuntada (menos de 1 h, mismo resultado y Leyendas).';
+  const dupBox = (list, row) => list.length > 0 && el('details', { class: 'between-dup' },
+    el('summary', { class: 'muted small', text: `${list.length === 1 ? '1 parece' : `${list.length} parecen`} que ya la tenéis · Ver` }),
+    el('ul', { class: 'incoming-list' }, ...list.map((x) => row(x, dupNote))));
+  const pendingSend = forHim.filter((m) => !sent.has(m.id));
+
+  return el('div', { class: 'between' }, ...[
+    el('h3', { class: 'stats-title', text: 'Partidas entre vosotros' }),
+    (forMe.length || forMeDup.length) && el('p', { class: 'small', text: `Suyas contra ti que no tienes (${forMe.length})` }),
+    forMe.length > 0 && el('ul', { class: 'incoming-list' }, ...forMe.map((r) => betweenRow(flipped(r), take(r)))),
+    dupBox(forMeDup, (r, note) => betweenRow(flipped(r), take(r), note)),
+    (forHim.length || forHimDup.length) && el('div', { class: 'between-head' },
+      el('p', { class: 'small', text: `Tuyas contra ${name} que no tiene (${forHim.length})` }),
+      pendingSend.length > 1 && el('button', { class: 'btn ghost small', onclick: (e) => send(pendingSend, e.currentTarget) }, 'Enviar todas')),
+    forHim.length > 0 && el('ul', { class: 'incoming-list' }, ...forHim.map((m) => betweenRow(m, giveBtn(m)))),
+    dupBox(forHimDup, (m, note) => betweenRow(m, giveBtn(m), note)),
+  ].filter(Boolean));
+}
+
 function stats(matches) {
   if (!matches.length) return null;
   const all = record(matches);
@@ -115,6 +199,7 @@ function render() {
     header(page),
     !page.own && headToHead(profile),
     !page.own && isFriend(profile.id) && tradeBox(profile),
+    !page.own && betweenBox(profile),
     ...(stats(matches) ?? []),
     el('h3', { class: 'stats-title', text: decks.length ? `Mazos (${decks.length})` : 'Mazos' }),
     decks.length
@@ -139,11 +224,13 @@ async function load(username) {
 /** Abre la página del perfil (y, si se pide, uno de sus mazos). */
 export async function openProfile(username, deckId = null) {
   ctx.showView('profile');
+  between = null; // las partidas entre vosotros se miran otra vez en cada visita
+  sent.clear();
   if (page?.profile?.username?.toLowerCase() !== username.toLowerCase()) {
     page = 'loading';
     render();
     await load(username);
-  }
+  } else if (page?.profile) render();
   if (deckId && page?.decks) {
     const deck = page.decks.find((d) => d.id === deckId);
     if (deck) openDeck(deck);
@@ -227,4 +314,6 @@ export function initProfile(context) {
     if (page.friend !== isFriend(page.profile.id)) load(page.profile.username);
     else render();
   });
+  // Al apuntarte una de sus partidas desaparece de «Partidas entre vosotros».
+  store.onChange((what) => what === 'matches' && showing() && render());
 }

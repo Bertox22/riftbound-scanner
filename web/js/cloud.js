@@ -249,11 +249,16 @@ export async function fetchIncoming() {
   const me = session.user.id;
   const [{ data: rows, error }, { data: mine, error: err2 }] = await Promise.all([
     sb.from('matches').select('*').eq('opponent_id', me).neq('user_id', me).is('mirror_of', null).is('deleted_at', null).order('played_at', { ascending: false }).limit(50),
-    sb.from('matches').select('mirror_of').eq('user_id', me).not('mirror_of', 'is', null),
+    sb.from('matches').select('mirror_of,deleted_at').eq('user_id', me).not('mirror_of', 'is', null),
   ]);
   if (error || err2) throw new Error(authMessage(error ?? err2));
-  const done = new Set(mine.map((r) => r.mirror_of));
-  const pending = rows.filter((r) => !done.has(r.id));
+  // Ya guardada, o descartada (o borrada) después de la última vez que el otro la envió.
+  const copies = new Map(mine.map((r) => [r.mirror_of, r.deleted_at]));
+  const pending = rows.filter((r) => {
+    if (!copies.has(r.id)) return true;
+    const gone = copies.get(r.id);
+    return gone != null && Date.parse(r.updated_at) > Date.parse(gone);
+  });
   if (!pending.length) return [];
   const { data: authors, error: err3 } = await sb.from('profiles').select('id,username,display_name').in('id', [...new Set(pending.map((r) => r.user_id))]);
   if (err3) throw new Error(authMessage(err3));
@@ -270,6 +275,31 @@ export async function dismissIncoming(original) {
     deleted_at: new Date().toISOString(),
   }, { onConflict: 'id' });
   if (error) throw new Error(authMessage(error));
+}
+
+/**
+ * Las partidas de un amigo que tienen que ver contigo (sin las borradas): las que apuntó contra ti y
+ * sus copias de las tuyas. En el formato de la app, desde su lado. Las de un amigo se pueden leer (SQL 08).
+ */
+export async function fetchMatchesWith(friendId) {
+  const sb = await getClient();
+  const me = session.user.id;
+  const rows = await selectAll(() => sb.from('matches').select('*').eq('user_id', friendId).eq('opponent_id', me)
+    .is('deleted_at', null).order('played_at', { ascending: false }).order('id'));
+  return rows.map(fromMatchRow);
+}
+
+/**
+ * Vuelve a enviar partidas tuyas a su rival: basta con tocarlas (cambia updated_at) para que le
+ * vuelva a salir el aviso aunque hubiera descartado o borrado su copia. Solo las ya subidas.
+ */
+export async function resendMatches(ids, rivalId) {
+  const sb = await getClient();
+  const { data, error } = await sb.from('matches').update({ opponent_id: rivalId })
+    .eq('user_id', session.user.id).eq('opponent_id', rivalId).is('mirror_of', null).is('deleted_at', null)
+    .in('id', ids).select('id');
+  if (error) throw new Error(authMessage(error));
+  return data.length;
 }
 
 // ---------- Intercambios ----------

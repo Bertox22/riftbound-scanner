@@ -737,6 +737,11 @@ dialog input[type=date]:focus { outline: none; border-color: var(--muted); }
 .value-diff { white-space: nowrap; font-variant-numeric: tabular-nums; font-size: 14px; }
 .value-point { margin: 4px 0 0; min-height: 1.4em; font-variant-numeric: tabular-nums; }
 .value-range { margin: 12px 0 4px; }
+.between { margin: 8px 0 16px; }
+.between > p, .between-head p { margin: 12px 0 6px; color: var(--muted); }
+.between-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.between-dup { margin: 4px 0 8px; }
+.between-dup summary { cursor: pointer; padding: 4px 0; }
 
 /* Importación */
 #import-dialog textarea { width: 100%; font: inherit; color: var(--text); background: var(--surface-2); border: 1px solid transparent; border-radius: 16px; padding: 12px 14px; margin-bottom: 8px; }

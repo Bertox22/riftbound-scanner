@@ -534,6 +534,45 @@ async function mirrored({ match: o, author }) {
   };
 }
 
+/** Abre la hoja para guardar en tu historial una partida que un amigo apuntó contra ti. */
+export async function openMirrored(match, author) {
+  openSheet(null, null, await mirrored({ match, author }));
+}
+
+const SAME_GAME_MS = 60 * 60 * 1000; // una partida de Riftbound no dura más de una hora
+
+/**
+ * ¿Es la misma partida apuntada por cada uno por su cuenta? `mine` desde tu lado y `theirs` desde el
+ * suyo: menos de una hora entre las dos, resultado al revés y, si las dos los tienen, Leyendas
+ * cruzadas y marcador al revés. Solo sirve para avisar; lo seguro son los enlaces de copia.
+ */
+export function sameGame(mine, theirs) {
+  if (Math.abs(mine.at - theirs.at) >= SAME_GAME_MS) return false;
+  if (mine.result !== flip[theirs.result]) return false;
+  const legend = (id) => canonicalLegend(id);
+  if (mine.my && theirs.opp && legend(mine.my) !== legend(theirs.opp)) return false;
+  if (mine.opp && theirs.my && legend(mine.opp) !== legend(theirs.my)) return false;
+  if (mine.score && theirs.score && mine.score !== theirs.score.split('-').reverse().join('-')) return false;
+  return true;
+}
+
+/** ¿Es la misma partida por los enlaces de copia? (una es copia de la otra) */
+export const linked = (a, b) => a.mirrorOf === b.id || b.mirrorOf === a.id;
+
+/** Una línea para resumir una partida desde tu lado: «Ganaste 2–1 · Akali contra Kennen · 12 nov». */
+export function matchLine(m) {
+  const mine = ctx.byId.get(m.my), theirs = ctx.byId.get(m.opp);
+  return [
+    `${RESULTS[m.result]}${m.score ? ` ${m.score.replace('-', '–')}` : ''}`,
+    (mine || theirs) && `${mine ? legendChamp(mine) : '?'} contra ${theirs ? legendChamp(theirs) : '?'}`,
+    `${fmtDay(m.at)} ${new Date(m.at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`,
+    m.event,
+  ].filter(Boolean).join(' · ');
+}
+
+/** La partida de un amigo pasada a tu lado (solo para enseñarla: resultado, marcador y Leyendas al revés). */
+export const flipped = (o) => ({ ...o, my: o.opp, opp: o.my, result: flip[o.result], score: o.score ? o.score.split('-').reverse().join('-') : null });
+
 async function refreshIncoming(force = false) {
   if (!cloud.username || (!force && Date.now() - incomingAt < 60_000)) return;
   incomingAt = Date.now();
