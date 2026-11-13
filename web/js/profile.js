@@ -4,6 +4,8 @@
 
 import { $, el, toast, cardImg, cardCode, DOMAIN_ES } from './ui.js';
 import { missingFor, copyToMyDecks } from './decks.js';
+import { openTestHand } from './testhand.js';
+import { shareDeckImage } from './deckimage.js';
 import { unitPrice, eur } from './prices.js';
 import { store } from './store.js';
 import { cloud, onCloudChange, fetchProfilePage, fetchMatchesWith, resendMatches } from './cloud.js';
@@ -275,6 +277,7 @@ function openDeck(deck) {
       el('button', { class: 'icon-btn', title: 'Cerrar', 'aria-label': 'Cerrar', onclick: () => dlg.close() }, '✕')),
     el('p', { class: 'muted small', text: `De @${owner}` }),
     !page.own && missingBox(deck),
+    deck.notes && el('details', { class: 'missing deck-notes-read' }, el('summary', { text: 'Notas del mazo' }), el('p', { class: 'small', text: deck.notes })),
     el('div', { class: 'actions' },
       !page.own && el('button', {
         class: 'btn primary small',
@@ -283,6 +286,8 @@ function openDeck(deck) {
           if (copyToMyDecks(deck, owner)) { dlg.close(); toast('Mazo copiado a tus mazos'); }
         },
       }, 'Copiar a mis mazos'),
+      el('button', { class: 'btn ghost small', onclick: () => openTestHand(deck, ctx.byId) }, 'Mano de prueba'),
+      el('button', { class: 'btn ghost small', onclick: () => shareDeckImage(deck, ctx.byId, owner) }, 'Compartir imagen'),
       el('button', { class: 'btn ghost small', onclick: () => copyProfileLink(owner, deck.id) }, 'Copiar enlace del mazo')),
     section('Leyenda y Campeón', heads),
     section(`Principal (${sum(deck.main) + (deck.champion ? 1 : 0)})`, group(deck.main)),

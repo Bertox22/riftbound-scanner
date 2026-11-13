@@ -589,7 +589,16 @@ function canon(value) {
   if (value && typeof value === 'object') return `{${Object.keys(value).sort().map((k) => `${JSON.stringify(k)}:${canon(value[k])}`).join(',')}}`;
   return JSON.stringify(value ?? null);
 }
-const deckKey = (d) => canon({ name: d.name, legend: d.legend, champion: d.champion, main: d.main, runes: d.runes, battlefields: d.battlefields, sideboard: d.sideboard ?? {}, shared: !!d.shared });
+const deckKey = (d) => canon({
+  name: d.name, legend: d.legend, champion: d.champion, main: d.main, runes: d.runes, battlefields: d.battlefields, sideboard: d.sideboard ?? {}, shared: !!d.shared,
+  // Solo si las hay: así los mazos de antes no cuentan como cambiados y no se vuelven a subir.
+  ...(d.notes ? { notes: d.notes } : {}),
+  ...(d.versions?.length ? { versions: d.versions } : {}),
+});
+// notes y versions llegan con 15_notas_versiones_mazo.sql. Mientras falten, los mazos se suben sin
+// ellas y la foto tampoco las lleva, para volver a intentarlo en cada sincronización.
+let deckExtrasMissing = false;
+const uploadedDeck = (d) => (deckExtrasMissing ? { ...d, notes: '', versions: [] } : d);
 const matchKey = (m) => canon({
   at: m.at, deck: m.deck ?? null, my: m.my ?? null, opp: m.opp ?? null, oppName: m.oppName ?? '', result: m.result,
   score: m.score ?? null, points: m.points ?? [], first: m.first ?? null, event: m.event ?? '', notes: m.notes ?? '',
@@ -624,6 +633,7 @@ function toRow(uid, d) {
     legend_id: d.legend ?? null, champion_id: d.champion ?? null,
     main: d.main ?? {}, runes: d.runes ?? {}, battlefields: d.battlefields ?? [], sideboard: d.sideboard ?? {},
     is_public: !!d.shared, deleted_at: null,
+    ...(deckExtrasMissing ? {} : { notes: (d.notes || '').slice(0, 4000) || null, versions: d.versions?.length ? d.versions.slice(-20) : null }),
   };
 }
 function fromRow(r) {
@@ -631,6 +641,7 @@ function fromRow(r) {
     id: r.id, name: r.name, legend: r.legend_id, champion: r.champion_id,
     main: r.main ?? {}, runes: r.runes ?? {}, battlefields: r.battlefields ?? [], sideboard: r.sideboard ?? {},
     shared: !!r.is_public, updated: Date.parse(r.updated_at),
+    notes: r.notes ?? '', versions: r.versions ?? [],
   };
 }
 
@@ -826,7 +837,13 @@ async function push(uid, snap) {
   let deckError = null;
   if (changed.length) {
     let uploaded = changed;
-    const { error } = await upsertDecks(changed);
+    let { error } = await upsertDecks(changed);
+    // Sin 15_notas_versiones_mazo.sql: se suben sin notas ni versiones.
+    if (error && (error.code === 'PGRST204' || error.code === '42703') && /notes|versions/.test(error.message)) {
+      console.warn('Faltan decks.notes / decks.versions: los mazos se suben sin notas ni versiones.');
+      deckExtrasMissing = true;
+      ({ error } = await upsertDecks(changed));
+    }
     if (error && !/LIMITE_MAZOS/.test(error.message)) throw error;
     if (error) {
       // Pasa del límite: de uno en uno, para que suban las ediciones y los que quepan.
@@ -838,7 +855,7 @@ async function push(uid, snap) {
         else if (!/LIMITE_MAZOS/.test(one.message)) throw one;
       }
     }
-    for (const d of uploaded) snap.decks[d.id] = deckKey(d);
+    for (const d of uploaded) snap.decks[d.id] = deckKey(uploadedDeck(d));
     writeSnap(snap);
   }
 

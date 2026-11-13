@@ -15,10 +15,12 @@ import { store } from './store.js';
 import { $, el, toast, cardImg, cardCode, baseName, download, matchesType, DOMAIN_ES, TYPE_ES } from './ui.js';
 import { exportDeckExcel, exportDeckCsv, exportAllDecksExcel, exportAllDecksCsv, exportAllDecksText } from './export.js';
 import { unitPrice, eur } from './prices.js';
-import { deckRecord, newMatch } from './matches.js';
+import { deckRecord, newMatch, record, recordText, rateText, countText } from './matches.js';
 import { cloud } from './cloud.js';
 import { copyProfileLink } from './profile.js';
 import { wantButton } from './trades.js';
+import { openTestHand } from './testhand.js';
+import { shareDeckImage } from './deckimage.js';
 
 const MAIN_TYPES = new Set(['Unit', 'Spell', 'Gear']);
 const MAIN_SIZE = 40, RUNES = 12, BATTLEFIELDS = 3, MAX_COPIES = 3, MAX_SIGNATURE = 3, SIDEBOARD = 10;
@@ -517,6 +519,11 @@ function renderEditor() {
       stat('Campos', current.battlefields.length, BATTLEFIELDS),
       stat('Sideboard', v.sideCount, SIDEBOARD),
     ),
+    curveBox(current),
+    el('div', { class: 'actions deck-tools' },
+      el('button', { class: 'btn ghost small', disabled: sum(current.main) < 6, onclick: () => openTestHand(current, ctx.byId) }, 'Mano de prueba'),
+      el('button', { class: 'btn ghost small', disabled: !current.legend && !sum(current.main), onclick: (e) => runExport(e.target, () => shareDeckImage(current, ctx.byId, cloud.username ?? '')) }, 'Compartir imagen')),
+    versionsBox(current),
     v.issues.length
       ? el('ul', { class: 'issues' }, v.issues.map((i) => el('li', { text: i })))
       : el('p', { class: 'ok', text: '✓ El mazo cumple las reglas de construcción.' }),
@@ -542,6 +549,182 @@ function renderEditor() {
     ),
     renderPool(legend, used),
   );
+}
+
+// ---------- Curva y dominios ----------
+
+const CURVE_MAX = 7; // de 7 en adelante, una sola barra "7+"
+let curveOpen = false; // el plegable se queda como estaba al repintar el editor
+
+/**
+ * Curva de energía, tipos y dominios del mazo principal (con el Campeón): { curve: [n por coste 0..7+],
+ * avg, total, types: [[nombre, n]], domains: [{ id, cards, power, runes }] } con los dominios de la
+ * Leyenda primero (y los de cartas o runas que no son suyos, después).
+ */
+export function deckCurve(deck) {
+  const { byId } = ctx;
+  const legend = byId.get(deck.legend);
+  const entries = Object.entries(deck.main).map(([id, n]) => [byId.get(id), n]).filter(([c]) => c);
+  const champion = byId.get(deck.champion);
+  if (champion) entries.push([champion, 1]);
+  const curve = Array(CURVE_MAX + 1).fill(0);
+  const types = {};
+  const domains = new Map((legend?.domain ?? []).map((d) => [d, { id: d, cards: 0, power: 0, runes: 0 }]));
+  const dom = (d) => (domains.has(d) ? domains : domains.set(d, { id: d, cards: 0, power: 0, runes: 0 })).get(d);
+  let total = 0, energy = 0;
+  for (const [c, n] of entries) {
+    const cost = c.energy ?? 0;
+    curve[Math.min(cost, CURVE_MAX)] += n;
+    total += n;
+    energy += cost * n;
+    const type = TYPE_ES[c.type] || c.type;
+    types[type] = (types[type] || 0) + n;
+    for (const d of c.domain.length ? c.domain : ['Colorless']) {
+      dom(d).cards += n;
+      dom(d).power += (c.power ?? 0) * n;
+    }
+  }
+  for (const [id, n] of Object.entries(deck.runes)) {
+    const c = byId.get(id);
+    for (const d of c?.domain ?? []) dom(d).runes += n;
+  }
+  return {
+    curve, total, avg: total ? energy / total : null,
+    types: Object.entries(types).sort((a, b) => b[1] - a[1]),
+    domains: [...domains.values()].filter((d) => d.cards || d.runes || legend?.domain.includes(d.id)),
+  };
+}
+
+function curveBox(deck) {
+  const k = deckCurve(deck);
+  if (!k.total) return '';
+  const top = Math.max(...k.curve, 1);
+  const fmt = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 1 });
+  return el('details', { class: 'curve-box', open: curveOpen, ontoggle: (e) => { curveOpen = e.target.open; } },
+    el('summary', {},
+      el('span', { text: 'Curva y dominios' }),
+      el('span', { class: 'muted small', text: `coste medio ${fmt.format(k.avg)} · ${k.domains.filter((d) => d.cards).map((d) => `${DOMAIN_ES[d.id] || d.id} ${d.cards}`).join(' / ')}` })),
+    el('div', { class: 'curve', role: 'img', 'aria-label': `Curva de energía: ${k.curve.map((n, i) => `${n} de coste ${i === CURVE_MAX ? `${i} o más` : i}`).join(', ')}` },
+      ...k.curve.map((n, i) => el('div', { class: 'curve-col' },
+        el('span', { class: 'curve-n small', text: n || '' }),
+        el('div', { class: 'curve-bar', style: `height:${(100 * n) / top}%` }),
+        el('span', { class: 'curve-cost small muted', text: i === CURVE_MAX ? `${i}+` : String(i) })))),
+    el('p', { class: 'muted small curve-caption', text: `Coste de energía del principal y el Campeón (${k.total} cartas). ${k.types.map(([t, n]) => `${t}: ${n}`).join(' · ')}` }),
+    el('table', { class: 'domain-table' },
+      el('thead', {}, el('tr', {}, el('th', { text: 'Dominio' }), el('th', { text: 'Cartas' }), el('th', { text: 'Poder', title: 'Símbolos de poder (runas de ese dominio) que piden las cartas, sumados' }), el('th', { text: 'Runas' }))),
+      el('tbody', {}, ...k.domains.map((d) => el('tr', {},
+        el('td', { text: DOMAIN_ES[d.id] || d.id }),
+        el('td', { text: d.cards }),
+        el('td', { text: d.power || '—' }),
+        el('td', { text: d.id === 'Colorless' ? '—' : d.runes }))))));
+}
+
+// ---------- Notas y versiones ----------
+// Una versión es una foto del mazo que guarda el usuario («Guardar versión»), con una nota opcional.
+// Los cambios se calculan comparando cada foto con la anterior, y las partidas caen en la versión
+// que estaba vigente en su fecha: así se ve «desde que quité X, 7–2».
+
+const MAX_VERSIONS = 20;
+let versionsOpen = false;
+
+const snapshotOf = (d) => structuredClone({
+  legend: d.legend ?? null, champion: d.champion ?? null, main: d.main ?? {}, runes: d.runes ?? {},
+  battlefields: d.battlefields ?? [], sideboard: d.sideboard ?? {},
+});
+
+/** Cambios entre dos fotos del mazo: ["+2 Shuriken Flip", "−1 Brawl (sideboard)", …]. */
+export function deckDiff(a, b) {
+  const { byId } = ctx;
+  const name = (id) => (byId.get(id) ? baseName(byId.get(id)) : id);
+  const out = [];
+  const bag = (d, where) => {
+    const m = { ...(d?.[where] ?? {}) };
+    if (where === 'main' && d?.champion) m[d.champion] = (m[d.champion] || 0) + 1;
+    if (where === 'battlefields') return Object.fromEntries((d?.battlefields ?? []).map((id) => [id, 1]));
+    return m;
+  };
+  if ((a?.legend ?? null) !== (b?.legend ?? null)) out.push(`Leyenda: ${b?.legend ? name(b.legend) : '—'}`);
+  for (const [where, tag] of [['main', ''], ['sideboard', ' (sideboard)'], ['runes', ' (runas)'], ['battlefields', ' (Campo)']]) {
+    const x = bag(a, where), y = bag(b, where);
+    // Por nombre: cambiar una carta por otra versión de la misma no es un cambio del mazo.
+    const byName = new Map();
+    for (const [id, n] of Object.entries(x)) byName.set(name(id), (byName.get(name(id)) ?? 0) - n);
+    for (const [id, n] of Object.entries(y)) byName.set(name(id), (byName.get(name(id)) ?? 0) + n);
+    const changes = [...byName].filter(([, d]) => d).sort((p, q) => q[1] - p[1] || p[0].localeCompare(q[0]));
+    for (const [n, d] of changes) out.push(`${d > 0 ? '+' : '−'}${Math.abs(d)} ${n}${tag}`);
+  }
+  return out;
+}
+
+/** Las partidas de este mazo repartidas por versión: [{ version, index, from, to, matches }], la más nueva primero. */
+function matchesByVersion(deck) {
+  const versions = deck.versions ?? [];
+  const list = store.matches.filter((m) => m.deck === deck.id);
+  const spans = versions.map((v, i) => ({ version: v, index: i + 1, from: v.at, to: versions[i + 1]?.at ?? Infinity }));
+  if (versions.length) spans.unshift({ version: null, index: 0, from: -Infinity, to: versions[0].at });
+  for (const s of spans) s.matches = list.filter((m) => m.at >= s.from && m.at < s.to);
+  return spans.reverse();
+}
+
+const dayFmt = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short' });
+const recordLine = (list) => {
+  if (!list.length) return 'Sin partidas';
+  const r = record(list);
+  return `${recordText(r)}${r.rate == null ? '' : ` · ${rateText(r)}`} · ${countText(r)}`;
+};
+
+function versionsBox(deck) {
+  const versions = deck.versions ?? [];
+  const last = versions.at(-1);
+  const pending = last ? deckDiff(last.deck, snapshotOf(deck)) : null;
+  const spans = matchesByVersion(deck);
+  const noteInput = el('input', { class: 'version-note', maxlength: 120, placeholder: 'Nota (opcional)', title: 'Nota de esta versión, por ejemplo «−2 Brawl, +2 Shuriken Flip»' });
+  const saveVersion = () => {
+    deck.versions = [...versions, { id: crypto.randomUUID?.() ?? String(Date.now()), at: Date.now(), note: noteInput.value.trim(), deck: snapshotOf(deck) }];
+    if (deck.versions.length > MAX_VERSIONS) {
+      deck.versions = deck.versions.slice(-MAX_VERSIONS);
+      toast(`Solo se guardan las ${MAX_VERSIONS} últimas versiones: se ha quitado la más antigua.`);
+    }
+    save();
+    renderEditor();
+    toast(`Guardada la versión ${deck.versions.length}`);
+  };
+  const removeVersion = (v) => {
+    if (!confirm(`¿Quitar la versión del ${dayFmt.format(v.at)}? Sus partidas pasan a la versión anterior.`)) return;
+    deck.versions = versions.filter((x) => x.id !== v.id);
+    save();
+    renderEditor();
+  };
+  const now = spans[0];
+  return el('details', { class: 'versions-box', open: versionsOpen, ontoggle: (e) => { versionsOpen = e.target.open; } },
+    el('summary', {},
+      el('span', { text: 'Notas y versiones' }),
+      el('span', { class: 'muted small', text: versions.length
+        ? `v${versions.length} · ${recordLine(now.matches).split(' · ').slice(0, 2).join(' · ')}`
+        : deck.notes ? 'con notas' : 'sin versiones' })),
+    el('textarea', {
+      class: 'deck-notes', rows: 3, maxlength: 4000, placeholder: 'Notas del mazo: plan de juego, mulligan, cambios contra cada Leyenda…',
+      oninput: (e) => { deck.notes = e.target.value; save(); },
+    }, deck.notes ?? ''),
+    pending?.length > 0 && el('p', { class: 'small version-pending', text: `Cambios desde la v${versions.length}: ${pending.join(', ')}` }),
+    el('div', { class: 'version-save' }, noteInput,
+      el('button', { class: 'btn primary small', disabled: !!last && !pending.length, onclick: saveVersion },
+        versions.length ? 'Guardar versión' : 'Guardar la primera versión')),
+    !versions.length && el('p', { class: 'muted small', text: 'Guarda una versión cada vez que cambies cartas: las partidas se reparten por versión según su fecha, para ver cómo le va a cada una.' }),
+    versions.length > 0 && el('ul', { class: 'version-list' }, ...spans.map((s) => {
+      const v = s.version;
+      if (!v) return s.matches.length ? el('li', { class: 'version-row' },
+        el('div', { class: 'grow' }, el('strong', { text: 'Antes de la v1' }), el('div', { class: 'muted small', text: recordLine(s.matches) }))) : null;
+      const prev = versions[s.index - 2];
+      const changes = prev ? deckDiff(prev.deck, v.deck) : [];
+      return el('li', { class: `version-row${s.index === versions.length ? ' current' : ''}` },
+        el('div', { class: 'grow' },
+          el('strong', { text: `v${s.index} · desde el ${dayFmt.format(v.at)}${s.index === versions.length ? ' (la actual)' : ''}` }),
+          v.note && el('div', { class: 'small', text: `«${v.note}»` }),
+          el('div', { class: 'muted small', text: prev ? (changes.length ? changes.join(', ') : 'Sin cambios de cartas') : 'Primera versión' }),
+          el('div', { class: 'version-record small', text: recordLine(s.matches) })),
+        el('button', { class: 'icon-btn small', title: 'Quitar esta versión', 'aria-label': 'Quitar esta versión', onclick: () => removeVersion(v) }, '✕'));
+    }).filter(Boolean)));
 }
 
 /** Lo que costaría comprar en Cardmarket las cartas que faltan (las que tienen precio). */
