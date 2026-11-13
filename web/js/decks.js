@@ -776,6 +776,12 @@ export function openBuildable() {
   let failed = false;
   let opened = null; // Leyenda desplegada (legendKey)
   let restLimit = BUILD_PAGE;
+  // ¿Tienes alguna impresión de la Leyenda? ¿Y algún Campeón suyo que no esté baneado?
+  const ownedLegends = new Set(ctx.cards.filter((c) => c.type === 'Legend' && owned(c.id) > 0).map(legendKey));
+  const champs = ctx.cards.filter((c) => c.type === 'Unit' && c.supertype === 'Champion' && owned(c.id) > 0 && !banInfo(c));
+  const pieces = (legend) => ({ hasLegend: ownedLegends.has(legendKey(legend)), hasChamp: champs.some((c) => ofChampion(c, legend)) });
+  const piecesText = ({ hasLegend, hasChamp }) => (hasLegend && hasChamp ? ['ok', '✓ Tienes la Leyenda y el Campeón']
+    : hasLegend ? ['warn', 'Tienes la Leyenda · te falta el Campeón'] : ['warn', 'Tienes el Campeón · te falta la Leyenda']);
 
   const sourceText = (r) => (r.owner ? `de @${r.owner.username ?? 'otro jugador'} · «${r.deck.name}»` : `tu mazo «${r.deck.name}»`)
     + (r.others ? ` · el mejor de ${r.others + 1}` : '');
@@ -807,10 +813,16 @@ export function openBuildable() {
   const draw = () => {
     if (dlg.dataset.view !== 'buildable') return; // se cerró o se abrió otra hoja mientras se leía la nube
     const entries = [...store.decks.map((deck) => ({ deck, owner: null })), ...(others ?? [])];
-    const rows = bestDeckPerLegend(entries, { byId: ctx.byId, owned, price: (id) => unitPrice(id) });
-    const known = new Set(rows.map((r) => legendKey(r.legend)));
-    const rest = legends.filter((l) => !known.has(legendKey(l))).map((legend) => ({ legend, fit: fit(legend) }))
-      .sort((a, b) => b.fit - a.fit || legendKey(a.legend).localeCompare(legendKey(b.legend)));
+    const best = bestDeckPerLegend(entries, { byId: ctx.byId, owned, price: (id) => unitPrice(id) });
+    const known = new Set(best.map((r) => legendKey(r.legend)));
+    // Fuera los que ya puedes montar enteros y son legales: no hay nada que conseguir.
+    const ready = best.filter((r) => !r.progress.count && !r.progress.banned.length);
+    const rows = best.filter((r) => !ready.includes(r));
+    // Sin mazo conocido: solo las Leyendas de las que tienes la Leyenda o su Campeón (primero las dos).
+    const both = (r) => (r.hasLegend && r.hasChamp ? 1 : 0);
+    const rest = legends.filter((l) => !known.has(legendKey(l))).map((legend) => ({ legend, fit: fit(legend), ...pieces(legend) }))
+      .filter((r) => r.hasLegend || r.hasChamp)
+      .sort((a, b) => both(b) - both(a) || b.fit - a.fit || legendKey(a.legend).localeCompare(legendKey(b.legend)));
     const note = others === null ? 'Buscando los mazos de la gente que sigues y de la comunidad…'
       : failed ? 'No se pudieron leer los mazos de otros jugadores (¿sin conexión?): salen solo los tuyos.'
         : !cloud.username ? 'Con una cuenta salen también los mazos de tus amigos y los que comparte la comunidad.' : '';
@@ -820,19 +832,25 @@ export function openBuildable() {
         el('button', { class: 'icon-btn', title: 'Cerrar', 'aria-label': 'Cerrar', onclick: () => dlg.close() }, '✕')),
       el('p', { class: 'muted small', text: 'De cada Leyenda, el mazo completo (tuyo, de la gente que sigues o compartido) del que más cartas tienes, y lo que costaría lo que falta en Cardmarket.' }),
       note && el('p', { class: 'small build-note', text: note }),
+      ready.length > 0 && el('p', { class: 'small ok', text: `✓ Ya puedes montar entero y legal el mazo de ${ready.length === 1 ? 'una Leyenda' : `${ready.length} Leyendas`} (${ready.map((r) => champTag(r.legend) ?? legendKey(r.legend)).join(', ')}): no sale en la lista.` }),
       rows.length
         ? el('ul', { class: 'build-list' }, rows.map(row))
-        : others !== null && el('p', { class: 'muted', text: 'Aún no hay ningún mazo completo con el que comparar tu colección.' }),
-      rest.length > 0 && el('h3', { class: 'stats-title', text: rows.length ? 'Sin mazo conocido' : 'Leyendas' }),
-      rest.length > 0 && el('p', { class: 'muted small', text: 'No hay ningún mazo completo de estas Leyendas. Al lado, cuántas cartas tuyas encajan con ellas.' }),
-      rest.length > 0 && el('ul', { class: 'build-list rest' }, rest.slice(0, restLimit).map(({ legend, fit: n }) =>
-        el('li', { class: 'build-row' },
+        : others !== null && !ready.length && el('p', { class: 'muted', text: 'Aún no hay ningún mazo completo con el que comparar tu colección.' }),
+      rest.length > 0 && el('h3', { class: 'stats-title', text: best.length ? 'Sin mazo conocido' : 'Leyendas' }),
+      !rest.length && others !== null && el('p', { class: 'muted small', text: 'Sin mazo conocido: no hay ninguna Leyenda más de la que tengas la Leyenda o su Campeón.' }),
+      rest.length > 0 && el('p', { class: 'muted small', text: 'No hay ningún mazo completo de estas Leyendas; salen las que tienes la Leyenda o su Campeón. Al lado, cuántas cartas tuyas encajan con ellas.' }),
+      rest.length > 0 && el('ul', { class: 'build-list rest' }, rest.slice(0, restLimit).map((r) => {
+        const { legend, fit: n } = r;
+        const [cls, text] = piecesText(r);
+        return el('li', { class: 'build-row' },
           el('div', { class: 'build-head' },
             cardImg(legend, 'thumb small'),
             el('span', { class: 'grow' },
               el('strong', { text: champTag(legend) ?? legendKey(legend) }),
-              el('span', { class: 'muted small', text: `${legend.domain.map((d) => DOMAIN_ES[d] || d).join(' / ')} · ${n} ${n === 1 ? 'carta tuya encaja' : 'cartas tuyas encajan'}` })),
-            el('button', { class: 'btn ghost small', onclick: () => { dlg.close(); startFromLegend(legend); } }, 'Crear mazo'))))),
+              el('span', { class: 'muted small', text: `${legend.domain.map((d) => DOMAIN_ES[d] || d).join(' / ')} · ${n} ${n === 1 ? 'carta tuya encaja' : 'cartas tuyas encajan'}` }),
+              el('span', { class: `small ${cls}`, text })),
+            el('button', { class: 'btn ghost small', onclick: () => { dlg.close(); startFromLegend(legend); } }, 'Crear mazo')));
+      })),
       rest.length > restLimit && el('button', { class: 'btn ghost small more', onclick: () => { restLimit += BUILD_PAGE; draw(); } }, `Mostrar más (${rest.length - restLimit})`),
     ].filter(Boolean));
   };
