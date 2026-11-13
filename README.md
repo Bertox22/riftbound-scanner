@@ -7,7 +7,19 @@ funciona sin conexión.
 
 **App:** https://bertox22.github.io/riftbound-scanner/
 
-**Novedades de la versión 71 (noviembre de 2026), en Mazos:**
+**Novedades de la versión 72 (noviembre de 2026), en Partidas y la Mesa:**
+- **Estadísticas por Campo de batalla:** cómo te va con cada Campo tuyo y contra cada Campo del
+  rival, por juegos.
+- **Forma reciente:** tus últimas 10 partidas (V, D, E), la racha actual y la mejor, y la gráfica de
+  tu % de victorias a lo largo del tiempo.
+- **Eventos:** filtro por evento al lado del de mazo y la sección «Por evento» («tienda x» y «Tienda X»
+  cuentan como el mismo).
+- **Exportar las partidas a CSV** (lo que tengas filtrado), listo para abrir en Excel.
+- **Mesa:** botón para **deshacer** lo último (un punto, cerrar un juego, el sorteo, un Campo,
+  reiniciar) y **temporizador de ronda** opcional para torneos (30, 50 o 60 min; por defecto, sin
+  temporizador), con pausa y ajuste de minutos tocando el centro de la barra.
+
+**Novedades de la versión 71, en Mazos:**
 - **Curva y dominios** en el editor: barras por coste de energía, coste medio, cartas por tipo y, por
   dominio, cuántas cartas, cuánto poder piden y cuántas runas llevas.
 - **Mano de prueba:** roba 4 cartas, haz el mulligan (hasta 2) y sigue robando. Y la probabilidad de
@@ -126,20 +138,39 @@ funciona sin conexión.
   - Las estadísticas cuentan juegos, no partidas (al mejor de 3, un 2–1 son dos victorias y una
     derrota, y un 0–3, tres derrotas; junto a las partidas se ven los juegos: «5 partidas · 11
     juegos»): el porcentaje de victorias (sin contar empates), el balance V–D–E, cómo te va en los
-    juegos que empiezas tú o el rival, y los resultados por mazo y contra cada Leyenda, con un filtro
-    por mazo. El balance de cada mazo y los perfiles cuentan igual. «Por mazo» y «Contra cada
-    Leyenda» se pliegan tocando el título (con cuántos hay); cada una recuerda si la dejaste abierta.
+    juegos que empiezas tú o el rival, y los resultados por mazo, por evento, contra cada Leyenda,
+    con cada Campo tuyo y contra cada Campo del rival, con filtros por mazo y por evento. El balance de
+    cada mazo y los perfiles cuentan igual. Las secciones se pliegan tocando el título (con cuántos
+    hay); cada una recuerda si la dejaste abierta. Los Campos solo cuentan en los juegos que los
+    tienen apuntados (un 2–1 sin los puntos de cada juego no sabe qué Campo fue con qué resultado).
+  - **Forma reciente:** las últimas 10 partidas de la más antigua a la más nueva (V, D o E; al
+    mantener el dedo, la fecha y el rival), su balance, la racha actual («Racha 3 V») y la mejor
+    racha de victorias. Con 3 partidas o más, la gráfica del % de victorias acumulado (toca un punto
+    para ver la fecha y el balance de entonces).
+  - **Eventos:** el evento es texto libre; se agrupa sin mayúsculas ni espacios de más y se muestra
+    como lo escribes más a menudo.
+  - **Exportar CSV** (junto a «Historial»): las partidas que se ven con los filtros, una fila por
+    partida (fecha, mazos, Leyendas, rival, resultado, marcador, puntos, Campos, quién empezó, evento
+    y notas), con «;» para que Excel en castellano lo abra con doble clic.
 - **Mesa (marcador en vivo):** en Partidas, «Iniciar partida» pide tu mazo (o tu Leyenda), el
   rival (te sugiere cuentas al escribir; si no tiene cuenta, basta su nombre; si es un amigo, también
   su mazo), su Leyenda, si es a un
-  juego o al mejor de 3 y a cuántos puntos. La mesa ocupa toda la pantalla: cada jugador tiene su
+  juego o al mejor de 3, a cuántos puntos y el temporizador de ronda (No, 30, 50 o 60 min; recuerda
+  lo último que elegiste). La mesa ocupa toda la pantalla: cada jugador tiene su
   mitad (la del rival, girada), teñida con el color del dominio de su Leyenda, con sus puntos en
   grande, una pista hasta los puntos de victoria y los botones − y + en su borde (tocar el número
   también suma). Llegar a los puntos solo avisa («Gana el juego», en dorado): los juegos y la
   partida se cierran a mano. La barra del medio tiene salir, «Sortear» (antes del primer punto: quien
   gana elige en su mitad si empieza o empieza el otro, y eso queda apuntado en la partida; en los
   siguientes juegos elige quien perdió el anterior, y queda apuntado quién empezó cada uno), el juego
-  y el marcador, reiniciar y una sola acción en blanco:
+  y el marcador (con temporizador, el reloj encima), **deshacer** y una sola acción en blanco:
+  - **Deshacer** (la flecha curva) vuelve atrás lo último: un punto, cerrar un juego, el sorteo, quién
+    empieza, un Campo o reiniciar. Se puede pulsar varias veces (hasta 30 pasos) y no toca el reloj.
+  - Tocar el centro de la barra abre el menú de la partida: el **temporizador** (pausar y seguir, ±1
+    min para cuadrarlo con el del juez, volver a empezar, desactivarlo o ponerlo si no había) y
+    «Reiniciar la partida». El reloj se pone ámbar en los 5 últimos minutos y rojo al acabar (sigue
+    contando: «+1:23»); al llegar a 0 avisa una vez (en Android también vibra). Funciona por la hora
+    de fin, así que salir de la mesa o recargar no lo para.
   - Al mejor de 3, cuando alguien gana un juego, **«Terminar juego»** lo guarda y empieza el
     siguiente. «Siguiente» cierra un juego sin llegar a los puntos (por ejemplo, si alguien se rinde).
   - **«Terminar»**, cuando la partida ya tiene ganador, la guarda sola en tu historial (y si el rival
