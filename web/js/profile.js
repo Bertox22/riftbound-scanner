@@ -2,15 +2,14 @@
 // demás ven de una cuenta. Datos del perfil, estadísticas de partidas, Leyendas que más juega,
 // mazos compartidos y tamaño de la colección (estas dos últimas, si el perfil es público).
 
-import { $, el, toast, cardImg, cardCode, DOMAIN_ES } from './ui.js';
-import { missingFor, copyToMyDecks } from './decks.js';
+import { $, el, toast, cardImg, DOMAIN_ES } from './ui.js';
+import { missingFor, missingDetails, copyToMyDecks } from './decks.js';
 import { openTestHand } from './testhand.js';
 import { shareDeckImage } from './deckimage.js';
-import { unitPrice, eur } from './prices.js';
 import { store } from './store.js';
 import { cloud, onCloudChange, fetchProfilePage, fetchMatchesWith, resendMatches } from './cloud.js';
 import { followButton } from './friends.js';
-import { tradeBox, wantButton } from './trades.js';
+import { tradeBox } from './trades.js';
 import { openFriends } from './account-ui.js';
 import { record, recordText, rateText, countText, groupBy, summaryPanel, rowsPanel, legendThumb, legendChamp, canonicalLegend, openMirrored, sameGame, linked, matchLine, flipped } from './matches.js';
 
@@ -336,14 +335,7 @@ function group(bag) {
 }
 
 /** ¿Cuánto me falta? Las cartas de este mazo que no tienes en tu colección y lo que costarían. */
-function missingBox(deck) {
-  const { missing, count, cost } = missingFor(deck);
-  if (!count) return el('p', { class: 'ok missing-ok', text: '✓ Tienes todas las cartas de este mazo en tu colección.' });
-  return el('details', { class: 'missing' },
-    el('summary', { text: `Te faltan ${count} carta${count === 1 ? '' : 's'} de tu colección${cost ? ` (≈ ${eur(cost)} en Cardmarket)` : ''}` }),
-    el('ul', {}, missing.map(([c, n]) => el('li', { text: `${n}× ${c.name} (${cardCode(c)})${unitPrice(c.id) != null ? ` · ${eur(unitPrice(c.id) * n)}` : ''}` }))),
-    el('div', { class: 'actions' }, wantButton(missing.map(([c, n]) => [c.id, n]))));
-}
+const missingBox = (deck) => missingDetails(missingFor(deck), { okText: '✓ Tienes todas las cartas de este mazo en tu colección.' });
 
 function openDeck(deck) {
   const dlg = $('#picker-dialog');

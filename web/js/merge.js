@@ -49,3 +49,39 @@ export function autoPlan(localEmpty, remoteEmpty, same) {
   if (remoteEmpty) return 'device';
   return null;
 }
+
+// ---------- Copias de seguridad (backup.js) ----------
+
+/** Lo que trae el archivo, ya comprobado. Lanza un error si no es una copia de la app. */
+export function readBackup(data) {
+  if (!data || typeof data.collection !== 'object' || Array.isArray(data.collection)) {
+    throw new Error('El archivo no es una copia de Riftbound Scanner.');
+  }
+  const collection = {};
+  for (const [id, e] of Object.entries(data.collection)) {
+    const n = Math.max(0, Math.floor(+e?.n || 0)), f = Math.max(0, Math.floor(+e?.f || 0));
+    if (n || f) collection[id] = { n, f };
+  }
+  const list = (x) => (Array.isArray(x) ? x.filter((v) => v && typeof v === 'object' && v.id) : []);
+  // Las copias antiguas no traen balance: entonces no se pregunta por él.
+  return { collection, decks: list(data.decks), matches: list(data.matches), ledger: Array.isArray(data.ledger) ? list(data.ledger) : null };
+}
+
+const byDate = (a, b) => b.at - a.at;
+
+/**
+ * Lo que queda al importar una copia sobre lo que hay (here: { collection, decks, matches, ledger }).
+ * picks: { cards, decks, matches, ledger } con las opciones de arriba ('cloud' es lo de la copia);
+ * lo que no se diga se deja como está. Partidas y balance quedan de la más reciente a la más antigua.
+ */
+export function mergeBackup(here, file, picks) {
+  const how = (kind) => picks[kind] ?? 'device';
+  const out = {
+    collection: joinCollection(here.collection, file.collection, how('cards')),
+    decks: joinById(here.decks, file.decks, how('decks')),
+    matches: [...joinById(here.matches, file.matches, how('matches'))].sort(byDate),
+    ledger: here.ledger,
+  };
+  if (file.ledger) out.ledger = [...joinById(here.ledger, file.ledger, how('ledger'))].sort(byDate);
+  return out;
+}

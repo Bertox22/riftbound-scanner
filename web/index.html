@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=77">
+  <link rel="stylesheet" href="styles.css?v=79">
   <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.wasm.min.js"></script>
 </head>
 <body>
@@ -148,6 +148,7 @@
         <div class="section-head">
           <h2>Mis mazos <span id="deck-count" class="muted"></span></h2>
           <div class="actions">
+            <button id="btn-buildable" class="btn ghost small" title="Para cada Leyenda, cuánto tienes de su mejor mazo y lo que cuesta lo que falta">¿Qué puedo montar?</button>
             <button id="btn-import-deck" class="btn ghost small">Importar mazo</button>
             <button id="btn-new-deck" class="btn primary small">Nuevo mazo</button>
           </div>
@@ -226,33 +227,39 @@
   <script type="importmap">
   {
     "imports": {
-      "./js/account-ui.js": "./js/account-ui.js?v=77",
-      "./js/back.js": "./js/back.js?v=77",
-      "./js/bans.js": "./js/bans.js?v=77",
-      "./js/backup.js": "./js/backup.js?v=77",
-      "./js/cloud.js": "./js/cloud.js?v=77",
-      "./js/deckimage.js": "./js/deckimage.js?v=77",
-      "./js/decks.js": "./js/decks.js?v=77",
-      "./js/export.js": "./js/export.js?v=77",
-      "./js/friends.js": "./js/friends.js?v=77",
-      "./js/import-ui.js": "./js/import-ui.js?v=77",
-      "./js/importer.js": "./js/importer.js?v=77",
-      "./js/ledger.js": "./js/ledger.js?v=77",
-      "./js/matches.js": "./js/matches.js?v=77",
-      "./js/merge.js": "./js/merge.js?v=77",
-      "./js/pricehistory.js": "./js/pricehistory.js?v=77",
-      "./js/prices.js": "./js/prices.js?v=77",
-      "./js/profile.js": "./js/profile.js?v=77",
-      "./js/recognizer.js": "./js/recognizer.js?v=77",
-      "./js/scanner.js": "./js/scanner.js?v=77",
-      "./js/store.js": "./js/store.js?v=77",
-      "./js/table.js": "./js/table.js?v=77",
-      "./js/testhand.js": "./js/testhand.js?v=77",
-      "./js/trades.js": "./js/trades.js?v=77",
-      "./js/ui.js": "./js/ui.js?v=77"
+      "./js/account-ui.js": "./js/account-ui.js?v=79",
+      "./js/back.js": "./js/back.js?v=79",
+      "./js/backup.js": "./js/backup.js?v=79",
+      "./js/bans.js": "./js/bans.js?v=79",
+      "./js/cardsheet.js": "./js/cardsheet.js?v=79",
+      "./js/cloud.js": "./js/cloud.js?v=79",
+      "./js/collection.js": "./js/collection.js?v=79",
+      "./js/colstats.js": "./js/colstats.js?v=79",
+      "./js/deckimage.js": "./js/deckimage.js?v=79",
+      "./js/deckrules.js": "./js/deckrules.js?v=79",
+      "./js/decks.js": "./js/decks.js?v=79",
+      "./js/export.js": "./js/export.js?v=79",
+      "./js/friends.js": "./js/friends.js?v=79",
+      "./js/import-ui.js": "./js/import-ui.js?v=79",
+      "./js/importer.js": "./js/importer.js?v=79",
+      "./js/ledger.js": "./js/ledger.js?v=79",
+      "./js/matches.js": "./js/matches.js?v=79",
+      "./js/merge.js": "./js/merge.js?v=79",
+      "./js/offline.js": "./js/offline.js?v=79",
+      "./js/pricehistory.js": "./js/pricehistory.js?v=79",
+      "./js/prices.js": "./js/prices.js?v=79",
+      "./js/profile.js": "./js/profile.js?v=79",
+      "./js/recognizer.js": "./js/recognizer.js?v=79",
+      "./js/scan.js": "./js/scan.js?v=79",
+      "./js/scanner.js": "./js/scanner.js?v=79",
+      "./js/store.js": "./js/store.js?v=79",
+      "./js/table.js": "./js/table.js?v=79",
+      "./js/testhand.js": "./js/testhand.js?v=79",
+      "./js/trades.js": "./js/trades.js?v=79",
+      "./js/ui.js": "./js/ui.js?v=79"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=77"></script>
+  <script type="module" src="js/app.js?v=79"></script>
 </body>
 </html>

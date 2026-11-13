@@ -48,11 +48,12 @@ const fmt = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('es-ES', { d
 /**
  * Si la carta está baneada: { date, upcoming (aún no ha entrado), dateText («23 de noviembre de 2026»),
  * only ('2v2' o null), label (texto corto para la marca), text (frase para la ficha) }. Si no, null.
+ * now: la fecha con la que se decide si ya ha entrado (por defecto, hoy).
  */
-export function banInfo(card) {
+export function banInfo(card, now = new Date()) {
   const b = byName.get(key(card.name));
   if (!b) return null;
-  const upcoming = new Date(`${b.date}T00:00:00`) > new Date();
+  const upcoming = new Date(`${b.date}T00:00:00`) > now;
   const where = b.only ? `en ${b.only}` : 'en Constructed (Standard y 2v2)';
   return {
     ...b,

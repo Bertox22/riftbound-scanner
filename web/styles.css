@@ -1527,3 +1527,26 @@ dialog { scrollbar-color: var(--line) transparent; }
 .sample-row { display: flex; justify-content: space-between; padding: 2px 0; }
 .match-sample .danger { color: var(--danger); }
 .empty-friends { align-self: stretch; margin-top: 12px; min-height: 44px; white-space: normal; line-height: 1.3; padding: 8px 14px; }
+
+/* ---------- ¿Qué mazos puedo montar? ---------- */
+.build-note { color: var(--muted); margin: 4px 0 10px; }
+.build-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.build-row { border-radius: var(--radius); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border); }
+.build-row.open { box-shadow: inset 0 0 0 1px var(--line-strong); }
+.build-head {
+  display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 12px 8px 8px; border: 0; background: none;
+  color: var(--text); font: inherit; text-align: left;
+}
+button.build-head { cursor: pointer; }
+button.build-head:hover { background: var(--hover); border-radius: var(--radius); }
+.build-head .thumb.small { width: 44px; flex: none; border-radius: 4px; }
+.build-head .grow { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.build-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.build-source { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.build-head .rate-bar { margin: 3px 0 1px; background: var(--border); } /* la fila ya es surface-2 */
+.build-head .chev { color: var(--gold); font-size: 20px; width: 20px; text-align: center; flex: none; }
+.build-head .btn { flex: none; }
+.build-detail { padding: 0 12px 12px; }
+.build-detail .missing { margin: 0 0 10px; background: var(--surface); }
+.build-detail .actions { margin: 0; }
+.empty-link { margin-top: 14px; }

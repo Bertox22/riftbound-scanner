@@ -191,8 +191,11 @@ function sheetName(name, used) {
 
 // ---------- Colección ----------
 
+/** La colección en CSV (normales y foil juntas en «Copias»). */
+export const collectionCsv = (cards, collection) => toCsv(COLLECTION_COLUMNS.map(([h]) => h), collectionRows(cards, collection));
+
 export function exportCsv(cards, collection) {
-  download('coleccion_riftbound.csv', toCsv(COLLECTION_COLUMNS.map(([h]) => h), collectionRows(cards, collection)), 'text/csv');
+  download('coleccion_riftbound.csv', collectionCsv(cards, collection), 'text/csv');
 }
 
 export async function exportExcel(cards, collection) {

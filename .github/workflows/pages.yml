@@ -1,4 +1,4 @@
-# Publica la carpeta web/ en GitHub Pages en cada push a main.
+# Publica la carpeta web/ en GitHub Pages en cada push a main, si pasan las pruebas (tests/).
 name: Publicar en GitHub Pages
 
 on:
@@ -16,7 +16,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm test
+
   deploy:
+    needs: test # con alguna prueba fallando no se publica: sigue la versión anterior
     runs-on: ubuntu-latest
     environment:
       name: github-pages

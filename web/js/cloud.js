@@ -228,6 +228,33 @@ export async function fetchUserDecks(userId) {
   return data.map((r) => ({ id: r.id, name: r.name, legend: r.legend_id, battlefields: r.battlefields ?? [] }));
 }
 
+/**
+ * Mazos de otros que puedes ver, para «¿Qué mazos puedo montar?»: los de la gente que sigues (de un
+ * amigo, todos; si no, los que comparte) y los compartidos más recientes de cualquiera. La base de datos
+ * solo devuelve los que te deja ver. [{ deck, owner: { id, username } }]
+ */
+export async function fetchVisibleDecks(limit = 300) {
+  if (!session) return [];
+  const sb = await getClient();
+  const me = session.user.id;
+  const people = cloud.people ?? await loadPeople().catch(() => []);
+  const ids = people.map((p) => p.id);
+  const [theirs, shared] = await Promise.all([
+    ids.length ? selectAll(() => sb.from('decks').select('*').in('user_id', ids).is('deleted_at', null).order('id')) : [],
+    sb.from('decks').select('*').eq('is_public', true).is('deleted_at', null).neq('user_id', me)
+      .order('updated_at', { ascending: false }).limit(limit).then(({ data, error }) => { if (error) throw error; return data; }),
+  ]);
+  const rows = new Map([...theirs, ...shared].map((r) => [r.id, r]));
+  const owners = [...new Set([...rows.values()].map((r) => r.user_id))];
+  const names = new Map(people.map((p) => [p.id, p.username]));
+  const unknown = owners.filter((id) => !names.has(id));
+  if (unknown.length) {
+    const { data } = await sb.from('profiles').select('id,username').in('id', unknown);
+    for (const p of data ?? []) names.set(p.id, p.username);
+  }
+  return [...rows.values()].map((r) => ({ deck: fromRow(r), owner: { id: r.user_id, username: names.get(r.user_id) ?? null } }));
+}
+
 // ---------- Partida espejo ----------
 // Un amigo apunta una partida con tu cuenta de rival: te llega para guardarla en tu historial (una
 // partida tuya con mirrorOf = la suya) o descartarla (la misma copia, pero ya borrada). La copia tiene

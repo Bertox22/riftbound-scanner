@@ -7,6 +7,17 @@ funciona sin conexión.
 
 **App:** https://bertox22.github.io/riftbound-scanner/
 
+**Novedades de la versión 79:** **«¿Qué mazos puedo montar?»** en Mazos: para cada Leyenda, cuánto
+tienes de su mejor mazo completo (tuyo, de la gente que sigues o compartido por la comunidad) y lo que
+costaría lo que falta en Cardmarket, con la lista de cartas, «Lo quiero» y abrir o copiar el mazo. Las
+Leyendas sin ningún mazo salen debajo con cuántas de tus cartas encajan y «Crear mazo». Usa el mismo
+«¿Cuánto me falta?» que el editor y los perfiles.
+
+**Novedades de la versión 78:** por dentro. **Pruebas automáticas** de lo delicado (reglas de mazos y
+baneos, importar y exportar, copias de seguridad), que se pasan antes de publicar; y `app.js` partido
+en módulos (escáner, colección, ficha de carta, sin conexión…). Por fuera, solo un arreglo: «Ver en la
+colección» desde el resumen de arriba ahora sí lleva a Colección. Ver «Pruebas».
+
 **Novedades de la versión 77:** los **mazos avisan de las cartas baneadas**: marca «No legal» en la
 lista, aviso en el editor y sobre cada carta (gris si el baneo aún no ha entrado, con su fecha), y un
 aviso al añadirla. En el móvil, los filtros de Colección van en **un botón «Filtros»** que abre una hoja
@@ -356,7 +367,10 @@ y no sirve con este modelo: sus capas cuantizadas dan resultados erróneos.
 web/                 la app (estática, se puede publicar tal cual)
   index.html, styles.css, manifest.webmanifest, icon.svg, icons/ (PNG para instalarla)
   sw.js              service worker: app y datos sin conexión, y cabeceras para los hilos del escáner
-  js/                app.js (escáner y colección), decks.js, matches.js (partidas),
+  js/                app.js (arranque y pestañas), scan.js (escáner), collection.js (cuadrícula y filtros),
+                     colstats.js (resumen, cartas quitadas, progreso por set y valor), cardsheet.js (ficha
+                     de carta), offline.js (sin conexión), decks.js y deckrules.js (mazos y sus reglas),
+                     bans.js (cartas baneadas), matches.js (partidas),
                      cloud.js, merge.js y account-ui.js (cuenta y sincronización), profile.js (página de
                      perfil), friends.js (seguir y amigos), trades.js (intercambios), table.js (mesa), ledger.js (balance), store.js (localStorage),
                      import-ui.js, importer.js, export.js, backup.js (importar copia), back.js (botón atrás), prices.js,
@@ -375,6 +389,8 @@ tools/
   calibrate.py       mide la precisión y propone umbrales
   eval_models.py     comparativa de modelos (usada para elegir DINOv2)
 supabase/            esquema de la base de datos (scripts SQL por fases) y su README
+tests/               pruebas automáticas (Node, sin instalar nada: ver «Pruebas»)
+package.json         solo para «npm test»; la app no lo usa
 ```
 
 ## Probar en el PC
@@ -390,6 +406,20 @@ la web se sirva por **HTTPS** (los navegadores no dejan usar la cámara en http)
 
 En el PC el modo sin conexión está apagado para no estorbar al desarrollo; para probarlo, abre
 http://localhost:8000/?sw (y en local pide siempre primero los archivos al servidor).
+
+## Pruebas
+
+Lo delicado tiene pruebas automáticas en `tests/`: las reglas de los mazos y los baneos, «¿Qué mazos
+puedo montar?», importar y
+exportar (lo exportado se vuelve a importar igual) y juntar copias de seguridad. También comprueban que
+cada módulo de `web/js` esté en el importmap de `index.html` con la versión actual. Usan las cartas de
+verdad (`web/data/cards.json`) y solo necesitan Node 22 o más nuevo:
+
+```bash
+npm test
+```
+
+Se pasan solas en GitHub antes de publicar: si alguna falla, la app publicada se queda como estaba.
 
 ## Publicar en GitHub Pages (para usarla desde el móvil)
 

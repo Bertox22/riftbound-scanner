@@ -1,0 +1,9 @@
+{
+  "name": "riftbound-scanner",
+  "private": true,
+  "type": "module",
+  "description": "Solo para las pruebas automáticas: la app no necesita instalar nada.",
+  "scripts": {
+    "test": "node --test \"tests/*.test.js\""
+  }
+}

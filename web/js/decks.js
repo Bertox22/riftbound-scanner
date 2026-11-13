@@ -1,30 +1,23 @@
-// Constructor de mazos a partir de la colección.
-//
-// Reglas (formato construido):
-//   - 1 Leyenda: define los dominios del mazo y el campeón.
-//   - Mazo principal de al menos 40 cartas, incluido el Campeón elegido (una unidad Campeón
-//     con la etiqueta de la Leyenda). Máximo 3 copias por nombre.
-//   - Cartas de firma (Signature): máximo 3 y solo las del campeón de la Leyenda.
-//   - 12 Runas de los dominios de la Leyenda.
-//   - 3 Campos de batalla con nombres distintos.
-//   - Sideboard de hasta 10 cartas válidas para el mazo principal (no Runas, Leyenda ni Campos).
-//     El máximo de copias por nombre cuenta mazo + sideboard. Entre partidas se cambian 1 por 1.
-//     (Reglas de torneo, 601.1.c y 403.4.)
+// Constructor de mazos a partir de la colección: lista, editor, hojas para añadir cartas y «empieza aquí».
+// Las reglas de construcción (y la validación) están en deckrules.js.
 
 import { store } from './store.js';
 import { $, el, toast, cardImg, cardCode, baseName, download, matchesType, DOMAIN_ES, TYPE_ES } from './ui.js';
 import { exportDeckExcel, exportDeckCsv, exportAllDecksExcel, exportAllDecksCsv, exportAllDecksText } from './export.js';
 import { unitPrice, eur } from './prices.js';
 import { deckRecord, newMatch, record, recordText, rateText, countText } from './matches.js';
-import { cloud } from './cloud.js';
+import { cloud, fetchVisibleDecks } from './cloud.js';
 import { copyProfileLink } from './profile.js';
 import { wantButton } from './trades.js';
 import { openTestHand } from './testhand.js';
 import { shareDeckImage } from './deckimage.js';
 import { banInfo } from './bans.js';
+import {
+  MAIN_TYPES, MAIN_SIZE, RUNES, BATTLEFIELDS, MAX_COPIES, SIDEBOARD,
+  isToken, champTag, ofChampion, legalDomain, section, sum, side, usage, validate as checkDeck, exportText as deckText,
+  deckProgress, bestDeckPerLegend, fitCounter, legendKey,
+} from './deckrules.js';
 
-const MAIN_TYPES = new Set(['Unit', 'Spell', 'Gear']);
-const MAIN_SIZE = 40, RUNES = 12, BATTLEFIELDS = 3, MAX_COPIES = 3, MAX_SIGNATURE = 3, SIDEBOARD = 10;
 /** Mazos por cuenta (la base de datos tampoco admite más: supabase/05_limite_mazos.sql). */
 export const MAX_DECKS = 15;
 
@@ -36,115 +29,11 @@ export function canAddDeck() {
 }
 
 let ctx; // { cards, byId, openCard }
+
+/** Comprueba un mazo con las cartas de la app y tu colección (las reglas están en deckrules.js). */
+export const validate = (deck) => checkDeck(deck, { byId: ctx.byId, owned: (id) => store.owned(id) });
 let current = null; // mazo en edición
 let pool = { q: '', type: '', owned: true };
-
-const isToken = (c) => c.supertype === 'Token';
-const champTag = (legend) => legend?.champion ?? legend?.tags?.[0];
-/** ¿Es esta carta (Campeón o de firma) del campeón de la Leyenda? */
-const ofChampion = (card, legend) => (card.champion ?? null) === champTag(legend) || card.tags.includes(champTag(legend));
-
-function legalDomain(card, legend) {
-  if (!legend) return true;
-  const ds = card.domain.filter((d) => d !== 'Colorless');
-  return ds.every((d) => legend.domain.includes(d));
-}
-
-function section(card) {
-  if (card.type === 'Legend') return 'legend';
-  if (card.type === 'Rune') return 'runes';
-  if (card.type === 'Battlefield') return 'battlefields';
-  return 'main';
-}
-
-function sum(obj) {
-  return Object.values(obj ?? {}).reduce((a, b) => a + b, 0);
-}
-
-/** Sideboard del mazo (los mazos antiguos no lo tienen). */
-const side = (deck) => deck.sideboard ?? {};
-
-/** Copias de cada id usadas en el mazo (para compararlas con la colección). */
-function usage(deck) {
-  const u = {};
-  const bump = (id, n = 1) => (u[id] = (u[id] || 0) + n);
-  if (deck.legend) bump(deck.legend);
-  if (deck.champion) bump(deck.champion);
-  for (const [id, n] of Object.entries(deck.main)) bump(id, n);
-  for (const [id, n] of Object.entries(deck.runes)) bump(id, n);
-  for (const [id, n] of Object.entries(side(deck))) bump(id, n);
-  deck.battlefields.forEach((id) => bump(id));
-  return u;
-}
-
-export function validate(deck) {
-  const { byId } = ctx;
-  const issues = [];
-  const legend = byId.get(deck.legend);
-  const champion = byId.get(deck.champion);
-  const mainCount = sum(deck.main) + (champion ? 1 : 0);
-  const runeCount = sum(deck.runes);
-
-  if (!legend) issues.push('Elige una Leyenda.');
-  if (!champion) issues.push('Elige el Campeón (una unidad Campeón de tu Leyenda).');
-  else if (legend && !ofChampion(champion, legend)) issues.push(`El Campeón debe ser de ${champTag(legend)}.`);
-  if (mainCount < MAIN_SIZE) issues.push(`Mazo principal: ${mainCount}/${MAIN_SIZE} (faltan ${MAIN_SIZE - mainCount}).`);
-  if (runeCount !== RUNES) issues.push(`Runas: ${runeCount}/${RUNES}.`);
-  if (deck.battlefields.length !== BATTLEFIELDS) issues.push(`Campos de batalla: ${deck.battlefields.length}/${BATTLEFIELDS}.`);
-
-  const bfNames = deck.battlefields.map((id) => baseName(byId.get(id)));
-  if (new Set(bfNames).size !== bfNames.length) issues.push('Los Campos de batalla deben tener nombres distintos.');
-
-  const copies = {};
-  let signatures = 0;
-  const all = Object.entries(deck.main);
-  if (champion) all.push([champion.id, 1]);
-  for (const [id, n] of all) {
-    const c = byId.get(id);
-    copies[baseName(c)] = (copies[baseName(c)] || 0) + n;
-    if (c.supertype === 'Signature') {
-      signatures += n;
-      if (legend && !ofChampion(c, legend)) issues.push(`${c.name}: es una carta de firma de otro campeón.`);
-    }
-    if (!legalDomain(c, legend)) issues.push(`${c.name}: no es de los dominios de tu Leyenda.`);
-  }
-  const sideCount = sum(side(deck));
-  if (sideCount > SIDEBOARD) issues.push(`Sideboard: ${sideCount} cartas (máximo ${SIDEBOARD}).`);
-  for (const [id, n] of Object.entries(side(deck))) {
-    const c = byId.get(id);
-    copies[baseName(c)] = (copies[baseName(c)] || 0) + n; // el límite cuenta mazo + sideboard
-    if (!MAIN_TYPES.has(c.type)) issues.push(`${c.name}: el sideboard solo admite cartas del mazo principal.`);
-    else if (!legalDomain(c, legend)) issues.push(`${c.name} (sideboard): no es de los dominios de tu Leyenda.`);
-    else if (c.supertype === 'Signature' && legend && !ofChampion(c, legend)) issues.push(`${c.name} (sideboard): es una carta de firma de otro campeón.`);
-  }
-  for (const [name, n] of Object.entries(copies)) if (n > MAX_COPIES) issues.push(`${name}: ${n} copias entre mazo y sideboard (máximo ${MAX_COPIES}).`);
-  if (signatures > MAX_SIGNATURE) issues.push(`Cartas de firma: ${signatures} (máximo ${MAX_SIGNATURE}).`);
-  for (const [id, n] of Object.entries(deck.runes)) {
-    if (!legalDomain(byId.get(id), legend)) issues.push(`${byId.get(id).name}: no es de los dominios de tu Leyenda.`);
-  }
-
-  // Baneos: los que ya están en vigor hacen que el mazo no sea legal; los que entran más adelante
-  // y los que solo cuentan en 2v2 son avisos (el mazo se sigue pudiendo usar en Standard).
-  const banned = [], soon = [], warnings = [];
-  const seenBans = new Set();
-  for (const id of Object.keys(usage(deck))) {
-    const c = byId.get(id);
-    const b = c && banInfo(c);
-    if (!b || seenBans.has(baseName(c))) continue;
-    seenBans.add(baseName(c));
-    if (b.only) warnings.push(`${c.name}: baneada en ${b.only}${b.upcoming ? ` a partir del ${b.dateText}` : ''}. En Standard se puede usar.`);
-    else if (b.upcoming) { soon.push(c); warnings.push(`${c.name}: baneada a partir del ${b.dateText}. Hasta entonces se puede usar.`); }
-    else banned.push(c);
-  }
-  issues.unshift(...banned.map((c) => `⛔ ${c.name}: carta baneada desde el ${banInfo(c).dateText}.`));
-
-  const missing = [];
-  for (const [id, n] of Object.entries(usage(deck))) {
-    const lack = n - store.owned(id);
-    if (lack > 0) missing.push([byId.get(id), lack]);
-  }
-  return { issues, missing, mainCount, runeCount, sideCount, banned, soon, warnings };
-}
 
 function newDeck() {
   return { id: crypto.randomUUID?.() ?? String(Date.now()), name: 'Mazo nuevo', legend: null, champion: null, main: {}, runes: {}, battlefields: [], sideboard: {}, updated: Date.now() };
@@ -209,19 +98,8 @@ function addToDeck(card, delta = 1) {
   renderEditor();
 }
 
-export function exportText(deck) {
-  const { byId } = ctx;
-  const line = (n, c) => `${n} ${c.name} (${cardCode(c)})`;
-  const out = [`# ${deck.name}`];
-  if (deck.legend) out.push('', 'Leyenda:', line(1, byId.get(deck.legend)));
-  if (deck.champion) out.push('', 'Campeón:', line(1, byId.get(deck.champion)));
-  const group = (bag) => Object.entries(bag).map(([id, n]) => [byId.get(id), n]).sort((a, b) => (a[0].energy ?? 99) - (b[0].energy ?? 99) || a[0].name.localeCompare(b[0].name));
-  out.push('', `Mazo principal (${sum(deck.main) + (deck.champion ? 1 : 0)}):`, ...group(deck.main).map(([c, n]) => line(n, c)));
-  out.push('', `Runas (${sum(deck.runes)}):`, ...group(deck.runes).map(([c, n]) => line(n, c)));
-  out.push('', 'Campos de batalla:', ...deck.battlefields.map((id) => line(1, byId.get(id))));
-  if (sum(side(deck))) out.push('', `Sideboard (${sum(side(deck))}):`, ...group(side(deck)).map(([c, n]) => line(n, c)));
-  return out.join('\n');
-}
+/** La lista del mazo en texto, con las cartas de esta app. */
+export const exportText = (deck) => deckText(deck, ctx.byId);
 
 // ---------- Vistas ----------
 
@@ -271,32 +149,25 @@ const pickVersion = (versions) => versions.find((c) => store.owned(c.id) > 0) ??
  * por nombre). Sin colección, las cuatro de la caja de inicio (Proving Grounds).
  */
 function starterLegends() {
-  const byName = new Map();
-  for (const c of ctx.cards) {
-    if (c.type !== 'Legend' || isToken(c)) continue;
+  const legends = allLegends().filter((c) => {
     const b = banInfo(c);
-    if (b && !b.upcoming && !b.only) continue; // una Leyenda baneada no sirve para empezar
-    const k = baseName(c).replace(/\s*-\s*Starter$/i, '');
-    byName.set(k, [...(byName.get(k) ?? []), c]);
-  }
-  const legends = [...byName.values()].map(pickVersion);
+    return !(b && !b.upcoming && !b.only); // una Leyenda baneada no sirve para empezar
+  });
   if (!store.totalOwned()) return legends.filter((c) => c.set === 'OGS').map((legend) => ({ legend, fit: 0 }));
-  const owned = new Map(); // nombre → copias (hasta 3) de cartas del mazo principal que tienes
-  for (const c of ctx.cards) {
-    if (!MAIN_TYPES.has(c.type) || isToken(c) || !store.owned(c.id)) continue;
-    owned.set(c, Math.min(MAX_COPIES, (owned.get(c) ?? 0) + store.owned(c.id)));
-  }
-  const fitFor = (legend) => {
-    const seen = new Map();
-    for (const [c, n] of owned) {
-      if (!legalDomain(c, legend) || (c.supertype === 'Signature' && !ofChampion(c, legend))) continue;
-      seen.set(baseName(c), Math.min(MAX_COPIES, (seen.get(baseName(c)) ?? 0) + n));
-    }
-    return [...seen.values()].reduce((a, b) => a + b, 0);
-  };
-  return legends.map((legend) => ({ legend, fit: fitFor(legend), mine: store.owned(legend.id) > 0 }))
+  const fit = fitCounter(ctx.cards, (id) => store.owned(id));
+  return legends.map((legend) => ({ legend, fit: fit(legend), mine: store.owned(legend.id) > 0 }))
     .sort((a, b) => b.mine - a.mine || b.fit - a.fit)
     .slice(0, 3);
+}
+
+/** Una de cada Leyenda (la versión que tienes, si tienes alguna), sin tokens. */
+function allLegends() {
+  const byKey = new Map();
+  for (const c of ctx.cards) {
+    if (c.type !== 'Legend' || isToken(c)) continue;
+    byKey.set(legendKey(c), [...(byKey.get(legendKey(c)) ?? []), c]);
+  }
+  return [...byKey.values()].map(pickVersion);
 }
 
 /** Crea un mazo con la Leyenda, su Campeón y 6 + 6 runas básicas de sus dominios, y lo abre. */
@@ -331,6 +202,7 @@ function emptyDecks() {
     el('div', { class: 'actions empty-actions' },
       el('button', { class: 'btn primary', onclick: () => canAddDeck() && openEditor(newDeck()) }, 'Crear mazo'),
       el('button', { class: 'btn ghost', onclick: () => $('#btn-import-deck').click() }, 'Importar una lista')),
+    el('button', { class: 'link small empty-link', onclick: openBuildable }, '¿Qué mazos puedo montar con mis cartas?'),
     starters.length > 0 && el('p', { class: 'empty-sub', text: fresh ? 'O empieza con una Leyenda de la caja de inicio' : 'O empieza con la Leyenda que mejor encaja con tus cartas' }),
     starters.length > 0 && el('ul', { class: 'starter-list' }, starters.map(({ legend, fit, mine }) =>
       el('li', {},
@@ -671,11 +543,7 @@ function renderEditor() {
       : el('p', { class: 'ok', text: '✓ El mazo cumple las reglas de construcción.' }),
     v.warnings.length > 0 ? el('ul', { class: 'issues ban-warnings' }, v.warnings.map((w) => el('li', { text: `⚠️ ${w}` }))) : '',
     // replaceChildren no ignora `false` (lo pintaría como texto), así que sin cartas que falten va ''.
-    v.missing.length > 0 ? el('details', { class: 'missing' },
-      el('summary', { text: `Te faltan ${v.missing.reduce((a, [, n]) => a + n, 0)} cartas de tu colección${missingCost(v.missing) ? ` (≈ ${eur(missingCost(v.missing))} en Cardmarket)` : ''}` }),
-      el('ul', {}, v.missing.map(([c, n]) => el('li', { text: `${n}× ${c.name} (${cardCode(c)})${unitPrice(c.id) != null ? ` · ${eur(unitPrice(c.id) * n)}` : ''}` }))),
-      el('div', { class: 'actions' }, wantButton(v.missing.map(([c, n]) => [c.id, n]))),
-    ) : '',
+    missingDetails(missingFor(current)),
     // Tablero: Leyenda y Campeón | mazo principal; debajo, Runas | Campos | Sideboard.
     el('div', { class: 'deck-board' },
       slotTile('Leyenda', current.legend, pickLegend, current.legend && (() => { current.legend = null; current.champion = null; save(); renderEditor(); })),
@@ -870,15 +738,111 @@ function versionsBox(deck) {
     }).filter(Boolean)));
 }
 
-/** Lo que costaría comprar en Cardmarket las cartas que faltan (las que tienen precio). */
-function missingCost(missing) {
-  return missing.reduce((a, [c, n]) => a + (unitPrice(c.id) ?? 0) * n, 0);
+/**
+ * ¿Cuánto me falta? Lo que te falta de tu colección para un mazo (también de otro jugador), con lo que
+ * costaría en Cardmarket: { missing: [[carta, n]], count, cost, pct… } (ver deckProgress en deckrules.js).
+ */
+export function missingFor(deck) {
+  return deckProgress(deck, { byId: ctx.byId, owned: (id) => store.owned(id), price: (id) => unitPrice(id) });
 }
 
-/** Lo que te falta de tu colección para un mazo (también de otro jugador): { missing: [[carta, n]], count, cost }. */
-export function missingFor(deck) {
-  const { missing } = validate(deck);
-  return { missing, count: missing.reduce((a, [, n]) => a + n, 0), cost: missingCost(missing) };
+/**
+ * El bloque «Te faltan N cartas de tu colección (≈ X €)» con la lista y «Lo quiero». Lo usan el editor,
+ * los mazos de otros perfiles y «¿Qué mazos puedo montar?». Sin nada que falte: okText, o nada.
+ */
+export function missingDetails({ missing, count, cost }, { okText = '', open = false } = {}) {
+  if (!count) return okText ? el('p', { class: 'ok missing-ok', text: okText }) : '';
+  return el('details', { class: 'missing', open },
+    el('summary', { text: `Te faltan ${count} carta${count === 1 ? '' : 's'} de tu colección${cost ? ` (≈ ${eur(cost)} en Cardmarket)` : ''}` }),
+    el('ul', {}, missing.map(([c, n]) => el('li', { text: `${n}× ${c.name} (${cardCode(c)})${unitPrice(c.id) != null ? ` · ${eur(unitPrice(c.id) * n)}` : ''}` }))),
+    el('div', { class: 'actions' }, wantButton(missing.map(([c, n]) => [c.id, n]))));
+}
+
+// ---------- ¿Qué mazos puedo montar? ----------
+
+const BUILD_PAGE = 12;
+
+/**
+ * Para cada Leyenda, cuánto tienes de su mejor mazo conocido (tuyos, de la gente que sigues y los que
+ * comparte la comunidad) y lo que costaría lo que falta, con el mismo «Te faltan…» de siempre. Debajo,
+ * las Leyendas sin ningún mazo completo, con cuántas de tus cartas encajan y «Crear mazo».
+ */
+export function openBuildable() {
+  const dlg = $('#picker-dialog');
+  const owned = (id) => store.owned(id);
+  const fit = fitCounter(ctx.cards, owned);
+  const legends = allLegends();
+  let others = cloud.username ? null : []; // mazos de otros: null mientras se leen
+  let failed = false;
+  let opened = null; // Leyenda desplegada (legendKey)
+  let restLimit = BUILD_PAGE;
+
+  const sourceText = (r) => (r.owner ? `de @${r.owner.username ?? 'otro jugador'} · «${r.deck.name}»` : `tu mazo «${r.deck.name}»`)
+    + (r.others ? ` · el mejor de ${r.others + 1}` : '');
+
+  const row = (r) => {
+    const key = legendKey(r.legend);
+    const isOpen = opened === key;
+    const p = r.progress;
+    return el('li', { class: `build-row${isOpen ? ' open' : ''}` },
+      el('button', { class: 'build-head', type: 'button', 'aria-expanded': String(isOpen), onclick: () => { opened = isOpen ? null : key; draw(); } },
+        cardImg(r.legend, 'thumb small'),
+        el('span', { class: 'grow' },
+          el('span', { class: 'build-title' },
+            el('strong', { text: champTag(r.legend) ?? key }),
+            p.banned.length > 0 && el('span', { class: 'illegal-tag', title: `Lleva cartas baneadas: ${p.banned.map((c) => c.name).join(', ')}`, text: 'No legal' })),
+          el('span', { class: 'muted small build-source', text: `${r.legend.domain.map((d) => DOMAIN_ES[d] || d).join(' / ')} · ${sourceText(r)}` }),
+          el('span', { class: 'rate-bar' }, el('span', { style: `width:${p.pct}%` })),
+          el('span', { class: `small ${p.count ? '' : 'ok'}`, text: p.count
+            ? `${p.pct} % · faltan ${p.count} carta${p.count === 1 ? '' : 's'}${p.cost ? ` · ≈ ${eur(p.cost)}` : ''}`
+            : '✓ Lo tienes entero' })),
+        el('span', { class: 'chev', 'aria-hidden': 'true', text: isOpen ? '−' : '+' })),
+      isOpen && el('div', { class: 'build-detail' },
+        missingDetails(p, { open: true, okText: '✓ Tienes todas las cartas de este mazo.' }),
+        el('div', { class: 'actions' }, r.owner
+          ? el('button', { class: 'btn primary small', onclick: () => { if (copyToMyDecks(r.deck, r.owner.username ?? 'otro jugador')) { dlg.close(); toast('Mazo copiado a tus mazos'); } } }, 'Copiar a mis mazos')
+          : el('button', { class: 'btn primary small', onclick: () => { dlg.close(); openEditor(r.deck); } }, 'Abrir mazo'))));
+  };
+
+  const draw = () => {
+    if (dlg.dataset.view !== 'buildable') return; // se cerró o se abrió otra hoja mientras se leía la nube
+    const entries = [...store.decks.map((deck) => ({ deck, owner: null })), ...(others ?? [])];
+    const rows = bestDeckPerLegend(entries, { byId: ctx.byId, owned, price: (id) => unitPrice(id) });
+    const known = new Set(rows.map((r) => legendKey(r.legend)));
+    const rest = legends.filter((l) => !known.has(legendKey(l))).map((legend) => ({ legend, fit: fit(legend) }))
+      .sort((a, b) => b.fit - a.fit || legendKey(a.legend).localeCompare(legendKey(b.legend)));
+    const note = others === null ? 'Buscando los mazos de la gente que sigues y de la comunidad…'
+      : failed ? 'No se pudieron leer los mazos de otros jugadores (¿sin conexión?): salen solo los tuyos.'
+        : !cloud.username ? 'Con una cuenta salen también los mazos de tus amigos y los que comparte la comunidad.' : '';
+    dlg.replaceChildren(...[
+      el('div', { class: 'dialog-head' },
+        el('h2', { text: '¿Qué mazos puedo montar?' }),
+        el('button', { class: 'icon-btn', title: 'Cerrar', 'aria-label': 'Cerrar', onclick: () => dlg.close() }, '✕')),
+      el('p', { class: 'muted small', text: 'De cada Leyenda, el mazo completo (tuyo, de la gente que sigues o compartido) del que más cartas tienes, y lo que costaría lo que falta en Cardmarket.' }),
+      note && el('p', { class: 'small build-note', text: note }),
+      rows.length
+        ? el('ul', { class: 'build-list' }, rows.map(row))
+        : others !== null && el('p', { class: 'muted', text: 'Aún no hay ningún mazo completo con el que comparar tu colección.' }),
+      rest.length > 0 && el('h3', { class: 'stats-title', text: rows.length ? 'Sin mazo conocido' : 'Leyendas' }),
+      rest.length > 0 && el('p', { class: 'muted small', text: 'No hay ningún mazo completo de estas Leyendas. Al lado, cuántas cartas tuyas encajan con ellas.' }),
+      rest.length > 0 && el('ul', { class: 'build-list rest' }, rest.slice(0, restLimit).map(({ legend, fit: n }) =>
+        el('li', { class: 'build-row' },
+          el('div', { class: 'build-head' },
+            cardImg(legend, 'thumb small'),
+            el('span', { class: 'grow' },
+              el('strong', { text: champTag(legend) ?? legendKey(legend) }),
+              el('span', { class: 'muted small', text: `${legend.domain.map((d) => DOMAIN_ES[d] || d).join(' / ')} · ${n} ${n === 1 ? 'carta tuya encaja' : 'cartas tuyas encajan'}` })),
+            el('button', { class: 'btn ghost small', onclick: () => { dlg.close(); startFromLegend(legend); } }, 'Crear mazo'))))),
+      rest.length > restLimit && el('button', { class: 'btn ghost small more', onclick: () => { restLimit += BUILD_PAGE; draw(); } }, `Mostrar más (${rest.length - restLimit})`),
+    ].filter(Boolean));
+  };
+
+  dlg.dataset.view = 'buildable';
+  draw();
+  if (!dlg.open) dlg.showModal();
+  if (others === null) {
+    fetchVisibleDecks().then((list) => { others = list; }, (err) => { console.warn(err); others = []; failed = true; }).then(draw);
+  }
 }
 
 /** Copia el mazo de otro jugador a tus mazos y lo abre en el editor. Devuelve false si no cabe. */
@@ -970,6 +934,7 @@ function picker(title, cards, onPick) {
 export function initDecks(context) {
   ctx = context;
   $('#btn-new-deck').addEventListener('click', () => canAddDeck() && openEditor(newDeck()));
+  $('#btn-buildable').addEventListener('click', openBuildable);
   $('#btn-decks-excel').addEventListener('click', (e) => runExport(e.target, () => exportAllDecksExcel(store.decks, exportCtx())));
   $('#btn-decks-csv').addEventListener('click', (e) => runExport(e.target, () => exportAllDecksCsv(store.decks, exportCtx())));
   $('#btn-decks-txt').addEventListener('click', () => exportAllDecksText(store.decks, exportText));

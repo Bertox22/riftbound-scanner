@@ -1,4 +1,5 @@
 // Utilidades de interfaz compartidas.
+import { banInfo } from './bans.js';
 
 export const $ = (sel, root = document) => root.querySelector(sel);
 
@@ -65,3 +66,26 @@ export function matchesType(card, type) {
   return card.type === type;
 }
 export const RARITY_ES = { Common: 'Común', Uncommon: 'Infrecuente', Rare: 'Rara', Epic: 'Épica', Showcase: 'Showcase', Promo: 'Promo' };
+
+// ---------- Piezas que comparten la ficha, el escáner y la colección ----------
+
+/** Fila «Normales − 2 +» de la ficha y de la hoja de una carta escaneada. */
+export function qtyRow(label, n, change) {
+  return el('div', { class: 'qty-row' },
+    el('span', { class: 'grow', text: label }),
+    el('button', { class: 'icon-btn', onclick: () => change(-1), disabled: n === 0 }, '−'),
+    el('span', { class: 'qty', text: n }),
+    el('button', { class: 'icon-btn', onclick: () => change(1) }, '+'),
+  );
+}
+
+/** Marca «Baneada» (o «Ban 2v2») sobre una carta; baja si ya lleva la de errata. */
+export function banBadge(card) {
+  const b = banInfo(card);
+  return b && el('span', { class: `badge banned${card.errata ? ' below' : ''}`, title: b.text.replace(/^⛔ /, ''), text: b.label });
+}
+
+/** Insignia foil: solo el número, en plateado. */
+export function foilBadge(n) {
+  return n > 0 && el('span', { class: 'badge foil', title: `${n} foil`, 'aria-label': `${n} foil` }, n);
+}
