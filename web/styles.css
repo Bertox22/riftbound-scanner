@@ -55,7 +55,17 @@ p { margin: 8px 0; }
 .brand-mark { width: 26px; height: 26px; flex: none; color: var(--accent); }
 .pill { background: var(--surface); border-radius: 99px; padding: 6px 12px; font-size: 14px; font-weight: 500; white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 /* En pantallas estrechas el contador (cartas · valor) tiene prioridad sobre la palabra "Scanner". */
-@media (max-width: 420px) { .brand-sub { display: none; } }
+@media (max-width: 480px) { .brand-sub, .pill-word { display: none; } }
+/* Móviles pequeños (≤ 380 px): todo un poco más junto para que el valor siga entero. */
+@media (max-width: 380px) {
+  .topbar { gap: 8px; padding-left: 12px; padding-right: 12px; }
+  .brand { gap: 8px; font-size: 16px; }
+  .brand-mark { width: 22px; height: 22px; }
+  .topbar-end { gap: 6px; }
+  .pill { padding: 6px 10px; font-size: 13px; }
+}
+/* La versión publicada, discreta, al final de Escanear (para saber si ya ha llegado la nueva). */
+.app-version { margin: 28px 0 8px; text-align: center; font-size: 11px; color: var(--faint); letter-spacing: .02em; }
 .topbar-end { display: flex; align-items: center; gap: 8px; min-width: 0; }
 /* Botón de cuenta: el punto dice cómo va la sincronización (verde al día, ámbar subiendo, rojo error). */
 .account-btn {
@@ -497,8 +507,16 @@ button.dt-empty:focus-visible { outline: 2px solid var(--text); outline-offset: 
 /* Partidas: el resultado en una pastilla de color (verde, rojo, gris) y las dos Leyendas enfrentadas. */
 .match-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
 .match-row {
-  display: flex; gap: 12px; align-items: center; padding: 10px 14px 10px 10px; background: var(--surface);
+  display: grid; grid-template-columns: auto auto minmax(0, 1fr); column-gap: 12px; align-items: center;
+  padding: 10px 14px 10px 10px; background: var(--surface);
   border-radius: 16px; cursor: pointer; transition: background-color .15s, transform .1s;
+}
+/* Campos de batalla, un juego por línea, bajo el texto (en el móvil, a todo el ancho de la fila). */
+.match-fields { grid-column: 3; margin-top: 4px; display: flex; flex-direction: column; gap: 1px; }
+.match-fields > div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.match-game { display: inline-block; min-width: 22px; margin-right: 6px; color: var(--muted); font-weight: 600; font-size: 11px; }
+@media (max-width: 560px) {
+  .match-fields { grid-column: 1 / -1; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--surface-2); }
 }
 .match-row:hover { background: #1c1c1c; }
 .match-row:active { transform: scale(.99); }

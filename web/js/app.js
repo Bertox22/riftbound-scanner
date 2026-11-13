@@ -71,7 +71,11 @@ function collectionValue() {
 function updateOwnedCount() {
   const total = store.totalOwned();
   const value = collectionValue();
-  $('#owned-count').textContent = `${total} carta${total === 1 ? '' : 's'}${value ? ` · ${eur(value)}` : ''}`;
+  // En el móvil la palabra «cartas» se oculta (CSS) para que el valor se vea entero: «364 · 97,48 €».
+  const word = ` carta${total === 1 ? '' : 's'}`;
+  const pill = $('#owned-count');
+  pill.replaceChildren(String(total), el('span', { class: 'pill-word', text: word }), ...(value ? [` · ${eur(value)}`] : []));
+  pill.title = `${total}${word}${value ? ` · valor ≈ ${eur(value)}` : ''}`;
 }
 store.onChange((what) => what === 'collection' && updateOwnedCount());
 updateOwnedCount();
@@ -684,6 +688,7 @@ else routeProfile();
 // este archivo, así que al publicar con otra ?v= se instala solo el nuevo. En el PC (localhost) solo
 // con ?sw en la dirección, para probarlo sin que estorbe al desarrollo.
 const APP_VERSION = new URL(import.meta.url).searchParams.get('v') ?? 'dev';
+$('#app-version').textContent = `Versión ${APP_VERSION}`;
 const localHost = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
 if ('serviceWorker' in navigator && (!localHost || new URLSearchParams(location.search).has('sw'))) {
   navigator.serviceWorker.register(`sw.js?v=${APP_VERSION}`).catch((err) => console.warn('Sin modo sin conexión:', err));

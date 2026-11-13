@@ -231,18 +231,22 @@ function matchRow(m) {
     m.event,
   ].filter(Boolean).join(' · ');
   const decks = [deck ? deck.name : m.deck ? deletedDeckName(m.my) : 'Sin mazo', m.oppDeck?.name && `contra su «${m.oppDeck.name}»`].filter(Boolean).join(' ');
-  // "Campos: Altar to Unity vs Aspirant's Climb · …", un par por juego.
-  const fields = (m.battlefields ?? []).filter(([a, b]) => a || b)
-    .map(([a, b]) => `${battlefieldName(a) ?? '?'} vs ${battlefieldName(b) ?? '?'}`).join(' · ');
+  // Campos: un juego por línea («J1 Altar to Unity – Aspirant's Climb»); con un solo juego, sin «J1».
+  const games = (m.battlefields ?? []).map(([a, b], i) => ({ a, b, i })).filter(({ a, b }) => a || b);
+  const several = (m.battlefields ?? []).length > 1;
+  const fields = games.length > 0 && el('div', { class: 'match-fields muted small', title: 'Campos de batalla (tuyo – rival)' },
+    ...games.map(({ a, b, i }) => el('div', {},
+      el('span', { class: 'match-game', text: several ? `J${i + 1}` : 'Campos' }),
+      `${battlefieldName(a) ?? '?'} – ${battlefieldName(b) ?? '?'}`)));
   return el('li', { class: 'match-row', onclick: () => openSheet(m) },
     el('span', { class: `match-result ${m.result}`, title: RESULTS[m.result], 'aria-label': RESULTS[m.result] }, RESULT_SHORT[m.result]),
     el('div', { class: 'match-legends', 'aria-hidden': 'true' }, legendThumb(m.my), legendThumb(m.opp)),
     el('div', { class: 'grow' },
       el('strong', { text: rival ? `contra ${rival}` : 'Rival sin apuntar' }),
       el('div', { class: 'muted small', text: decks }),
-      meta && el('div', { class: 'muted small', text: meta }),
-      fields && el('div', { class: 'muted small', text: `Campos: ${fields}` }),
+      ...(meta ? [el('div', { class: 'muted small', text: meta })] : []),
     ),
+    ...(fields ? [fields] : []),
   );
 }
 

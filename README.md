@@ -7,7 +7,7 @@ funciona sin conexión.
 
 **App:** https://bertox22.github.io/riftbound-scanner/
 
-**Últimas mejoras (versiones 66 y 67, noviembre de 2026):**
+**Últimas mejoras (versiones 66 a 68, noviembre de 2026):**
 - **Sin conexión:** tras abrirla una vez con internet, abre y funciona sin cobertura (escáner,
   colección, mazos, partidas y Mesa). Detalles en «Sin conexión», más abajo.
 - **Escáner más rápido:** hasta 4 hilos del procesador, unas 2,8 veces más rápido en un PC con el
@@ -17,7 +17,9 @@ funciona sin conexión.
 - **Importar copia (JSON) sin riesgo:** pregunta por cartas, mazos, partidas y balance por separado,
   cerrar no cambia nada y deja «Deshacer». Antes «Cancelar» reemplazaba todos tus datos.
 - **Aviso de versión nueva** («Recargar») si la app llevaba tiempo abierta, e iconos para instalarla
-  en Android y iPhone.
+  en Android y iPhone. La versión en uso sale en pequeño al final de Escanear.
+- **Móvil:** el valor de la colección se ve entero arriba («364 · 97,48 €») y los Campos de cada
+  partida van uno por juego («J1 Ruined Monastery – Threshold of the Gray»).
 
 - **Escanear:** pones cada carta dentro del recuadro y se añade sola en cuanto la reconoce (con
   vibración y pitido). Si duda, te enseña las candidatas para que toques la correcta. Para añadir
@@ -266,7 +268,7 @@ http://localhost:8000/?sw (y en local pide siempre primero los archivos al servi
    "Añadir a pantalla de inicio" para tenerla como una app.
 5. GitHub Pages deja guardar los archivos unos 10 minutos. Para que cada publicación llegue entera,
    `styles.css`, `app.js` y el resto de módulos (con el `importmap` de `index.html`) llevan la misma
-   versión, `?v=67`: al publicar cambios de estilos o de código, súbela en todos a la vez. El service
+   versión, `?v=68`: al publicar cambios de estilos o de código, súbela en todos a la vez. El service
    worker (`sw.js`) toma la versión de ahí solo: no hay que tocarlo.
 
 Sin cuenta, la colección, los mazos y las partidas se guardan solo en el navegador (localStorage:
