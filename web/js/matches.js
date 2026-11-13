@@ -507,37 +507,65 @@ function renderStats(list) {
   box.replaceChildren(...[
     el('div', { class: 'stats-filter' }, filter, eventSelect || null),
     overview(list),
-    byDeck.length > 1 && foldable('decks', 'Por mazo', el('ul', { class: 'stat-list' },
-      ...byDeck.map(([id, r]) => statRow(legendThumb(deckLegend(id)), deckName(id), r)))),
-    byEvent.length > 1 && foldable('events', 'Por evento', el('ul', { class: 'stat-list' },
-      ...byEvent.map(([k, r]) => statRow(null, eventName(k), r)))),
-    byOpp.length > 0 && foldable('legends', 'Contra cada Leyenda', el('ul', { class: 'stat-list' },
-      ...byOpp.map(([id, r]) => statRow(legendThumb(id), legendChamp(ctx.byId.get(id)), r)))),
-    byMyBf.length > 0 && foldable('myBf', 'Con cada Campo tuyo', el('ul', { class: 'stat-list' },
-      ...byMyBf.map(([id, r]) => statRow(bfThumb(id), bfName(id), r)))),
-    byOppBf.length > 0 && foldable('oppBf', 'Contra cada Campo del rival', el('ul', { class: 'stat-list' },
-      ...byOppBf.map(([id, r]) => statRow(bfThumb(id), bfName(id), r)))),
+    breakdown([
+      byDeck.length > 1 && ['decks', 'Mazos', byDeck.map(([id, r]) => [legendThumb(deckLegend(id)), deckName(id), r])],
+      byOpp.length > 0 && ['legends', 'Leyendas rivales', byOpp.map(([id, r]) => [legendThumb(id), legendChamp(ctx.byId.get(id)), r])],
+      byMyBf.length > 0 && ['myBf', 'Tus Campos', byMyBf.map(([id, r]) => [bfThumb(id), bfName(id), r])],
+      byOppBf.length > 0 && ['oppBf', 'Campos rivales', byOppBf.map(([id, r]) => [bfThumb(id), bfName(id), r])],
+      byEvent.length > 1 && ['events', 'Eventos', byEvent.map(([k, r]) => [null, eventName(k), r])],
+    ].filter(Boolean)),
   ].filter(Boolean));
 }
 
+const BREAKDOWN_ROWS = 6; // filas a la vista en el desglose; el resto, con «Ver todas»
+let breakdownAll = false; // «Ver todas» abierto (hasta que cambie la pestaña)
+
 /**
- * Sección de estadísticas plegable: el título se toca para abrirla o cerrarla. Se recuerda en este
- * dispositivo (store.settings.statsOpen); la primera vez, abierta si tiene 3 filas o menos.
+ * El desglose: un panel con pestañas (Mazos, Leyendas rivales, Tus Campos, Campos rivales, Eventos;
+ * solo las que tienen datos) en vez de una sección por cosa. Cada fila: miniatura, nombre, V–D y el %
+ * con su barra. Se ven 6; el resto con «Ver todas». La pestaña se recuerda en este dispositivo.
+ * tabs: [[clave, título, [[miniatura, nombre, récord], …]], …].
  */
-function foldable(key, title, list) {
-  const count = list.children.length;
-  const open = store.settings.statsOpen?.[key] ?? count <= 3;
-  const fold = el('details', { class: 'stats-fold', open },
-    el('summary', { class: 'stats-title' }, title, el('span', { class: 'stats-count', text: count })),
-    list);
-  // Al pintarla abierta el navegador también avisa: eso no es una elección y no se guarda.
-  let painted = !open;
-  fold.addEventListener('toggle', () => {
-    if (!painted) { painted = true; if (fold.open === open) return; }
-    store.settings.statsOpen = { ...store.settings.statsOpen, [key]: fold.open };
-    store.saveSettings();
-  });
-  return fold;
+function breakdown(tabs) {
+  if (!tabs.length) return null;
+  const box = el('section', { class: 'stats-breakdown', 'aria-label': 'Desglose' });
+  const draw = () => {
+    const key = tabs.some(([k]) => k === store.settings.statsTab) ? store.settings.statsTab : tabs[0][0];
+    const [, , rows] = tabs.find(([k]) => k === key);
+    const shown = breakdownAll ? rows : rows.slice(0, BREAKDOWN_ROWS);
+    box.replaceChildren(...[
+      el('div', { class: 'bd-tabs', role: 'tablist', 'aria-label': 'Desglose por' },
+        ...tabs.map(([k, title, list]) => el('button', {
+          type: 'button', role: 'tab', class: 'bd-tab', 'aria-selected': String(k === key),
+          onclick: () => {
+            if (k === key) return;
+            store.settings.statsTab = k;
+            store.saveSettings();
+            breakdownAll = false;
+            draw();
+            box.querySelector('.bd-tab[aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+          },
+        }, title, el('span', { class: 'bd-count', text: list.length })))),
+      el('ul', { class: 'bd-list', role: 'tabpanel', style: `--rows: ${Math.ceil(shown.length / 2)}` }, ...shown.map(([thumb, name, r]) => breakdownRow(thumb, name, r))),
+      rows.length > BREAKDOWN_ROWS && el('button', {
+        type: 'button', class: 'link small bd-more', onclick: () => { breakdownAll = !breakdownAll; draw(); },
+      }, breakdownAll ? 'Ver menos' : `Ver todas (${rows.length})`),
+    ].filter(Boolean));
+  };
+  draw();
+  return box;
+}
+
+/** Una fila del desglose. Con menos de 3 juegos el % va en gris: aún dice poco. */
+function breakdownRow(thumb, name, r) {
+  return el('li', { class: `bd-row${r.games < 3 ? ' few' : ''}`, title: `${name}: ${recordText(r)} · ${countText(r)}` },
+    thumb ?? el('span', { class: 'bd-thumb-none', 'aria-hidden': 'true' }),
+    el('div', { class: 'bd-main' },
+      el('div', { class: 'bd-top' },
+        el('span', { class: 'bd-name', text: name }),
+        el('span', { class: 'bd-record' }, recordText(r), r.matches > 1 && el('span', { class: 'bd-n', text: ` · ${r.matches} partidas` })),
+        el('strong', { class: 'bd-rate', text: rateText(r) })),
+      rateBar(r)));
 }
 
 function render() {
