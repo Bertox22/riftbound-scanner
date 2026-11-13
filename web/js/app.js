@@ -10,6 +10,8 @@ import { initProfile, routeProfile } from './profile.js';
 import { initTable } from './table.js';
 import { initTrades, showTrades, tradeBlock } from './trades.js';
 import { initLedger } from './ledger.js';
+import { importBackup } from './backup.js';
+import { initBack } from './back.js';
 import { cloud, fetchRemovedCards } from './cloud.js';
 import { loadPrices, pricesDate, priceInfo, unitPrice, entryValue, eur, usd, VALUABLE_EUR } from './prices.js';
 import { $, el, toast, cardImg, cardCode, baseName, download, matchesType, DOMAIN_ES, TYPE_ES, RARITY_ES } from './ui.js';
@@ -23,11 +25,36 @@ const sets = [...new Map(cards.map((c) => [c.set, c.setName])).entries()];
 // La pestaña va en la dirección (#coleccion, #mazos…) para que al recargar se quede en la misma.
 const VIEW_HASH = { scan: '', collection: 'coleccion', decks: 'mazos', matches: 'partidas', trades: 'intercambios' };
 
-function showView(name) {
+/**
+ * Historial de las pestañas, para que «atrás» en el móvil vuelva a Escanear en vez de salir de la app.
+ * Escanear es el paso de abajo ({ base }); la primera pestaña que se abre encima añade un paso
+ * ({ tab, overBase }) y las demás lo sustituyen. Volver a Escanear desde ahí deshace ese paso.
+ */
+function rememberView(name) {
+  const url = VIEW_HASH[name] ? `#${VIEW_HASH[name]}` : location.pathname + location.search;
+  const state = history.state;
+  if (state?.tab) {
+    if (name === 'scan' && state.overBase) history.back();
+    else history.replaceState(state, '', url);
+  } else if (name === 'scan' && state?.base) {
+    history.replaceState(state, '', url);
+  } else {
+    history.pushState({ tab: true, overBase: !!state?.base }, '', url);
+  }
+}
+
+/** La pestaña de la dirección actual, al ir atrás o adelante. El perfil y la Mesa se pintan solos. */
+function routeView() {
+  const view = Object.keys(VIEW_HASH).find((v) => VIEW_HASH[v] && `#${VIEW_HASH[v]}` === location.hash);
+  if (view) showView(view, true);
+  else if (!location.hash) showView('scan', true);
+}
+
+function showView(name, fromHistory = false) {
   document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.id === `view-${name}`));
   document.querySelectorAll('.tabbar button').forEach((b) => b.classList.toggle('active', b.dataset.view === (name === 'trades' ? 'collection' : name))); // Intercambios va dentro de Colección
   // El perfil (#@usuario) no es una pestaña: deja su dirección tal cual.
-  if (name in VIEW_HASH) history.replaceState(null, '', VIEW_HASH[name] ? `#${VIEW_HASH[name]}` : location.pathname + location.search);
+  if (name in VIEW_HASH && !fromHistory) rememberView(name);
   if (name !== 'scan' && scanner.running) stopCamera();
   if (name === 'collection') renderCollection();
   if (name === 'trades') showTrades();
@@ -616,18 +643,8 @@ $('#btn-export-json').addEventListener('click', () => {
 });
 $('#import-json').addEventListener('change', async (e) => {
   const file = e.target.files[0];
-  if (!file) return;
-  try {
-    const data = JSON.parse(await file.text());
-    const merge = store.totalOwned() > 0 && confirm('¿Sumar la copia a tu colección actual?\n\nAceptar = sumar · Cancelar = reemplazar');
-    store.importData(data, merge ? 'merge' : 'replace');
-    toast('Copia importada');
-    renderCollection();
-  } catch (err) {
-    toast(err.message);
-  } finally {
-    e.target.value = '';
-  }
+  e.target.value = ''; // para poder elegir otra vez el mismo archivo
+  if (file) await importBackup(file);
 });
 
 // ---------- Mazos ----------
@@ -655,6 +672,10 @@ store.onChange((what) => {
 });
 
 // Al recargar, vuelve a la pestaña que estaba abierta.
+// Escanear queda debajo como primer paso del historial, para que «atrás» vuelva a ella. Con otra
+// dirección (un perfil, la Mesa, un enlace de la cuenta) el historial no se toca.
+initBack(routeView);
 const startView = Object.keys(VIEW_HASH).find((v) => VIEW_HASH[v] && `#${VIEW_HASH[v]}` === location.hash);
+if (startView || !location.hash) history.replaceState({ base: true }, '', location.pathname + location.search);
 if (startView) showView(startView);
 else routeProfile();

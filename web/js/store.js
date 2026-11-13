@@ -147,37 +147,6 @@ export const store = {
     return { app: 'riftbound-scanner', version: 1, exported: new Date().toISOString(), collection: this.collection, decks: this.decks, matches: this.matches, ledger: this.ledger };
   },
 
-  importData(data, mode = 'replace') {
-    if (!data || typeof data.collection !== 'object') throw new Error('El archivo no es una copia de Riftbound Scanner.');
-    if (mode === 'merge') {
-      for (const [id, e] of Object.entries(data.collection)) {
-        const cur = this.collection[id] || { n: 0, f: 0 };
-        this.collection[id] = { n: cur.n + (e.n || 0), f: cur.f + (e.f || 0) };
-      }
-      const ids = new Set(this.decks.map((d) => d.id));
-      this.decks.push(...(data.decks || []).filter((d) => !ids.has(d.id)));
-      const seen = new Set(this.matches.map((m) => m.id));
-      this.matches.push(...(data.matches || []).filter((m) => !seen.has(m.id)));
-      this.matches.sort((a, b) => b.at - a.at);
-      const moves = new Set(this.ledger.map((m) => m.id));
-      this.ledger.push(...(data.ledger || []).filter((m) => !moves.has(m.id)));
-      this.ledger.sort((a, b) => b.at - a.at);
-    } else {
-      this.collection = data.collection;
-      this.decks = data.decks || [];
-      this.matches = data.matches || [];
-      this.ledger = data.ledger ?? this.ledger; // las copias antiguas no lo traen: se conserva
-    }
-    write(KEYS.collection, this.collection);
-    write(KEYS.decks, this.decks);
-    write(KEYS.matches, this.matches);
-    write(KEYS.ledger, this.ledger);
-    this.emit('collection');
-    this.emit('decks');
-    this.emit('matches');
-    this.emit('ledger');
-  },
-
   /** Solo la colección (desde Excel/CSV): "merge" suma, "replace" la sustituye. Los mazos no se tocan. */
   importCollection(collection, mode = 'merge') {
     if (mode === 'replace') this.collection = {};

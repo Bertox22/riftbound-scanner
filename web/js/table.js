@@ -357,7 +357,7 @@ export function openTable() {
   if (!t()) return;
   $('#mesa').hidden = false;
   document.body.classList.add('mesa-open');
-  if (location.hash !== '#mesa') history.pushState(null, '', '#mesa');
+  if (location.hash !== '#mesa') history.pushState({ mesa: true }, '', '#mesa');
   renderTable();
   keepAwake();
 }
@@ -367,8 +367,13 @@ function closeTable() {
   document.body.classList.remove('mesa-open');
   wakeLock?.release().catch(() => {});
   wakeLock = null;
-  if (location.hash === '#mesa') history.replaceState(null, '', '#partidas');
-  ctx.showView('matches');
+  // Cerrada con el botón: se deshace el paso de la mesa (o, si se abrió al cargar la página, se cambia
+  // por Partidas). Cerrada con «atrás», el historial ya está en su sitio.
+  if (location.hash === '#mesa') {
+    if (history.state?.mesa) history.back();
+    else history.replaceState({ tab: true }, '', '#partidas');
+  }
+  ctx.showView('matches', true);
   refreshButton();
 }
 

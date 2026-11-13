@@ -14,6 +14,10 @@ entre tus dispositivos.
   "Quitar".
 - **Colección:** filtros por set, tipo (incluido "Campeón", que son las unidades Campeón) y dominio,
   cantidades normales/foil, exportación a Excel/CSV y copia de seguridad en JSON.
+  - **Importar copia (JSON):** si tienes datos aquí y en la copia, la app pregunta qué hacer con
+    cartas, mazos, partidas y balance por separado (juntar sin duplicar, sumar, quedarte con los de la
+    copia o dejar los tuyos), con lo que quedará en cada caso. Cerrar la hoja no cambia nada, juntar
+    mazos no deja pasar de 15 y el aviso tras importar deja **Deshacer**.
   - Al quitar la última copia con «−», la carta se queda en gris (no desaparece) y el aviso deja
     **Deshacer**.
   - **Historial:** las cartas que has quitado (cuántas, si eran foil, cuándo y desde dónde: la
@@ -112,7 +116,9 @@ entre tus dispositivos.
     Lo que das queda en el Historial de cartas quitadas.
 
 La pestaña abierta se guarda en la dirección (`#coleccion`, `#intercambios`, `#mazos`, `#partidas`, `#mesa`, o `#@usuario` en un perfil), así que al
-recargar se vuelve a ella.
+recargar se vuelve a ella. El botón «atrás» del móvil cierra la hoja abierta (la de arriba, si hay
+varias) y, sin hojas, sale de la Mesa o vuelve de la pestaña en la que estés a Escanear; desde
+Escanear, sale de la app.
 
 **Precios:** cada noche se descargan los precios de Cardmarket (€) y TCGplayer ($) de riftbound.gg.
 La colección muestra el precio de cada carta y el valor total, se puede ordenar por precio, el escáner
@@ -191,7 +197,7 @@ web/                 la app (estática, se puede publicar tal cual)
   js/                app.js (escáner y colección), decks.js, matches.js (partidas),
                      cloud.js, merge.js y account-ui.js (cuenta y sincronización), profile.js (página de
                      perfil), friends.js (seguir y amigos), trades.js (intercambios), table.js (mesa), ledger.js (balance), store.js (localStorage),
-                     import-ui.js, importer.js, export.js, prices.js, recognizer.js, scanner.js
+                     import-ui.js, importer.js, export.js, backup.js (importar copia), back.js (botón atrás), prices.js, recognizer.js, scanner.js
   data/cards.json    datos de las cartas
   data/index.*       embeddings de referencia
   models/            modelo ONNX
@@ -230,12 +236,13 @@ la web se sirva por **HTTPS** (los navegadores no dejan usar la cámara en http)
    "Añadir a pantalla de inicio" para tenerla como una app.
 5. GitHub Pages deja guardar los archivos unos 10 minutos. Para que cada publicación llegue entera,
    `styles.css`, `app.js` y el resto de módulos (con el `importmap` de `index.html`) llevan la misma
-   versión, `?v=65`: al publicar cambios de estilos o de código, súbela en todos a la vez.
+   versión, `?v=66`: al publicar cambios de estilos o de código, súbela en todos a la vez.
 
 Sin cuenta, la colección, los mazos y las partidas se guardan solo en el navegador (localStorage:
 `rb.collection.v1`, `rb.decks.v1`, `rb.matches.v1`, `rb.ledger.v1`). Usa **Colección → Exportar copia** de vez en
 cuando para no perderlos si borras los datos del navegador, o crea una cuenta para tenerlos en la
-nube. La copia JSON incluye colección, mazos, partidas y balance.
+nube. La copia JSON incluye colección, mazos, partidas y balance, y se recupera con **Importar copia
+(JSON)**.
 
 ## Actualización automática (diaria)
 
