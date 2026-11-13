@@ -263,14 +263,40 @@ export function gamesOf(m) {
   const score = m.score ?? (m.games_won != null && m.games_lost != null ? `${m.games_won}-${m.games_lost}` : null);
   const [won, lost] = score ? score.split('-').map(Number) : [null, null];
   const played = (m.points ?? []).map(([a, b], i) => ({ a, b, i })).filter(({ a, b }) => a != null && b != null);
-  const byPoints = played.map(({ a, b, i }) => ({ res: a > b ? 'win' : b > a ? 'loss' : 'draw', start: startOf(m, i) }));
+  const byPoints = played.map(({ a, b, i }) => ({ res: a > b ? 'win' : b > a ? 'loss' : 'draw', start: startOf(m, i), bf: bfOf(m, i) }));
   const w = byPoints.filter((g) => g.res === 'win').length, l = byPoints.filter((g) => g.res === 'loss').length;
   // Los puntos mandan si cuadran con el marcador (o si no hay marcador y hay varios juegos): saben quién empezó cada uno.
   if (played.length > 1 && (score == null || (w === won && l === lost))) return byPoints;
   if (score != null) {
-    return [...Array(won).fill('win'), ...Array(lost).fill('loss')].map((res) => ({ res, start: null }));
+    // Sin puntos de cada juego no se sabe qué Campo fue con qué resultado.
+    return [...Array(won).fill('win'), ...Array(lost).fill('loss')].map((res) => ({ res, start: null, bf: [null, null] }));
   }
-  return [{ res: m.result, start: m.first ?? m.went_first ?? null }];
+  return [{ res: m.result, start: m.first ?? m.went_first ?? null, bf: bfOf(m, 0) }];
+}
+
+/**
+ * Récord por juegos agrupado por lo que devuelve key(juego) (los null no cuentan): [clave, récord],
+ * de más a menos juegos. El récord cuenta en `matches` las partidas distintas que tienen esos juegos.
+ */
+function groupGames(list, key) {
+  const groups = new Map();
+  for (const m of list) {
+    for (const g of gamesOf(m)) {
+      const k = key(g);
+      if (k == null) continue;
+      if (!groups.has(k)) groups.set(k, { games: [], ids: new Set() });
+      groups.get(k).games.push(g);
+      groups.get(k).ids.add(m.id);
+    }
+  }
+  return [...groups].map(([k, { games, ids }]) => [k, tally(games, ids.size)])
+    .sort((a, b) => b[1].games - a[1].games || (b[1].rate ?? -1) - (a[1].rate ?? -1));
+}
+
+/** Miniatura apaisada de un Campo de batalla para las filas de estadísticas. */
+function bfThumb(id) {
+  const card = ctx.byId.get(id);
+  return card ? cardImg(card, 'thumb small bf') : el('div', { class: 'thumb small bf placeholder', 'aria-hidden': 'true' }, '?');
 }
 
 function tally(games, matches) {
@@ -335,6 +361,10 @@ function renderStats(list) {
 
   const byDeck = deckFilter ? [] : groupBy(list, (m) => m.deck ?? 'none');
   const byOpp = groupBy(list.filter((m) => m.opp), (m) => m.opp);
+  // Campos: por juegos (cada juego tiene los suyos); solo los juegos con el Campo apuntado.
+  const byMyBf = groupGames(list, (g) => canonicalBattlefield(g.bf?.[0]));
+  const byOppBf = groupGames(list, (g) => canonicalBattlefield(g.bf?.[1]));
+  const bfName = (id) => battlefieldName(id) ?? 'Campo';
 
   // replaceChildren escribiría "false" con las secciones que no tocan: se quitan antes.
   box.replaceChildren(...[
@@ -358,6 +388,10 @@ function renderStats(list) {
       ...byDeck.map(([id, r]) => statRow(legendThumb(deckLegend(id)), deckName(id), r)))),
     byOpp.length > 0 && foldable('legends', 'Contra cada Leyenda', el('ul', { class: 'stat-list' },
       ...byOpp.map(([id, r]) => statRow(legendThumb(id), legendChamp(ctx.byId.get(id)), r)))),
+    byMyBf.length > 0 && foldable('myBf', 'Con cada Campo tuyo', el('ul', { class: 'stat-list' },
+      ...byMyBf.map(([id, r]) => statRow(bfThumb(id), bfName(id), r)))),
+    byOppBf.length > 0 && foldable('oppBf', 'Contra cada Campo del rival', el('ul', { class: 'stat-list' },
+      ...byOppBf.map(([id, r]) => statRow(bfThumb(id), bfName(id), r)))),
   ].filter(Boolean));
 }
 

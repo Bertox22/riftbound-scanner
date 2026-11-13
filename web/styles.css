@@ -668,6 +668,7 @@ dialog input[type=date]:focus { outline: none; border-color: var(--muted); }
 .stat-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .stat-row { display: flex; align-items: center; gap: 12px; padding: 8px 14px 8px 8px; border-radius: 14px; background: var(--surface); }
 .stat-row .thumb.small { width: 36px; border-radius: 5px; }
+.stat-row .thumb.small.bf { width: 50px; aspect-ratio: 335 / 240; object-fit: cover; }
 .stat-row-top { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; }
 .stat-row-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stat-row-rate { font-weight: 600; font-variant-numeric: tabular-nums; flex: none; }
