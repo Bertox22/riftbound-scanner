@@ -640,12 +640,20 @@ dialog input[type=date]:focus { outline: none; border-color: var(--muted); }
 .stats-big { display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; border-radius: 16px; background: var(--surface); min-width: 0; }
 .stats-big strong { font-size: 26px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .stats-big:first-child strong { color: var(--accent); }
-.stats-first { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.stats-first > div { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; padding: 10px 14px; border-radius: 14px; background: var(--surface); }
-.stats-first > div > :first-child { flex-basis: 100%; }
-.stats-first strong { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.stats-form { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: 14px; background: var(--surface); }
-.form-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-variant-numeric: tabular-nums; }
+/* Resumen de partidas: un panel. La cifra que manda (% de victorias) y, a su lado, una tira de
+   cifras hermanas separadas por 1px (el fondo de la tira asoma por el hueco); la forma debajo y, en
+   el PC, la evolución a la derecha. */
+.stats-overview { display: grid; gap: 20px; padding: 20px; border-radius: 16px; background: var(--surface); min-width: 0; }
+.ov-label { font-size: 13px; color: var(--muted); }
+.ov-sub { font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.ov-lead { display: flex; flex-direction: column; gap: 2px; }
+.ov-lead strong { font-size: 40px; font-weight: 600; line-height: 1.05; color: var(--accent); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.ov-strip { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); border-radius: 12px; overflow: hidden; }
+.ov-cell { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; background: var(--surface); min-width: 0; }
+.ov-cell .ov-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ov-cell strong { font-size: 20px; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ov-form, .ov-chart { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.ov-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .form-dots { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; margin: 0; padding: 0; list-style: none; }
 .form-dots li { display: grid; place-items: center; height: 26px; border-radius: 6px; font-size: 12px; font-weight: 600; background: var(--surface-2); color: var(--muted); }
 .form-dots li.win { background: #153222; color: var(--ok); }
@@ -654,13 +662,34 @@ dialog input[type=date]:focus { outline: none; border-color: var(--muted); }
 .form-streak strong { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
 .form-streak strong.win { color: var(--ok); }
 .form-streak strong.loss { color: #f08a8f; }
-.form-chart .line-chart-wrap { margin: 6px 0 0; }
-.form-chart .line-chart { height: 80px; }
+.form-streak { font-size: 13px; }
+.ov-chart .line-chart-wrap { margin: 0; }
+/* Eje Y en su carril: el SVG se estira y el texto no. */
+.line-chart-plot { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 6px; }
+.line-chart-lane { position: relative; }
+.line-chart-lane span { position: absolute; right: 0; transform: translateY(-50%); font-size: 11px; line-height: 1; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.line-chart-grid { stroke: #262626; stroke-width: 1; }
+.line-chart-base { stroke: #3a3a3a; stroke-width: 1; }
+.line-chart-ref { stroke: #5a5a5a; stroke-width: 1; stroke-dasharray: 4 4; }
+@media (min-width: 860px) {
+  .stats-overview.has-chart {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); column-gap: 32px;
+    grid-template-areas: "lead chart" "strip chart" "form chart";
+  }
+  .stats-overview.has-chart .ov-lead { grid-area: lead; }
+  .stats-overview.has-chart .ov-strip { grid-area: strip; }
+  .stats-overview.has-chart .ov-form { grid-area: form; }
+  /* La gráfica ocupa toda la altura del panel: el SVG se estira y el carril del eje va en %. */
+  .stats-overview.has-chart .ov-chart { grid-area: chart; }
+  .stats-overview.has-chart .ov-chart .line-chart-wrap { flex: 1; display: flex; flex-direction: column; }
+  .stats-overview.has-chart .ov-chart .line-chart-plot:first-child { flex: 1; min-height: 140px; }
+  .stats-overview.has-chart .ov-chart .line-chart { height: 100% !important; }
+}
 .stats-title { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin: 16px 0 0; }
 .history-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 24px 0 12px; }
 .history-head .stats-title { margin: 0; }
-.stats-filter { display: flex; flex-wrap: wrap; gap: 8px; }
-.stats-filter select { flex: 1 1 180px; }
+.stats-filter { display: flex; gap: 8px; }
+.stats-filter select { flex: 1 1 0; min-width: 0; text-overflow: ellipsis; }
 /* «Por mazo» y «Contra cada Leyenda» se pliegan: el título es la cabecera, con el número y una flecha. */
 .stats-fold > summary {
   display: flex; align-items: center; gap: 8px; padding: 6px 0; cursor: pointer; list-style: none;
@@ -1077,7 +1106,7 @@ dialog > .dialog-head:first-child {
   .cam-controls { margin-top: 12px; }
   /* Estadísticas: las listas por mazo y por Leyenda, a dos columnas. */
   .stat-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .stats-summary, .stats-first { gap: 10px; }
+  .stats-summary { gap: 10px; }
   .match-stats { gap: 14px; }
   /* La lista de mazos, a dos columnas (el editor de cada mazo no cambia). */
   .deck-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }

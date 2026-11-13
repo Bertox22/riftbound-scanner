@@ -300,54 +300,81 @@ const RECENT = 10; // «Últimas 10»
 const streakText = (s) => `${s.n} ${RESULT_SHORT[s.res]}`;
 
 /**
- * Forma reciente, por partidas (no por juegos): la racha actual y la mejor de victorias, las últimas
- * 10 de la más antigua a la más nueva y, con 3 o más, la evolución del % de victorias (por juegos,
- * acumulado partida a partida).
+ * El resumen, en un solo panel que responde a «¿cómo me va?»: el % de victorias como la cifra que
+ * manda; a su lado V–D, partidas y cómo te va empezando tú o el rival; debajo la forma reciente (por
+ * partidas: las últimas 10, la racha actual y la mejor de victorias) y, a la derecha en el PC, la
+ * evolución del % de victorias (por juegos, acumulado partida a partida; con 3 partidas o más).
  */
-function formBox(list) {
-  const done = list.filter((m) => RESULTS[m.result]).sort((a, b) => a.at - b.at);
-  if (!done.length) return null;
-  const last = done.at(-1).result;
-  let streak = 0;
-  for (let i = done.length - 1; i >= 0 && done[i].result === last; i--) streak++;
-  let best = 0, run = 0;
-  for (const m of done) { run = m.result === 'win' ? run + 1 : 0; best = Math.max(best, run); }
-  const recent = done.slice(-RECENT);
-  const recentR = record(recent);
+function overview(list) {
+  const all = record(list);
+  // Empezando tú o el rival: cada juego por su cuenta (al mejor de 3, cada uno tiene quien empezó).
+  const games = list.flatMap(gamesOf);
+  const firstR = tally(games.filter((g) => g.start === true), 0);
+  const secondR = tally(games.filter((g) => g.start === false), 0);
+  const cell = (label, value, sub) => el('div', { class: 'ov-cell' },
+    el('span', { class: 'ov-label', text: label }),
+    el('strong', { text: value }),
+    sub && el('span', { class: 'ov-sub', text: sub }));
 
-  let chart = null;
-  if (done.length >= 3) {
-    const games = [];
-    const dates = [], values = [], labels = [];
-    for (const m of done) {
-      games.push(...gamesOf(m));
-      const r = tally(games, 0);
-      if (r.rate == null) continue;
-      dates.push(m.at); values.push(r.rate); labels.push(`${dayText(m.at)} · ${r.rate} % (${recordText(r)})`);
-    }
-    if (values.length >= 2) {
-      const point = el('span', { class: 'muted small' });
-      const idle = () => { point.textContent = `Ahora: ${labels.at(-1)}`; };
-      idle();
-      chart = el('div', { class: 'form-chart' },
-        el('div', { class: 'form-head' }, el('span', { class: 'muted small', text: '% de victorias acumulado' }), point),
-        lineChart(dates, values, { height: 80, min: 0, max: 100, onPoint: (i) => (i == null ? idle() : (point.textContent = labels[i])) }));
+  const done = list.filter((m) => RESULTS[m.result]).sort((a, b) => a.at - b.at);
+  let form = null, chart = null;
+  if (done.length) {
+    const last = done.at(-1).result;
+    let streak = 0;
+    for (let i = done.length - 1; i >= 0 && done[i].result === last; i--) streak++;
+    let best = 0, run = 0;
+    for (const m of done) { run = m.result === 'win' ? run + 1 : 0; best = Math.max(best, run); }
+    const recent = done.slice(-RECENT);
+    const recentR = record(recent);
+    form = el('div', { class: 'ov-form' },
+      el('div', { class: 'ov-head' },
+        el('span', { class: 'ov-label', text: recent.length < done.length ? `Últimas ${RECENT} partidas` : 'Tus partidas' }),
+        el('span', { class: 'ov-sub', text: `${recordText(recentR)} · ${rateText(recentR)}` })),
+      el('ol', { class: 'form-dots', 'aria-label': 'Resultados, de la más antigua a la más reciente' },
+        ...recent.map((m) => {
+          const opp = ctx.byId.get(m.opp);
+          const who = [opp && legendChamp(opp), m.oppName].filter(Boolean).join(' · ');
+          return el('li', { class: m.result, title: [fmtDay(m.at), RESULTS[m.result], m.score?.replace('-', '–'), who && `contra ${who}`].filter(Boolean).join(' · '), text: RESULT_SHORT[m.result] });
+        })),
+      el('div', { class: 'form-streak' },
+        el('span', {}, 'Racha ', el('strong', { class: last, text: streakText({ n: streak, res: last }) })),
+        best > 0 && el('span', {}, 'Mejor racha ', el('strong', { text: streakText({ n: best, res: 'win' }) }))));
+
+    if (done.length >= 3) {
+      const acc = [];
+      const dates = [], values = [], labels = [];
+      for (const m of done) {
+        acc.push(...gamesOf(m));
+        const r = tally(acc, 0);
+        if (r.rate == null) continue;
+        dates.push(m.at); values.push(r.rate); labels.push(`${dayText(m.at)} · ${r.rate} % (${recordText(r)})`);
+      }
+      if (values.length >= 2) {
+        const point = el('span', { class: 'ov-sub' });
+        const idle = () => { point.textContent = labels.at(-1); };
+        idle();
+        chart = el('div', { class: 'ov-chart' },
+          el('div', { class: 'ov-head' }, el('span', { class: 'ov-label', text: 'Evolución' }), point),
+          lineChart(dates, values, {
+            height: 140, min: 0, max: 100, ticks: [0, 100], reference: 50, yLabel: (v) => `${v} %`,
+            onPoint: (i) => (i == null ? idle() : (point.textContent = labels[i])),
+          }));
+      }
     }
   }
 
-  return el('div', { class: 'stats-form' },
-    el('div', { class: 'form-head' },
-      el('span', { class: 'muted small', text: recent.length < done.length ? `Últimas ${RECENT}` : 'Partidas' }),
-      el('span', { class: 'small', text: `${recordText(recentR)} · ${rateText(recentR)}` })),
-    el('ol', { class: 'form-dots', 'aria-label': 'Resultados, de la más antigua a la más reciente' },
-      ...recent.map((m) => {
-        const opp = ctx.byId.get(m.opp);
-        const who = [opp && legendChamp(opp), m.oppName].filter(Boolean).join(' · ');
-        return el('li', { class: m.result, title: [fmtDay(m.at), RESULTS[m.result], m.score?.replace('-', '–'), who && `contra ${who}`].filter(Boolean).join(' · '), text: RESULT_SHORT[m.result] });
-      })),
-    el('div', { class: 'form-streak small' },
-      el('span', {}, 'Racha ', el('strong', { class: last, text: streakText({ n: streak, res: last }) })),
-      best > 0 && el('span', {}, 'Mejor ', el('strong', { text: streakText({ n: best, res: 'win' }) }))),
+  return el('section', { class: `stats-overview${chart ? ' has-chart' : ''}`, 'aria-label': 'Resumen' },
+    el('div', { class: 'ov-lead' },
+      el('span', { class: 'ov-label', text: 'Victorias' }),
+      el('strong', { text: rateText(all) }),
+      el('span', { class: 'ov-sub', text: all.draw ? 'sin contar empates' : 'de los juegos jugados' })),
+    el('div', { class: 'ov-strip' },
+      cell(all.draw ? 'V–D–E' : 'V–D', recordText(all)),
+      cell(all.matches === 1 ? 'Partida' : 'Partidas', String(all.matches), all.games !== all.matches ? `${all.games} juegos` : null),
+      // Quién empezó: solo si se ha apuntado en algún juego.
+      (firstR.games || secondR.games) && cell('Empiezas tú', rateText(firstR), firstR.games ? recordText(firstR) : 'sin juegos'),
+      (firstR.games || secondR.games) && cell('Empieza el rival', rateText(secondR), secondR.games ? recordText(secondR) : 'sin juegos')),
+    form,
     chart);
 }
 
@@ -453,12 +480,6 @@ const deckNameOf = (id) => (id === 'none' ? 'Sin mazo' : deckById(id)?.name ?? d
 function renderStats(list) {
   const box = $('#match-stats');
   if (!store.matches.length) return box.replaceChildren();
-  const all = record(list);
-  // Empezando tú o el rival: cada juego por su cuenta (al mejor de 3, cada uno tiene quien empezó).
-  const games = list.flatMap(gamesOf);
-  const firstR = tally(games.filter((g) => g.start === true), 0);
-  const secondR = tally(games.filter((g) => g.start === false), 0);
-
   // Mazos con partidas (y los que ya no existen, si quedan partidas suyas).
   const deckIds = [...new Set(store.matches.map((m) => m.deck ?? 'none'))];
   const deckLegend = deckLegendOf, deckName = deckNameOf;
@@ -485,22 +506,7 @@ function renderStats(list) {
   // replaceChildren escribiría "false" con las secciones que no tocan: se quitan antes.
   box.replaceChildren(...[
     el('div', { class: 'stats-filter' }, filter, eventSelect || null),
-    el('div', { class: 'stats-summary' },
-      el('div', { class: 'stats-big' },
-        el('strong', { text: rateText(all) }),
-        el('span', { class: 'muted small', text: 'victorias' })),
-      el('div', { class: 'stats-big' },
-        el('strong', { text: recordText(all) }),
-        el('span', { class: 'muted small', text: all.draw ? 'V–D–E' : 'V–D' })),
-      el('div', { class: 'stats-big' },
-        el('strong', { text: String(all.matches) }),
-        el('span', { class: 'muted small', text: `${all.matches === 1 ? 'partida' : 'partidas'}${all.games !== all.matches ? ` · ${all.games} juegos` : ''}` }))),
-    (firstR.games || secondR.games) && el('div', { class: 'stats-first' },
-      ...[['Empezando tú', firstR], ['Empezando el rival', secondR]].map(([label, r]) => el('div', {},
-        el('span', { class: 'muted small', text: label }),
-        el('strong', { text: rateText(r) }),
-        el('span', { class: 'muted small', text: r.games ? recordText(r) : '' })))),
-    formBox(list),
+    overview(list),
     byDeck.length > 1 && foldable('decks', 'Por mazo', el('ul', { class: 'stat-list' },
       ...byDeck.map(([id, r]) => statRow(legendThumb(deckLegend(id)), deckName(id), r)))),
     byEvent.length > 1 && foldable('events', 'Por evento', el('ul', { class: 'stat-list' },

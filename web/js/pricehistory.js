@@ -95,7 +95,12 @@ export function changeText(from, to) {
  * Gráfica de línea en SVG. Al pasar el dedo o el ratón, `onPoint(i)` con el día más cercano
  * (y `onPoint(null)` al salir), para que quien la usa escriba la fecha y el valor.
  */
-export function lineChart(dates, values, { height = 120, onPoint, min: lo, max: hi } = {}) {
+/**
+ * Gráfica de una línea. Opcional: min / max fijos; ticks (valores con su línea de fondo y su etiqueta
+ * en un carril a la izquierda, con yLabel para el texto), reference (un valor con línea discontinua)
+ * y la fecha del medio en el eje.
+ */
+export function lineChart(dates, values, { height = 120, onPoint, min: lo, max: hi, ticks, yLabel = String, reference } = {}) {
   const W = 300;
   const H = height;
   const pad = 6;
@@ -118,6 +123,11 @@ export function lineChart(dates, values, { height = 120, onPoint, min: lo, max: 
     svg.append(node);
     return node;
   };
+  for (const v of ticks ?? []) {
+    if (v === reference) continue;
+    add('line', { x1: 0, x2: W, y1: y(v), y2: y(v), class: v === min ? 'line-chart-base' : 'line-chart-grid', 'vector-effect': 'non-scaling-stroke' });
+  }
+  if (reference != null) add('line', { x1: 0, x2: W, y1: y(reference), y2: y(reference), class: 'line-chart-ref', 'vector-effect': 'non-scaling-stroke' });
   add('polygon', { points: `0,${H} ${pts} ${W},${H}`, class: 'line-chart-area' });
   add('polyline', { points: pts, class: 'line-chart-line', 'vector-effect': 'non-scaling-stroke' });
   const cursor = add('line', { y1: 0, y2: H, class: 'line-chart-cursor', 'vector-effect': 'non-scaling-stroke', visibility: 'hidden' });
@@ -135,6 +145,16 @@ export function lineChart(dates, values, { height = 120, onPoint, min: lo, max: 
     svg.addEventListener('pointerdown', move);
     svg.addEventListener('pointerleave', () => { cursor.setAttribute('visibility', 'hidden'); onPoint(null); });
   }
-  return el('div', { class: 'line-chart-wrap' }, svg,
-    el('div', { class: 'line-chart-axis muted small' }, el('span', { text: dayText(dates[0]) }), el('span', { text: dayText(dates.at(-1)) })));
+  const axis = el('div', { class: 'line-chart-axis muted small' },
+    el('span', { text: dayText(dates[0]) }),
+    ticks && dates.length >= 5 && el('span', { text: dayText(dates[Math.floor((dates.length - 1) / 2)]) }),
+    el('span', { text: dayText(dates.at(-1)) }));
+  if (!ticks) return el('div', { class: 'line-chart-wrap' }, svg, axis);
+  // Con ticks: las etiquetas del eje Y en su propio carril (el SVG se estira y el texto no).
+  const lane = el('div', { class: 'line-chart-lane muted small', 'aria-hidden': 'true' },
+    ...[...new Set([...ticks, ...(reference != null ? [reference] : [])])].map((v) => el('span', { style: `top: ${(100 * y(v)) / H}%`, text: yLabel(v) })));
+  svg.style.height = `${H}px`;
+  return el('div', { class: 'line-chart-wrap with-lane' },
+    el('div', { class: 'line-chart-plot' }, lane, svg),
+    el('div', { class: 'line-chart-plot' }, el('span'), axis));
 }
