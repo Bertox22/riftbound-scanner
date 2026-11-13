@@ -29,9 +29,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
           cache: pip
@@ -42,7 +42,7 @@ jobs:
       # Las imágenes originales (cache/images) no están en el repositorio: se guardan entre
       # ejecuciones para no descargar las ~1.600 cartas cada día.
       - name: Recuperar imágenes descargadas
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: cache/images
           key: card-images-${{ github.run_id }}
@@ -56,7 +56,7 @@ jobs:
 
       - name: Guardar imágenes descargadas
         if: env.IMAGES_AFTER != env.IMAGES_BEFORE
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: cache/images
           key: card-images-${{ github.run_id }}
