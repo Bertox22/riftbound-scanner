@@ -644,6 +644,18 @@ dialog input[type=date]:focus { outline: none; border-color: var(--muted); }
 .stats-first > div { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; padding: 10px 14px; border-radius: 14px; background: var(--surface); }
 .stats-first > div > :first-child { flex-basis: 100%; }
 .stats-first strong { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.stats-form { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: 14px; background: var(--surface); }
+.form-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-variant-numeric: tabular-nums; }
+.form-dots { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; margin: 0; padding: 0; list-style: none; }
+.form-dots li { display: grid; place-items: center; height: 26px; border-radius: 6px; font-size: 12px; font-weight: 600; background: var(--surface-2); color: var(--muted); }
+.form-dots li.win { background: #153222; color: var(--ok); }
+.form-dots li.loss { background: #2c1a20; color: #f08a8f; }
+.form-streak { display: flex; gap: 16px; color: var(--muted); }
+.form-streak strong { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.form-streak strong.win { color: var(--ok); }
+.form-streak strong.loss { color: #f08a8f; }
+.form-chart .line-chart-wrap { margin: 6px 0 0; }
+.form-chart .line-chart { height: 80px; }
 .stats-title { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin: 16px 0 0; }
 #match-history-head { margin: 24px 0 12px; }
 /* «Por mazo» y «Contra cada Leyenda» se pliegan: el título es la cabecera, con el número y una flecha. */

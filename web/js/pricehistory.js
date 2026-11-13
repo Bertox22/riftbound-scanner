@@ -95,12 +95,13 @@ export function changeText(from, to) {
  * Gráfica de línea en SVG. Al pasar el dedo o el ratón, `onPoint(i)` con el día más cercano
  * (y `onPoint(null)` al salir), para que quien la usa escriba la fecha y el valor.
  */
-export function lineChart(dates, values, { height = 120, onPoint } = {}) {
+export function lineChart(dates, values, { height = 120, onPoint, min: lo, max: hi } = {}) {
   const W = 300;
   const H = height;
   const pad = 6;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  // min / max fijos (p. ej. 0–100 en un porcentaje); si no, los de los valores.
+  const min = lo ?? Math.min(...values);
+  const max = hi ?? Math.max(...values);
   const span = max - min || Math.max(1, max * 0.1);
   const x = (i) => (values.length === 1 ? W / 2 : (i * W) / (values.length - 1));
   const y = (v) => pad + (H - 2 * pad) * (1 - (v - min) / span);

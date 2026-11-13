@@ -15,6 +15,7 @@
 import { store, newUuid } from './store.js';
 import { $, el, toast, cardImg, baseName } from './ui.js';
 import { cloud, onCloudChange, fetchIncoming, dismissIncoming, mirrorId, fetchUserDecks } from './cloud.js';
+import { lineChart, dayText } from './pricehistory.js';
 
 const RESULTS = { win: 'Victoria', loss: 'Derrota', draw: 'Empate' };
 const RESULT_SHORT = { win: 'V', loss: 'D', draw: 'E' };
@@ -293,6 +294,61 @@ function groupGames(list, key) {
     .sort((a, b) => b[1].games - a[1].games || (b[1].rate ?? -1) - (a[1].rate ?? -1));
 }
 
+const RECENT = 10; // «Últimas 10»
+const streakText = (s) => `${s.n} ${RESULT_SHORT[s.res]}`;
+
+/**
+ * Forma reciente, por partidas (no por juegos): la racha actual y la mejor de victorias, las últimas
+ * 10 de la más antigua a la más nueva y, con 3 o más, la evolución del % de victorias (por juegos,
+ * acumulado partida a partida).
+ */
+function formBox(list) {
+  const done = list.filter((m) => RESULTS[m.result]).sort((a, b) => a.at - b.at);
+  if (!done.length) return null;
+  const last = done.at(-1).result;
+  let streak = 0;
+  for (let i = done.length - 1; i >= 0 && done[i].result === last; i--) streak++;
+  let best = 0, run = 0;
+  for (const m of done) { run = m.result === 'win' ? run + 1 : 0; best = Math.max(best, run); }
+  const recent = done.slice(-RECENT);
+  const recentR = record(recent);
+
+  let chart = null;
+  if (done.length >= 3) {
+    const games = [];
+    const dates = [], values = [], labels = [];
+    for (const m of done) {
+      games.push(...gamesOf(m));
+      const r = tally(games, 0);
+      if (r.rate == null) continue;
+      dates.push(m.at); values.push(r.rate); labels.push(`${dayText(m.at)} · ${r.rate} % (${recordText(r)})`);
+    }
+    if (values.length >= 2) {
+      const point = el('span', { class: 'muted small' });
+      const idle = () => { point.textContent = `Ahora: ${labels.at(-1)}`; };
+      idle();
+      chart = el('div', { class: 'form-chart' },
+        el('div', { class: 'form-head' }, el('span', { class: 'muted small', text: '% de victorias acumulado' }), point),
+        lineChart(dates, values, { height: 80, min: 0, max: 100, onPoint: (i) => (i == null ? idle() : (point.textContent = labels[i])) }));
+    }
+  }
+
+  return el('div', { class: 'stats-form' },
+    el('div', { class: 'form-head' },
+      el('span', { class: 'muted small', text: recent.length < done.length ? `Últimas ${RECENT}` : 'Partidas' }),
+      el('span', { class: 'small', text: `${recordText(recentR)} · ${rateText(recentR)}` })),
+    el('ol', { class: 'form-dots', 'aria-label': 'Resultados, de la más antigua a la más reciente' },
+      ...recent.map((m) => {
+        const opp = ctx.byId.get(m.opp);
+        const who = [opp && legendChamp(opp), m.oppName].filter(Boolean).join(' · ');
+        return el('li', { class: m.result, title: [fmtDay(m.at), RESULTS[m.result], m.score?.replace('-', '–'), who && `contra ${who}`].filter(Boolean).join(' · '), text: RESULT_SHORT[m.result] });
+      })),
+    el('div', { class: 'form-streak small' },
+      el('span', {}, 'Racha ', el('strong', { class: last, text: streakText({ n: streak, res: last }) })),
+      best > 0 && el('span', {}, 'Mejor ', el('strong', { text: streakText({ n: best, res: 'win' }) }))),
+    chart);
+}
+
 /** Miniatura apaisada de un Campo de batalla para las filas de estadísticas. */
 function bfThumb(id) {
   const card = ctx.byId.get(id);
@@ -384,6 +440,7 @@ function renderStats(list) {
         el('span', { class: 'muted small', text: label }),
         el('strong', { text: rateText(r) }),
         el('span', { class: 'muted small', text: r.games ? recordText(r) : '' })))),
+    formBox(list),
     byDeck.length > 1 && foldable('decks', 'Por mazo', el('ul', { class: 'stat-list' },
       ...byDeck.map(([id, r]) => statRow(legendThumb(deckLegend(id)), deckName(id), r)))),
     byOpp.length > 0 && foldable('legends', 'Contra cada Leyenda', el('ul', { class: 'stat-list' },
