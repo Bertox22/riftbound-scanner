@@ -7,7 +7,12 @@ funciona sin conexión.
 
 **App:** https://bertox22.github.io/riftbound-scanner/
 
-**Novedades de la versión 73 (noviembre de 2026):** la pestaña **Partidas** rediseñada para que no
+**Novedades de la versión 74 (noviembre de 2026):** diseño nuevo, **«Hextech»**: azul noche,
+oro viejo para enmarcar y titulares en Cinzel, con aire de los juegos de Runeterra (sin logotipos ni
+ilustraciones de Riot). El sistema completo está en [`DESIGN.md`](DESIGN.md) y resumido en
+[Diseño](#diseño).
+
+**Novedades de la versión 73:** la pestaña **Partidas** rediseñada para que no
 sea una lista interminable. Un panel de resumen (el % de victorias en grande, las cifras a su lado,
 la forma reciente y la evolución con eje) y un panel de desglose con pestañas (Mazos, Leyendas rivales,
 Tus Campos, Campos rivales, Eventos) en vez de cinco secciones apiladas. En el móvil, los filtros van
@@ -290,11 +295,16 @@ marcha están en [`supabase/README.md`](supabase/README.md).
 
 ## Diseño
 
-Negro neutro con capas por luminosidad y tipografía Inter con cifras tabulares. El dorado queda
-para los datos (copias, precios, la carta reconocida, el porcentaje de victorias). Botones en
-pastilla (el principal en blanco y a la derecha), casillas como interruptores, diálogos como hoja
-inferior en el móvil con la cabecera fija al desplazar, y animaciones que respetan "reducir
-movimiento".
+Tema **«Hextech»** (todo el sistema en [`DESIGN.md`](DESIGN.md)): azul noche por capas separadas
+por luminosidad y por una línea dorada muy fina, oro viejo para enmarcar (el filo de la cabecera, la
+barra de pestañas y las hojas, los contornos y el botón principal en degradado dorado) y el oro vivo
+solo para los datos (copias, precios, la carta reconocida, el porcentaje de victorias). El turquesa
+es solo para el foco del teclado y los enlaces. Titulares en **Cinzel** en mayúsculas espaciadas y el
+resto en Inter con cifras tabulares. Botones y campos casi rectos (4 px), paneles de 6 px, un rombo
+dorado sobre la pestaña elegida, casillas como interruptores dorados, diálogos como hoja inferior
+en el móvil con la cabecera fija al desplazar, y animaciones que respetan "reducir movimiento". Sin
+logotipos ni ilustraciones de Riot Games: solo el lenguaje visual. Los colores son variables de
+`:root` en `styles.css`, y la capa del tema va al final del archivo.
 
 En portátil y ordenador (desde 768 px), Colección tiene una barra con las pestañas a la izquierda y
 Balance e Historial a la derecha, y las hojas flotan centradas con margen. Desde 1120 px las pestañas
@@ -375,7 +385,7 @@ http://localhost:8000/?sw (y en local pide siempre primero los archivos al servi
    "Añadir a pantalla de inicio" para tenerla como una app.
 5. GitHub Pages deja guardar los archivos unos 10 minutos. Para que cada publicación llegue entera,
    `styles.css`, `app.js` y el resto de módulos (con el `importmap` de `index.html`) llevan la misma
-   versión, `?v=69`: al publicar cambios de estilos o de código, súbela en todos a la vez. El service
+   versión (ahora `?v=74`): al publicar cambios de estilos o de código, súbela en todos a la vez. El service
    worker (`sw.js`) toma la versión de ahí solo: no hay que tocarlo.
 
 Sin cuenta, la colección, los mazos y las partidas se guardan solo en el navegador (localStorage:
