@@ -11,6 +11,7 @@ import { initTable } from './table.js';
 import { initTrades, showTrades, tradeBlock, wantButton } from './trades.js';
 import { initLedger } from './ledger.js';
 import { importBackup } from './backup.js';
+import { loadHistory, cardSeries, collectionSeries, rangeStart, movers, lineChart, dayText, changeText, pctText } from './pricehistory.js';
 import { initBack } from './back.js';
 import { cloud, fetchRemovedCards } from './cloud.js';
 import { loadPrices, pricesDate, priceInfo, unitPrice, entryValue, eur, usd, VALUABLE_EUR } from './prices.js';
@@ -123,7 +124,25 @@ function priceBlock(card) {
         target: '_blank', rel: 'noopener',
       }, card.cardmarket ? 'Ver en Cardmarket' : 'Buscar en Cardmarket'),
       pricesDate() && ` · precios del ${new Date(pricesDate()).toLocaleDateString('es-ES')}`),
+    p && priceChart(card),
   );
+}
+
+/** En la ficha: cómo ha ido el precio normal en Cardmarket (se rellena al llegar el historial). */
+function priceChart(card) {
+  const box = el('div', { class: 'card-chart' });
+  loadHistory().then((h) => {
+    const s = h && cardSeries(h, card.id);
+    if (!s || s.length < 2) return;
+    const start = rangeStart(h, 30);
+    const label = el('span', { class: 'muted small' });
+    const idle = () => { label.textContent = `${start > 0 ? '30 días' : `Desde el ${dayText(h.dates[0])}`}: ${changeText(s[start], s.at(-1))}`; };
+    idle();
+    box.replaceChildren(
+      el('div', { class: 'card-chart-head' }, el('strong', { class: 'small', text: priceInfo(card.id)?.foilOnly ? 'Precio (solo foil)' : 'Precio normal' }), label),
+      lineChart(h.dates, s, { height: 56, onPoint: (i) => (i == null ? idle() : (label.textContent = `${dayText(h.dates[i])} · ${eur(s[i])}`)) }));
+  });
+  return box;
 }
 
 function openCard(card) {
@@ -669,6 +688,60 @@ function showSetInCollection(id) {
 }
 
 $('#btn-col-sets').addEventListener('click', () => openSets());
+
+// ---------- Valor de la colección ----------
+
+const VALUE_RANGES = [[7, '7 días'], [30, '30 días'], [0, 'Todo']];
+let valueRange = 30;
+
+async function openValue() {
+  const dlg = $('#picker-dialog');
+  const head = el('div', { class: 'dialog-head' },
+    el('h2', { text: 'Valor de la colección' }),
+    el('button', { class: 'icon-btn', title: 'Cerrar', 'aria-label': 'Cerrar', onclick: () => dlg.close() }, '✕'));
+  dlg.replaceChildren(head, el('p', { class: 'muted small', text: 'Cargando el historial de precios…' }));
+  if (!dlg.open) dlg.showModal();
+  const h = await loadHistory();
+  if (!dlg.open) return;
+  if (!h) return dlg.replaceChildren(head, el('p', { class: 'muted', text: 'No se pudo cargar el historial de precios (¿sin conexión?).' }));
+
+  const draw = () => {
+    const series = collectionSeries(h, store.collection);
+    const start = rangeStart(h, valueRange);
+    const dates = h.dates.slice(start);
+    const values = series.slice(start);
+    const now = values.at(-1);
+    const diff = now - values[0];
+    const point = el('p', { class: 'muted small value-point' });
+    const idle = () => { point.textContent = `Desde el ${dayText(dates[0])}`; };
+    idle();
+    const moves = movers(h, store.collection, start);
+    const up = moves.filter((m) => m.diff > 0).sort((a, b) => b.diff - a.diff).slice(0, 5);
+    const down = moves.filter((m) => m.diff < 0).sort((a, b) => a.diff - b.diff).slice(0, 5);
+    const moverRow = (m) => {
+      const card = byId.get(m.id);
+      return card && historyRow(card, `${m.copies}×${m.foil ? ' foil' : ''} · ${eur(m.from)} → ${eur(m.to)}${m.pct != null ? ` (${pctText(m.pct)})` : ''}`,
+        el('span', { class: `value-diff ${m.diff > 0 ? 'up' : 'down'}`, text: `${m.diff > 0 ? '+' : '−'}${eur(Math.abs(m.diff))}` }));
+    };
+    dlg.replaceChildren(...[
+      head,
+      el('p', { class: 'set-big', text: eur(now) }),
+      el('p', { class: `value-change ${diff > 0.005 ? 'up' : diff < -0.005 ? 'down' : ''}`, text: values.length > 1 ? changeText(values[0], now) : 'Aún no hay días anteriores' }),
+      point,
+      el('div', { class: 'segmented cols-3 value-range' }, ...VALUE_RANGES.map(([d, label]) =>
+        el('button', { 'aria-checked': String(valueRange === d), onclick: () => { valueRange = d; draw(); } }, label))),
+      values.length > 1 && lineChart(dates, values, { onPoint: (i) => (i == null ? idle() : (point.textContent = `${dayText(dates[i])} · ${eur(values[i])}`)) }),
+      el('p', { class: 'muted small', text: `Con las cartas que tienes hoy y el precio de Cardmarket de cada día (normal o foil, según la copia). Hay precios desde el ${dayText(h.dates[0])}; los de hace más de 90 días, uno por semana.` }),
+      up.length > 0 && el('h3', { class: 'stats-title', text: 'Lo que más sube' }),
+      up.length > 0 && el('ul', { class: 'history-list' }, ...up.map(moverRow).filter(Boolean)),
+      down.length > 0 && el('h3', { class: 'stats-title', text: 'Lo que más baja' }),
+      down.length > 0 && el('ul', { class: 'history-list' }, ...down.map(moverRow).filter(Boolean)),
+      !up.length && !down.length && el('p', { class: 'muted small', text: 'Ninguna de tus cartas ha cambiado de precio en este periodo.' }),
+    ].filter(Boolean));
+  };
+  draw();
+}
+$('#btn-col-value').addEventListener('click', openValue);
 
 function renderCollection(keepLimit = false) {
   if (!keepLimit) { colLimit = COL_PAGE; justEmptied.clear(); }

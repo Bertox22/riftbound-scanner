@@ -17,6 +17,7 @@ Genera:
     web/thumbs/<id>.webp       miniatura para mostrar en la app
     web/data/cards.json        metadatos de las cartas
     web/data/prices.json       precios de Cardmarket y TCGplayer (cambian cada día)
+    web/data/price-history.json  un punto por día de los precios en euros (ver price_history.py)
 
 Vuelve a ejecutarlo cuando salga un set nuevo: solo descarga las imágenes que faltan.
 """
@@ -37,6 +38,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import dotgg  # noqa: E402
 from errata import apply_errata, fetch_errata  # noqa: E402
 from prices import build_prices  # noqa: E402
+import price_history  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 GALLERY = "https://riftbound.leagueoflegends.com/en-us/card-gallery/"
@@ -384,6 +386,11 @@ def main():
         prices = build_prices(cards)  # también añade a cada carta su enlace de Cardmarket
         (DATA / "prices.json").write_text(json.dumps(prices, separators=(",", ":")), encoding="utf-8")
         print(f"Precios: {len(prices['prices'])} cartas")
+        try:
+            hist = price_history.update(prices)
+            print(f"Historial de precios: {len(hist['dates'])} días")
+        except Exception as exc:  # noqa: BLE001 (sin historial la app sigue igual)
+            print(f"No se pudo actualizar el historial de precios: {exc}")
     except Exception as exc:  # noqa: BLE001
         if strict:
             raise SourceError(f"No se pudieron leer los precios: {exc}") from exc

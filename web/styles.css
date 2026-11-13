@@ -722,6 +722,21 @@ dialog input[type=date]:focus { outline: none; border-color: var(--muted); }
 .set-scope { margin: 12px 0 4px; }
 .set-row .rate-bar { background: var(--surface); margin: 8px 0 6px; }
 .history-done { color: var(--ok); font-size: 13px; white-space: nowrap; }
+.line-chart-wrap { margin: 8px 0 12px; }
+.line-chart { display: block; width: 100%; height: 120px; touch-action: pan-y; cursor: crosshair; }
+.card-chart .line-chart { height: 56px; }
+.line-chart-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
+.line-chart-area { fill: var(--accent); opacity: .12; }
+.line-chart-cursor { stroke: var(--muted); stroke-width: 1; }
+.line-chart-axis { display: flex; justify-content: space-between; margin-top: 4px; }
+.card-chart { margin-top: 12px; }
+.card-chart-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.value-change { margin: 2px 0 0; font-variant-numeric: tabular-nums; color: var(--muted); }
+.value-change.up, .value-diff.up { color: var(--ok); }
+.value-change.down, .value-diff.down { color: var(--danger); }
+.value-diff { white-space: nowrap; font-variant-numeric: tabular-nums; font-size: 14px; }
+.value-point { margin: 4px 0 0; min-height: 1.4em; font-variant-numeric: tabular-nums; }
+.value-range { margin: 12px 0 4px; }
 
 /* Importación */
 #import-dialog textarea { width: 100%; font: inherit; color: var(--text); background: var(--surface-2); border: 1px solid transparent; border-radius: 16px; padding: 12px 14px; margin-bottom: 8px; }
