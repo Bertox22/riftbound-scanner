@@ -12,6 +12,12 @@
 //     baja y se guarda.
 //   - Lo demás (Supabase, imágenes grandes de Riot, el modelo, que ya se guarda aparte) no se toca.
 //
+// Escáner con varios hilos: a la página se le añaden las cabeceras que la «aíslan» (COOP + COEP), que
+// GitHub Pages no deja poner. Con ellas recognizer.js usa hasta 4 hilos (~2,8 veces más rápido en un
+// PC, mismo resultado). COEP va en modo credentialless: con require-corp se bloquearían las imágenes de
+// Riot, que no traen Cross-Origin-Resource-Policy. Safari no lo admite y se queda con 1 hilo, como antes.
+// La primera visita aún no pasa por aquí: los hilos llegan desde la segunda.
+//
 // Freno de emergencia: si una versión de este archivo diera problemas, publicar uno que solo haga
 // self.registration.unregister() y borre las cachés rb-sw-*; cada móvil lo quita en su siguiente visita.
 
@@ -30,6 +36,15 @@ const PAGE_TIMEOUT = 3000;
 const LOCAL = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
 
 const abs = (path) => new URL(path, self.registration.scope).href;
+
+/** La misma respuesta de la página, con las cabeceras que la aíslan (para los hilos del escáner). */
+function isolated(res) {
+  if (!res || res.status !== 200 || (res.type !== 'basic' && res.type !== 'default')) return res;
+  const headers = new Headers(res.headers);
+  headers.set('Cross-Origin-Opener-Policy', 'same-origin');
+  headers.set('Cross-Origin-Embedder-Policy', 'credentialless');
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+}
 const fresh = (url) => new Request(url, { cache: 'reload' }); // sin la caché HTTP del navegador
 
 /** Los archivos con ?v= que pide index.html: styles.css, app.js y los del import map. */
@@ -124,7 +139,7 @@ self.addEventListener('fetch', (event) => {
     const path = url.pathname.slice(scope.pathname.length);
     // La página (con cualquier #pestaña o ?parámetro): la guardada es la de esta versión.
     if (request.mode === 'navigate') {
-      event.respondWith(networkFirst(request, SHELL, { ms: PAGE_TIMEOUT, key: abs('./'), store: false }));
+      event.respondWith(networkFirst(request, SHELL, { ms: PAGE_TIMEOUT, key: abs('./'), store: false }).then(isolated));
     } else if (url.searchParams.has('v') && /\.(js|css)$/.test(path)) {
       // En el PC se edita sin cambiar la ?v=: allí primero internet, para ver siempre lo último.
       event.respondWith(LOCAL ? networkFirst(request, SHELL, { store: false })

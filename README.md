@@ -195,6 +195,13 @@ Todo ocurre en el propio móvil, sin enviar imágenes a ningún servidor:
 Las cartas con exactamente la misma ilustración (reimpresiones, promos) no se pueden distinguir con
 la cámara: se propone la edición normal y puedes cambiar la versión en la lista de escaneadas.
 
+**Velocidad:** el modelo usa hasta 4 hilos del procesador cuando la página está «aislada» (cabeceras
+COOP y COEP). GitHub Pages no deja ponerlas, así que las añade el service worker (`sw.js`), en modo
+`credentialless` para que sigan cargando las imágenes de Riot. En un PC pasa de ~350 ms a ~125 ms por
+fotograma con el mismo resultado. Desde la segunda vez que se abre la app; en Safari (iPhone), que no
+admite ese modo, va con 1 hilo como antes. El escáner muestra los ms de cada fotograma. WebGPU se probó
+y no sirve con este modelo: sus capas cuantizadas dan resultados erróneos.
+
 ## Estructura
 
 ```
