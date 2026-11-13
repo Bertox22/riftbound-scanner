@@ -915,7 +915,20 @@ body.mesa-open { overflow: hidden; }
 .mesa-pill.primary:hover { background: #e6e6e6; }
 .mesa-btn:active, .mesa-pill:active { transform: scale(.96); }
 .mesa-btn:focus-visible, .mesa-pill:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
-.mesa-status { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; line-height: 1.25; text-align: center; }
+.mesa-status {
+  flex: 1; min-width: 0; height: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  line-height: 1.25; text-align: center; border: 0; border-radius: 12px; background: none; color: #fff; font: inherit; padding: 0 4px; cursor: pointer;
+}
+.mesa-status:hover { background: #1c1c1c; }
+.mesa-status:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.mesa-btn:disabled { opacity: .35; cursor: default; }
+.mesa-btn:disabled:hover { background: #1c1c1c; }
+.mesa-status strong.mesa-clock { font-size: 16px; letter-spacing: .01em; font-variant-numeric: tabular-nums; }
+.mesa-clock.paused { color: #b4b4b4; }
+.mesa-clock.low { color: var(--warn); }
+.mesa-clock.over { color: var(--danger); }
+.mesa-menu-timer { display: flex; flex-direction: column; gap: 8px; }
+.mesa-menu-clock { font-size: 40px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .mesa-status strong, .mesa-status span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mesa-status strong { font-size: 14px; font-weight: 600; }
 .mesa-status span { font-size: 12px; color: #b4b4b4; font-variant-numeric: tabular-nums; }

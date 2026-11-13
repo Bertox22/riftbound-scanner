@@ -15,6 +15,9 @@
 //   juega, starts: ['me' | 'opp' | null, …] (quién empezó cada juego), chooser: 'me' | 'opp' | null (tiene que elegir quién empieza: en el primer juego, quien
 //   gana el sorteo; en los siguientes, quien perdió el anterior) }
 // Al mejor de 3, con 2–0 se puede jugar el tercero igualmente («Jugar el 3.º»): acaba 3–0 o 2–1.
+// Además: timer (temporizador de ronda: { total, endsAt (en marcha) | left (en pausa), rang (ya
+// avisó) }, o null) y undo (fotos de la mesa en JSON antes de cada acción, las últimas UNDO_MAX;
+// deshacer no toca el temporizador). El centro de la barra abre el menú: temporizador y reiniciar.
 
 import { store } from './store.js';
 import { $, el, toast, cardImg } from './ui.js';
@@ -32,6 +35,9 @@ let drawing = false; // el sorteo está en marcha
 // El color del primer dominio de cada Leyenda tiñe su mitad (identidad, no datos).
 const DOMAIN_COLOR = { Fury: '#e5484d', Calm: '#3fc07a', Mind: '#4c8dff', Body: '#f08c3a', Chaos: '#a066e8', Order: '#e2b955' };
 const TARGETS = [8, 11];
+const TIMERS = [[0, 'Sin'], [30, '30 min'], [50, '50 min'], [60, '60 min']];
+const UNDO_MAX = 30;
+let clockTimer = null; // el intervalo que mueve el reloj mientras la mesa está abierta
 
 const t = () => store.table;
 const current = () => t().games[t().games.length - 1];
@@ -93,7 +99,7 @@ export function openSetup() {
   if (t()) return openTable(); // ya hay una en marcha
   const dlg = $('#match-dialog');
   const lastDeck = store.matches.find((m) => m.deck && deckById(m.deck))?.deck ?? store.decks[0]?.id ?? null;
-  const s = { deck: lastDeck, legend: null, oppName: '', account: null, oppDeck: null, oppLegend: null, bestOf: 1, target: 8 };
+  const s = { deck: lastDeck, legend: null, oppName: '', account: null, oppDeck: null, oppLegend: null, bestOf: 1, target: 8, timer: store.settings.tableTimer ?? 50 };
   let choosing = null; // 'me' | 'opp': mostrando la cuadrícula de Leyendas
   let found = []; // cuentas que coinciden con el nombre del rival
   let searchTimer = null;
@@ -189,6 +195,9 @@ export function openSetup() {
         el('div', { class: 'match-field' },
           el('span', { class: 'match-label', text: 'Puntos para ganar un juego' }),
           segmented('Puntos para ganar', TARGETS.map((n) => [n, String(n)]), s.target, (v) => { s.target = v; draw(); })),
+        el('div', { class: 'match-field' },
+          el('span', { class: 'match-label', text: 'Temporizador de ronda' }),
+          segmented('Temporizador de ronda', TIMERS, s.timer, (v) => { s.timer = v; draw(); })),
         el('div', { class: 'actions match-actions' },
           el('button', { class: 'btn primary', type: 'submit' }, 'Empezar'))),
     );
@@ -208,7 +217,11 @@ function start(s, myLegend) {
     me: { deck: s.deck, legend: myLegend },
     opp: { name: s.oppName.trim(), legend: s.oppLegend, account: s.account, deck: s.account ? s.oppDeck : null },
     games: [[0, 0]], fields: [[null, null]], starts: [null], first: null, start: null, chooser: null,
+    timer: s.timer ? { total: s.timer * 60000, endsAt: Date.now() + s.timer * 60000, left: null, rang: false } : null, undo: [],
   });
+  // La próxima vez, el mismo temporizador.
+  store.settings.tableTimer = s.timer;
+  store.saveSettings();
   openTable();
 }
 
@@ -240,8 +253,10 @@ function half(side) {
   const field = fieldsNow()[side];
   const chooses = tb.chooser === (side === 0 ? 'me' : 'opp');
   const bump = (d) => {
-    const g = current();
-    g[side] = Math.max(0, Math.min(99, g[side] + d));
+    const to = Math.max(0, Math.min(99, current()[side] + d));
+    if (to === current()[side]) return;
+    remember();
+    current()[side] = to;
     store.saveTable();
     navigator.vibrate?.(10);
     renderTable();
@@ -336,10 +351,15 @@ function bar() {
   return el('div', { class: 'mesa-bar' },
     iconBtn('Salir de la mesa (la partida sigue guardada)', '<path d="M15 6l-6 6 6 6"/>', closeTable),
     canDraw && pill('Sortear', 'Sortear quién elige quién empieza', drawFirst, false),
-    el('div', { class: 'mesa-status' },
-      el('strong', { text: tb.bestOf > 1 ? `Juego ${n}` : 'Un juego' }),
-      el('span', { text: tb.bestOf > 1 ? `${gamesWon(0)}–${gamesWon(1)} · a ${tb.target}` : `a ${tb.target} puntos` })),
-    iconBtn('Reiniciar la partida', '<path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v5h5"/>', reset),
+    // El centro abre el menú de la mesa (temporizador y reiniciar). Con temporizador, el reloj va arriba.
+    el('button', { class: 'mesa-status', type: 'button', 'aria-label': 'Temporizador y opciones de la partida', onclick: openMenu },
+      tb.timer
+        ? el('strong', { class: 'mesa-clock' })
+        : el('strong', { text: tb.bestOf > 1 ? `Juego ${n}` : 'Un juego' }),
+      el('span', { text: tb.bestOf > 1
+        ? `${tb.timer ? `Juego ${n} · ` : ''}${gamesWon(0)}–${gamesWon(1)} · a ${tb.target}`
+        : `a ${tb.target} puntos` })),
+    undoBtn(),
     canNext && pill('Siguiente', 'Cerrar este juego y empezar el siguiente', nextGame, false),
     canThird && pill('Jugar el 3.º', 'Guardar el juego 2 y jugar el tercero aunque la partida ya esté decidida', nextGame, false),
     closeGame
@@ -351,6 +371,117 @@ function renderTable() {
   const root = $('#mesa');
   if (!t()) { root.hidden = true; return; }
   root.replaceChildren(half(1), bar(), half(0));
+  tickClock();
+}
+
+// ---------- Deshacer ----------
+
+/** Guarda cómo está la mesa antes de una acción, para poder deshacerla (sin el temporizador). */
+function remember() {
+  const { undo = [], timer, ...rest } = t();
+  t().undo = [...undo.slice(-(UNDO_MAX - 1)), JSON.stringify(rest)];
+}
+
+function undoBtn() {
+  const b = iconBtn('Deshacer lo último', '<path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>', undo);
+  b.disabled = !t().undo?.length;
+  return b;
+}
+
+function undo() {
+  const tb = t();
+  const last = tb.undo?.pop();
+  if (!last) return;
+  store.saveTable({ ...JSON.parse(last), timer: tb.timer, undo: tb.undo });
+  navigator.vibrate?.(10);
+  renderTable();
+}
+
+// ---------- Temporizador ----------
+
+const clockLeft = (tm) => (tm.endsAt != null ? tm.endsAt - Date.now() : tm.left);
+/** 49:05; pasado el tiempo, +1:23. */
+function clockText(ms) {
+  const s = Math.ceil(Math.abs(ms) / 1000);
+  return `${ms <= -1000 ? '+' : ''}${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+/** Pone el reloj de la barra al día y, la primera vez que llega a 0, avisa. */
+function tickClock() {
+  const tm = t()?.timer;
+  if (!tm) return;
+  const ms = clockLeft(tm);
+  const node = $('#mesa .mesa-clock');
+  if (node) {
+    node.textContent = clockText(ms);
+    node.classList.toggle('paused', tm.endsAt == null);
+    node.classList.toggle('low', ms > 0 && ms <= 5 * 60000);
+    node.classList.toggle('over', ms <= 0);
+  }
+  if (ms <= 0 && !tm.rang) {
+    tm.rang = true;
+    store.saveTable();
+    navigator.vibrate?.([300, 150, 300, 150, 300]);
+    toast('Se ha acabado el tiempo de la ronda', 6000);
+  }
+}
+
+function setTimer(tm) {
+  t().timer = tm;
+  store.saveTable();
+  renderTable();
+}
+const pauseTimer = (tm) => setTimer({ ...tm, left: clockLeft(tm), endsAt: null });
+const resumeTimer = (tm) => setTimer({ ...tm, endsAt: Date.now() + tm.left, left: null });
+/** Sumar o quitar minutos (para cuadrar con el reloj del juez). Si vuelve a quedar tiempo, volverá a avisar. */
+function shiftTimer(tm, ms) {
+  const left = clockLeft(tm) + ms;
+  setTimer({ ...tm, ...(tm.endsAt != null ? { endsAt: Date.now() + left } : { left }), rang: left <= 0 ? tm.rang : false });
+}
+const newTimer = (min) => setTimer({ total: min * 60000, endsAt: Date.now() + min * 60000, left: null, rang: false });
+
+/** Menú del centro de la barra: el temporizador (pausa, ajustar, quitar o poner) y reiniciar. */
+function openMenu() {
+  const dlg = $('#match-dialog');
+  const btn = (text, onclick, cls = '') => el('button', { class: `btn small ${cls}`, type: 'button', onclick: () => { onclick(); draw(); } }, text);
+  const draw = () => {
+    if (!t()) return dlg.close();
+    const tm = t().timer;
+    dlg.replaceChildren(
+      el('div', { class: 'dialog-head' },
+        el('h2', { text: 'Partida' }),
+        el('button', { class: 'icon-btn', type: 'button', title: 'Cerrar', 'aria-label': 'Cerrar', onclick: () => dlg.close() }, '✕')),
+      el('div', { class: 'match-form' },
+      el('div', { class: 'match-field' },
+        el('span', { class: 'match-label', text: 'Temporizador de ronda' }),
+        tm
+          ? el('div', { class: 'mesa-menu-timer' },
+            el('strong', { class: 'mesa-menu-clock', text: clockText(clockLeft(tm)) }),
+            el('span', { class: 'muted small', text: `${tm.endsAt == null ? 'En pausa' : 'En marcha'} · ronda de ${Math.round(tm.total / 60000)} min` }),
+            el('div', { class: 'actions' },
+              btn('−1 min', () => shiftTimer(tm, -60000)),
+              btn('+1 min', () => shiftTimer(tm, 60000)),
+              btn(tm.endsAt == null ? 'Seguir' : 'Pausar', () => (tm.endsAt == null ? resumeTimer : pauseTimer)(tm), 'primary')),
+            el('div', { class: 'actions' },
+              btn('Volver a empezar', () => newTimer(Math.round(tm.total / 60000)), 'ghost'),
+              btn('Quitar', () => setTimer(null), 'ghost')))
+          : el('div', { class: 'actions' },
+            ...TIMERS.filter(([m]) => m).map(([m, label]) => btn(label, () => newTimer(m))))),
+      el('div', { class: 'match-field' },
+        el('span', { class: 'match-label', text: 'Marcador' }),
+        el('div', { class: 'actions' },
+          el('button', { class: 'btn small danger', type: 'button', onclick: () => { if (reset()) dlg.close(); } }, 'Reiniciar la partida')))),
+    );
+  };
+  draw();
+  // El reloj del menú también corre.
+  const live = setInterval(() => {
+    if (!dlg.open) return clearInterval(live);
+    const tm = t()?.timer;
+    const node = dlg.querySelector('.mesa-menu-clock');
+    if (tm && node) node.textContent = clockText(clockLeft(tm));
+  }, 500);
+  if (!dlg.open) dlg.showModal();
 }
 
 export function openTable() {
@@ -360,6 +491,8 @@ export function openTable() {
   if (location.hash !== '#mesa') history.pushState({ mesa: true }, '', '#mesa');
   renderTable();
   keepAwake();
+  clearInterval(clockTimer);
+  clockTimer = setInterval(tickClock, 500);
 }
 
 function closeTable() {
@@ -367,6 +500,7 @@ function closeTable() {
   document.body.classList.remove('mesa-open');
   wakeLock?.release().catch(() => {});
   wakeLock = null;
+  clearInterval(clockTimer);
   // Cerrada con el botón: se deshace el paso de la mesa (o, si se abrió al cargar la página, se cambia
   // por Partidas). Cerrada con «atrás», el historial ya está en su sitio.
   if (location.hash === '#mesa') {
@@ -399,6 +533,7 @@ function drawFirst() {
       drawing = false;
       halves.forEach((h) => h.classList.remove('lit'));
       if (!t()) return;
+      remember();
       if (t().games.length === 1) t().first = null;
       t().start = null;
       (t().starts ??= [])[t().games.length - 1] = null;
@@ -413,6 +548,7 @@ function drawFirst() {
 
 /** Apunta a quien haya elegido el ganador del sorteo como el que empieza. */
 function chooseFirst(who) {
+  remember();
   if (t().games.length === 1) t().first = who;
   t().start = who;
   (t().starts ??= [])[t().games.length - 1] = who;
@@ -435,6 +571,7 @@ function nextGame() {
   if (!confirm(third
     ? `¿Jugar el tercer juego? El juego ${n} (${a}–${b}) se guarda y la partida acabará 3–0 o 2–1.`
     : `¿Terminar el juego ${n} (${a}–${b})? Se guarda y empieza el juego ${n + 1}.`)) return;
+  remember();
   const tb = t();
   fieldsNow(); // que el juego cerrado tenga su sitio en los Campos
   tb.starts = tb.games.map((_, i) => startOfGame(tb, i)); // y en quién empezó (las mesas de antes)
@@ -450,8 +587,10 @@ function nextGame() {
   if (tb.chooser) flash(tb.chooser === 'me' ? 0 : 1);
 }
 
+/** Vuelve los puntos a 0 (se puede deshacer). Devuelve si se hizo. */
 function reset() {
-  if (!confirm('¿Reiniciar la partida? Los puntos vuelven a 0.')) return;
+  if (!confirm('¿Reiniciar la partida? Los puntos vuelven a 0.')) return false;
+  remember();
   const tb = t();
   tb.games = [[0, 0]];
   tb.fields = [tb.fields?.[0] ?? [null, null]]; // los Campos del primer juego siguen valiendo
@@ -461,6 +600,7 @@ function reset() {
   tb.chooser = null;
   store.saveTable();
   renderTable();
+  return true;
 }
 
 /** Elegir el Campo de batalla de un jugador en el juego que se está jugando. */
@@ -475,6 +615,7 @@ function pickField(side, name) {
       el('button', { class: 'icon-btn', type: 'button', title: 'Cerrar', 'aria-label': 'Cerrar', onclick: () => dlg.close() }, '✕')),
     tb.bestOf > 1 && el('p', { class: 'muted small', text: `Juego ${n}` }),
     battlefieldChooser(fieldsNow()[side], (id) => {
+      remember();
       fieldsNow()[side] = canonicalBattlefield(id);
       store.saveTable();
       dlg.close();
