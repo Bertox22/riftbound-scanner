@@ -7,6 +7,11 @@ funciona sin conexión.
 
 **App:** https://bertox22.github.io/riftbound-scanner/
 
+**Novedades de la versión 80:** **«¿Qué mazos puedo montar?»** más útil: ya no salen los mazos que
+puedes montar enteros y legales con tus cartas (se dice en una línea cuáles son). En «Sin mazo conocido»
+solo salen las Leyendas de las que tienes la carta de Leyenda o su Campeón, con lo que te falta de los
+dos («Tienes la Leyenda · te falta el Campeón»); primero las que tienen ambos.
+
 **Novedades de la versión 79:** **«¿Qué mazos puedo montar?»** en Mazos: para cada Leyenda, cuánto
 tienes de su mejor mazo completo (tuyo, de la gente que sigues o compartido por la comunidad) y lo que
 costaría lo que falta en Cardmarket, con la lista de cartas, «Lo quiero» y abrir o copiar el mazo. Las
