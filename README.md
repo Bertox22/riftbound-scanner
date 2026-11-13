@@ -7,6 +7,10 @@ funciona sin conexión.
 
 **App:** https://bertox22.github.io/riftbound-scanner/
 
+**Novedades de la versión 75:** en el perfil de un amigo, **«Tú contra X» se puede pulsar** y abre
+todas las partidas entre los dos, cada una con si la tenéis ambos o a quién le falta, y desde ahí
+«Enviársela» o «Apuntar en mi historial». Ver «Partidas entre vosotros» en «Perfil y amigos».
+
 **Novedades de la versión 74 (noviembre de 2026):** diseño nuevo, **«Hextech»**: azul noche,
 oro viejo para enmarcar y titulares en Cinzel, con aire de los juegos de Runeterra (sin logotipos ni
 ilustraciones de Riot). El sistema completo está en [`DESIGN.md`](DESIGN.md) y resumido en
@@ -219,6 +223,8 @@ en una fila. Los perfiles de los amigos usan el mismo aspecto.
     su rival con cuenta, y cada uno una sola vez (lo comprueba la base de datos). Si los dos apuntasteis
     la misma partida por separado (menos de 1 h entre las dos, resultado y Leyendas cruzados), se aparta
     en «parece que ya la tenéis» para no duplicarla.
+    Pulsando «Tú contra X» (o «Ver todas») se abre la lista completa de partidas entre los dos: «✓ La
+    tenéis los dos», «X no la tiene» con «Enviársela», o «No la tienes» con «Apuntar en mi historial».
   - **Añadir a Busco:** en «Te faltan…» de un mazo (tuyo o de otro), las cartas que faltan pasan a tu
     lista Busco de un toque.
   - **¿Cuánto me falta?:** en el mazo de otro jugador ves qué cartas te faltan de tu colección y lo
