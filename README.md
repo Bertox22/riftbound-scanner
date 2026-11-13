@@ -7,7 +7,17 @@ funciona sin conexión.
 
 **App:** https://bertox22.github.io/riftbound-scanner/
 
-**Novedades de la versión 70 (noviembre de 2026):**
+**Novedades de la versión 71 (noviembre de 2026), en Mazos:**
+- **Curva y dominios** en el editor: barras por coste de energía, coste medio, cartas por tipo y, por
+  dominio, cuántas cartas, cuánto poder piden y cuántas runas llevas.
+- **Mano de prueba:** roba 4 cartas, haz el mulligan (hasta 2) y sigue robando. Y la probabilidad de
+  tener una carta: en la mano inicial, tras el mulligan y tras robar N más.
+- **Compartir el mazo como imagen** (WhatsApp, Discord…): Leyenda y Campeón, la lista con las copias,
+  Runas, Campos y Sideboard.
+- **Notas y versiones del mazo:** notas libres y «Guardar versión» con una nota corta. Cada versión
+  muestra qué cartas cambiaron y cómo le ha ido («v3 · −2 Brawl, +2 Shuriken Flip · 7–2 · 78 %»).
+
+**Novedades de la versión 70:**
 - **Progreso por set:** botón «Sets» en Colección. Cuántas cartas tienes de cada set («Vendetta
   91/166 · 54 %», contando las numeradas del 1 al total; las variantes y showcase aparte), cuántas te
   faltan y lo que costarían en Cardmarket, la lista de las que faltan (las más caras primero) y «Ver en
@@ -89,6 +99,19 @@ funciona sin conexión.
     avisos, cartas que faltan) y la tabla detallada. También se exportan todos a la vez.
   - En "Mis mazos" cada mazo con partidas muestra su balance (p. ej. "7–3 · 70 %") y el botón del
     trofeo apunta una partida con ese mazo ya elegido.
+  - **Curva y dominios** (plegable, bajo el recuento): curva de energía del principal y el Campeón,
+    coste medio, cartas por tipo y una tabla por dominio con cartas, poder que piden y runas.
+  - **Mano de prueba** (también en el mazo de otro jugador): roba 4 cartas del principal (el Campeón
+    empieza en su zona), toca hasta 2 para el mulligan (van al fondo) y roba más. Debajo, la
+    probabilidad de tener al menos una copia de la carta que elijas (las versiones de una carta cuentan
+    juntas) en la mano inicial, tras el mulligan devolviendo las demás y tras robar N cartas más.
+  - **Compartir imagen:** un PNG del mazo (1080 px de ancho) con las miniaturas de la app. En el
+    móvil abre el menú de compartir; en el PC se descarga.
+  - **Notas y versiones** (plegable): notas libres del mazo y «Guardar versión» con una nota corta.
+    La app compara cada versión con la anterior (+2 X, −1 Y, también sideboard, runas y Campos), avisa
+    de los cambios aún sin guardar y reparte las partidas del mazo por versión según su fecha, con su
+    balance. Hasta 20 versiones. Se sincronizan con la cuenta y se ven igual que el mazo (las notas
+    también las ve quien vea el mazo compartido).
   - Se pueden importar listas de cualquier web (secciones Legend/Champion/Main Deck/Runes/Battlefields
     opcionales: lo que no tenga sección se coloca por tipo de carta) o archivos .txt, CSV y Excel.
 - **Partidas:** al acabar una partida apuntas primero tu mazo y el rival, y después el resto: la
@@ -264,7 +287,8 @@ web/                 la app (estática, se puede publicar tal cual)
                      cloud.js, merge.js y account-ui.js (cuenta y sincronización), profile.js (página de
                      perfil), friends.js (seguir y amigos), trades.js (intercambios), table.js (mesa), ledger.js (balance), store.js (localStorage),
                      import-ui.js, importer.js, export.js, backup.js (importar copia), back.js (botón atrás), prices.js,
-                     pricehistory.js (historial de precios y gráficas), recognizer.js, scanner.js
+                     pricehistory.js (historial de precios y gráficas), testhand.js (mano de prueba),
+                     deckimage.js (mazo como imagen), recognizer.js, scanner.js
   data/cards.json    datos de las cartas
   data/prices.json   precios del día; data/price-history.json, el historial
   data/index.*       embeddings de referencia
