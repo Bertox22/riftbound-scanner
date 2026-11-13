@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=76">
+  <link rel="stylesheet" href="styles.css?v=77">
   <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.wasm.min.js"></script>
 </head>
 <body>
@@ -73,7 +73,12 @@
     <section id="view-collection" class="view">
       <div class="segmented col-tabs"><button aria-checked="true" data-view="collection">Mis cartas</button><button data-view="trades">Intercambios</button></div>
       <div class="filters">
-        <input type="search" id="col-search" placeholder="Buscar carta, texto o etiqueta…">
+        <div class="search-row">
+          <input type="search" id="col-search" placeholder="Buscar carta, texto o etiqueta…">
+          <button id="col-filters-btn" class="btn ghost filters-btn" type="button" aria-haspopup="dialog">Filtros<span class="filters-count" hidden></span></button>
+        </div>
+        <div id="col-chips" class="filter-chips"></div>
+        <div id="col-filter-panel" class="filter-panel">
         <div class="filter-row">
           <select id="col-set"><option value="">Todos los sets</option></select>
           <select id="col-type"><option value="">Todos los tipos</option></select>
@@ -92,6 +97,7 @@
             <option value="price">Orden: precio (más caras primero)</option>
             <option value="value">Orden: valor de mis copias</option>
           </select>
+        </div>
         </div>
       </div>
       <div class="col-summary-row">
@@ -210,6 +216,7 @@
   <dialog id="trade-dialog"></dialog>
   <dialog id="balance-dialog"></dialog>
   <dialog id="backup-dialog"></dialog>
+  <dialog id="filters-dialog" aria-labelledby="filters-title"></dialog>
   <div id="mesa" class="mesa" hidden></div>
   <div id="toast" class="toast"></div>
 
@@ -219,33 +226,33 @@
   <script type="importmap">
   {
     "imports": {
-      "./js/account-ui.js": "./js/account-ui.js?v=76",
-      "./js/back.js": "./js/back.js?v=76",
-      "./js/bans.js": "./js/bans.js?v=76",
-      "./js/backup.js": "./js/backup.js?v=76",
-      "./js/cloud.js": "./js/cloud.js?v=76",
-      "./js/deckimage.js": "./js/deckimage.js?v=76",
-      "./js/decks.js": "./js/decks.js?v=76",
-      "./js/export.js": "./js/export.js?v=76",
-      "./js/friends.js": "./js/friends.js?v=76",
-      "./js/import-ui.js": "./js/import-ui.js?v=76",
-      "./js/importer.js": "./js/importer.js?v=76",
-      "./js/ledger.js": "./js/ledger.js?v=76",
-      "./js/matches.js": "./js/matches.js?v=76",
-      "./js/merge.js": "./js/merge.js?v=76",
-      "./js/pricehistory.js": "./js/pricehistory.js?v=76",
-      "./js/prices.js": "./js/prices.js?v=76",
-      "./js/profile.js": "./js/profile.js?v=76",
-      "./js/recognizer.js": "./js/recognizer.js?v=76",
-      "./js/scanner.js": "./js/scanner.js?v=76",
-      "./js/store.js": "./js/store.js?v=76",
-      "./js/table.js": "./js/table.js?v=76",
-      "./js/testhand.js": "./js/testhand.js?v=76",
-      "./js/trades.js": "./js/trades.js?v=76",
-      "./js/ui.js": "./js/ui.js?v=76"
+      "./js/account-ui.js": "./js/account-ui.js?v=77",
+      "./js/back.js": "./js/back.js?v=77",
+      "./js/bans.js": "./js/bans.js?v=77",
+      "./js/backup.js": "./js/backup.js?v=77",
+      "./js/cloud.js": "./js/cloud.js?v=77",
+      "./js/deckimage.js": "./js/deckimage.js?v=77",
+      "./js/decks.js": "./js/decks.js?v=77",
+      "./js/export.js": "./js/export.js?v=77",
+      "./js/friends.js": "./js/friends.js?v=77",
+      "./js/import-ui.js": "./js/import-ui.js?v=77",
+      "./js/importer.js": "./js/importer.js?v=77",
+      "./js/ledger.js": "./js/ledger.js?v=77",
+      "./js/matches.js": "./js/matches.js?v=77",
+      "./js/merge.js": "./js/merge.js?v=77",
+      "./js/pricehistory.js": "./js/pricehistory.js?v=77",
+      "./js/prices.js": "./js/prices.js?v=77",
+      "./js/profile.js": "./js/profile.js?v=77",
+      "./js/recognizer.js": "./js/recognizer.js?v=77",
+      "./js/scanner.js": "./js/scanner.js?v=77",
+      "./js/store.js": "./js/store.js?v=77",
+      "./js/table.js": "./js/table.js?v=77",
+      "./js/testhand.js": "./js/testhand.js?v=77",
+      "./js/trades.js": "./js/trades.js?v=77",
+      "./js/ui.js": "./js/ui.js?v=77"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=76"></script>
+  <script type="module" src="js/app.js?v=77"></script>
 </body>
 </html>

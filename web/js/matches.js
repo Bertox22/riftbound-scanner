@@ -593,7 +593,29 @@ function render() {
   $('#match-history-head').hidden = !n;
   $('#match-list').replaceChildren(...(n
     ? list.map(matchRow)
-    : [el('li', { class: 'empty' }, 'Aún no has apuntado partidas. Al acabar una, pulsa «Apuntar partida».')]));
+    : [emptyMatches()]));
+}
+
+/** Sin partidas: qué se gana apuntándolas, el botón y una muestra (atenuada) de las estadísticas. */
+function emptyMatches() {
+  const mark = el('div', { class: 'empty-icon', 'aria-hidden': 'true' });
+  mark.innerHTML = '<span class="icon"><svg viewBox="0 0 24 24"><path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5.5v1.5A2.5 2.5 0 0 0 8 10M16 6h2.5v1.5A2.5 2.5 0 0 1 16 10M12 13v4M8.5 20h7M10 17h4v3h-4z"/></svg></span>';
+  const sample = (name, w, l) => el('div', { class: 'sample-row' }, el('span', { text: `vs ${name}` }), el('span', { class: w > l ? 'ok' : 'danger', text: `${w}–${l}` }));
+  return el('li', { class: 'empty-state' },
+    mark,
+    el('h3', { text: 'Apunta tu primera partida' }),
+    el('p', { class: 'muted', text: 'Con unas cuantas verás tu porcentaje de victorias por mazo, por Leyenda rival y por campo de batalla.' }),
+    el('div', { class: 'actions empty-actions' },
+      el('button', { class: 'btn primary', onclick: () => openSheet(null) }, 'Apuntar partida'),
+      el('button', { class: 'btn ghost', onclick: () => $('#btn-table').click() }, 'Iniciar partida')),
+    el('div', { class: 'match-sample', 'aria-hidden': 'true' },
+      el('div', { class: 'sample-head' }, el('span', { text: 'Así se verá' }), el('span', { text: '62 % · 8 V – 5 D' })),
+      el('div', { class: 'sample-bar' }, el('span', { style: 'width: 62%' })),
+      sample('Jinx', 3, 1), sample('Garen', 1, 2), sample('Ahri', 4, 2)),
+    cloud.username
+      ? el('button', { class: 'btn ghost empty-friends', onclick: () => $('#btn-people').click() }, '¿Juegas con amigos? Añádelos y compartid las partidas')
+      : el('button', { class: 'btn ghost empty-friends', onclick: () => $('#btn-account').click() }, '¿Juegas con amigos? Crea una cuenta para compartir las partidas'),
+  );
 }
 
 // ---------- Hoja para apuntar o editar ----------

@@ -7,6 +7,14 @@ funciona sin conexión.
 
 **App:** https://bertox22.github.io/riftbound-scanner/
 
+**Novedades de la versión 77:** los **mazos avisan de las cartas baneadas**: marca «No legal» en la
+lista, aviso en el editor y sobre cada carta (gris si el baneo aún no ha entrado, con su fecha), y un
+aviso al añadirla. En el móvil, los filtros de Colección van en **un botón «Filtros»** que abre una hoja
+con todos y dice cuántos hay activos; los activos se ven bajo el buscador y se quitan con la ✕. Y
+**Mazos y Partidas, vacíos, dicen por dónde empezar**: crear o importar un mazo, o empezar con una
+Leyenda (las que mejor encajan con tus cartas, o las de la caja de inicio) que ya trae su Campeón y
+las runas; en Partidas, el botón y una muestra de las estadísticas que verás.
+
 **Novedades de la versión 76:** **cartas baneadas marcadas** como las de errata (marca roja «Baneada»,
 aviso al escanearlas, línea en la ficha y filtro «Baneadas» en Colección), con los baneos de Radiance
 (desde el 23 de noviembre de 2026) y los anteriores; la lista está en `web/js/bans.js`. Y el contador

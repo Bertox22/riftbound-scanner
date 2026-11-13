@@ -46,8 +46,8 @@ const byName = new Map(BANS.map(([name, date, only]) => [key(name), { date, only
 const fmt = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
 
 /**
- * Si la carta está baneada: { date, upcoming (aún no ha entrado), only ('2v2' o null),
- * label (texto corto para la marca), text (frase para la ficha) }. Si no, null.
+ * Si la carta está baneada: { date, upcoming (aún no ha entrado), dateText («23 de noviembre de 2026»),
+ * only ('2v2' o null), label (texto corto para la marca), text (frase para la ficha) }. Si no, null.
  */
 export function banInfo(card) {
   const b = byName.get(key(card.name));
@@ -57,6 +57,7 @@ export function banInfo(card) {
   return {
     ...b,
     upcoming,
+    dateText: fmt(b.date),
     label: b.only ? `Ban ${b.only}` : 'Baneada',
     text: upcoming
       ? `⛔ Baneada ${where} a partir del ${fmt(b.date)}.`

@@ -21,6 +21,7 @@ import { copyProfileLink } from './profile.js';
 import { wantButton } from './trades.js';
 import { openTestHand } from './testhand.js';
 import { shareDeckImage } from './deckimage.js';
+import { banInfo } from './bans.js';
 
 const MAIN_TYPES = new Set(['Unit', 'Spell', 'Gear']);
 const MAIN_SIZE = 40, RUNES = 12, BATTLEFIELDS = 3, MAX_COPIES = 3, MAX_SIGNATURE = 3, SIDEBOARD = 10;
@@ -122,12 +123,27 @@ export function validate(deck) {
     if (!legalDomain(byId.get(id), legend)) issues.push(`${byId.get(id).name}: no es de los dominios de tu Leyenda.`);
   }
 
+  // Baneos: los que ya están en vigor hacen que el mazo no sea legal; los que entran más adelante
+  // y los que solo cuentan en 2v2 son avisos (el mazo se sigue pudiendo usar en Standard).
+  const banned = [], soon = [], warnings = [];
+  const seenBans = new Set();
+  for (const id of Object.keys(usage(deck))) {
+    const c = byId.get(id);
+    const b = c && banInfo(c);
+    if (!b || seenBans.has(baseName(c))) continue;
+    seenBans.add(baseName(c));
+    if (b.only) warnings.push(`${c.name}: baneada en ${b.only}${b.upcoming ? ` a partir del ${b.dateText}` : ''}. En Standard se puede usar.`);
+    else if (b.upcoming) { soon.push(c); warnings.push(`${c.name}: baneada a partir del ${b.dateText}. Hasta entonces se puede usar.`); }
+    else banned.push(c);
+  }
+  issues.unshift(...banned.map((c) => `⛔ ${c.name}: carta baneada desde el ${banInfo(c).dateText}.`));
+
   const missing = [];
   for (const [id, n] of Object.entries(usage(deck))) {
     const lack = n - store.owned(id);
     if (lack > 0) missing.push([byId.get(id), lack]);
   }
-  return { issues, missing, mainCount, runeCount, sideCount };
+  return { issues, missing, mainCount, runeCount, sideCount, banned, soon, warnings };
 }
 
 function newDeck() {
@@ -149,6 +165,7 @@ function addToSide(card, delta = 1) {
   if (delta > 0 && sum(bag) >= SIDEBOARD) return toast(`El sideboard ya tiene ${SIDEBOARD} cartas.`);
   bag[card.id] = (bag[card.id] || 0) + delta;
   if (bag[card.id] <= 0) delete bag[card.id];
+  if (delta > 0 && bag[card.id] === 1) warnBan(card);
   save();
   renderEditor();
 }
@@ -169,6 +186,8 @@ function moveCard(card, to) {
 /** Añade una carta al mazo en la sección que le corresponde. */
 function addToDeck(card, delta = 1) {
   const sec = section(card);
+  const had = sec === 'legend' ? current.legend === card.id : sec === 'battlefields' ? current.battlefields.includes(card.id) : !!current[sec][card.id];
+  if (delta > 0 && !had) warnBan(card);
   if (sec === 'legend') {
     current.legend = delta > 0 ? card.id : null;
     const champ = ctx.byId.get(current.champion);
@@ -242,18 +261,126 @@ async function runExport(button, fn) {
   }
 }
 
+// ---------- Sin mazos: «empieza aquí» ----------
+
+/** La versión de una carta que tienes (o la primera que haya) entre las que comparten nombre. */
+const pickVersion = (versions) => versions.find((c) => store.owned(c.id) > 0) ?? versions[0];
+
+/**
+ * Leyendas para empezar un mazo: las tres con las que más cartas tuyas encajan (contando hasta 3 copias
+ * por nombre). Sin colección, las cuatro de la caja de inicio (Proving Grounds).
+ */
+function starterLegends() {
+  const byName = new Map();
+  for (const c of ctx.cards) {
+    if (c.type !== 'Legend' || isToken(c)) continue;
+    const b = banInfo(c);
+    if (b && !b.upcoming && !b.only) continue; // una Leyenda baneada no sirve para empezar
+    const k = baseName(c).replace(/\s*-\s*Starter$/i, '');
+    byName.set(k, [...(byName.get(k) ?? []), c]);
+  }
+  const legends = [...byName.values()].map(pickVersion);
+  if (!store.totalOwned()) return legends.filter((c) => c.set === 'OGS').map((legend) => ({ legend, fit: 0 }));
+  const owned = new Map(); // nombre → copias (hasta 3) de cartas del mazo principal que tienes
+  for (const c of ctx.cards) {
+    if (!MAIN_TYPES.has(c.type) || isToken(c) || !store.owned(c.id)) continue;
+    owned.set(c, Math.min(MAX_COPIES, (owned.get(c) ?? 0) + store.owned(c.id)));
+  }
+  const fitFor = (legend) => {
+    const seen = new Map();
+    for (const [c, n] of owned) {
+      if (!legalDomain(c, legend) || (c.supertype === 'Signature' && !ofChampion(c, legend))) continue;
+      seen.set(baseName(c), Math.min(MAX_COPIES, (seen.get(baseName(c)) ?? 0) + n));
+    }
+    return [...seen.values()].reduce((a, b) => a + b, 0);
+  };
+  return legends.map((legend) => ({ legend, fit: fitFor(legend), mine: store.owned(legend.id) > 0 }))
+    .sort((a, b) => b.mine - a.mine || b.fit - a.fit)
+    .slice(0, 3);
+}
+
+/** Crea un mazo con la Leyenda, su Campeón y 6 + 6 runas básicas de sus dominios, y lo abre. */
+function startFromLegend(legend) {
+  if (!canAddDeck()) return;
+  const deck = newDeck();
+  deck.name = champTag(legend) ?? baseName(legend);
+  deck.legend = legend.id;
+  const champs = ctx.cards.filter((c) => c.type === 'Unit' && c.supertype === 'Champion' && ofChampion(c, legend) && !banInfo(c));
+  const champ = champs.find((c) => store.owned(c.id) > 0) ?? champs[0];
+  if (champ) deck.champion = champ.id;
+  const domains = legend.domain.filter((d) => d !== 'Colorless');
+  domains.forEach((d, i) => {
+    const runes = ctx.cards.filter((c) => c.type === 'Rune' && c.supertype === 'Basic' && c.domain.length === 1 && c.domain[0] === d);
+    const rune = runes.find((c) => store.owned(c.id) > 0) ?? runes.find((c) => c.rarity === 'Common') ?? runes[0];
+    if (rune) deck.runes[rune.id] = domains.length === 1 ? RUNES : i === 0 ? Math.ceil(RUNES / 2) : Math.floor(RUNES / 2);
+  });
+  openEditor(deck);
+  save();
+  toast('Mazo creado con su Leyenda, Campeón y runas. Ahora añade cartas.', 3500);
+}
+
+function emptyDecks() {
+  const starters = starterLegends();
+  const fresh = !store.totalOwned();
+  return el('li', { class: 'empty-state' },
+    el('div', { class: 'empty-icon', 'aria-hidden': 'true' }, icon('cards')),
+    el('h3', { text: 'Monta tu primer mazo' }),
+    el('p', { class: 'muted', text: fresh
+      ? 'Elige una Leyenda y la app te dice qué cartas tienes y cuáles te faltan. Si escaneas tu colección primero, te propone las Leyendas que mejor encajan.'
+      : 'Elige una Leyenda y la app te dice qué cartas tienes y cuáles te faltan.' }),
+    el('div', { class: 'actions empty-actions' },
+      el('button', { class: 'btn primary', onclick: () => canAddDeck() && openEditor(newDeck()) }, 'Crear mazo'),
+      el('button', { class: 'btn ghost', onclick: () => $('#btn-import-deck').click() }, 'Importar una lista')),
+    starters.length > 0 && el('p', { class: 'empty-sub', text: fresh ? 'O empieza con una Leyenda de la caja de inicio' : 'O empieza con la Leyenda que mejor encaja con tus cartas' }),
+    starters.length > 0 && el('ul', { class: 'starter-list' }, starters.map(({ legend, fit, mine }) =>
+      el('li', {},
+        el('button', { class: 'starter-row', onclick: () => startFromLegend(legend) },
+          cardImg(legend, 'thumb small'),
+          el('span', { class: 'grow' },
+            el('strong', { text: champTag(legend) ?? baseName(legend) }),
+            el('span', { class: 'muted small', text: legend.domain.map((d) => DOMAIN_ES[d] || d).join(' / ')
+              + (fresh ? '' : ` · tienes ${fit} ${fit === 1 ? 'carta que encaja' : 'cartas que encajan'}`) + (mine ? ' · tienes la Leyenda' : '') })),
+          el('span', { class: 'chev', 'aria-hidden': 'true', text: '›' }))))),
+  );
+}
+
+const names = (cards) => cards.map((c) => c.name).join(', ');
+
+/**
+ * Estado de un mazo en la lista. Con cartas baneadas: «No legal» y cuáles, y los demás avisos de reglas
+ * en su propia línea (para que no se mezclen con el baneo). Si no, lo de siempre.
+ */
+function deckStatus({ issues, missing, banned, soon }) {
+  const lack = missing.reduce((a, [, n]) => a + n, 0);
+  const rest = issues.length - banned.length;
+  const lines = banned.length
+    ? [
+      el('div', { class: 'deck-status danger', title: names(banned) },
+        el('span', { class: 'illegal-tag', text: 'No legal' }),
+        ` ${banned.length === 1 ? 'Carta baneada' : 'Cartas baneadas'}: ${names(banned)}`),
+      rest > 0 && el('div', { class: 'warn small', text: rest === 1 ? '1 aviso más' : `${rest} avisos más` }),
+    ]
+    : [el('div', { class: issues.length ? 'warn' : 'ok', text: issues.length ? `${issues.length} pendiente(s)` : 'Mazo válido' + (lack ? ` · faltan ${lack} cartas` : '') })];
+  if (soon.length) {
+    const when = banInfo(soon[0]).dateText.replace(/ de \d{4}$/, '');
+    lines.push(el('div', { class: 'warn small', title: names(soon), text: `⚠️ Deja de ser legal el ${when}: ${names(soon)}` }));
+  }
+  return lines;
+}
+
 function renderList() {
   const list = $('#deck-list');
   list.replaceChildren();
   $('#deck-count').textContent = `${store.decks.length}/${MAX_DECKS}`;
   $('#deck-export-all').hidden = !store.decks.length;
   if (!store.decks.length) {
-    list.append(el('li', { class: 'empty' }, 'Aún no tienes mazos. Escanea tus cartas y crea uno.'));
+    list.append(emptyDecks());
     return;
   }
   for (const deck of store.decks) {
     const legend = ctx.byId.get(deck.legend);
-    const { issues, missing, sideCount } = validate(deck);
+    const v = validate(deck);
+    const { sideCount } = v;
     const rec = deckRecord(deck.id);
     list.append(
       el('li', { class: 'deck-row', onclick: () => openEditor(deck) },
@@ -261,7 +388,7 @@ function renderList() {
         el('div', { class: 'grow' },
           el('strong', { text: deck.name }),
           el('div', { class: 'muted', text: (legend ? `${champTag(legend)} · ${legend.domain.map((d) => DOMAIN_ES[d] || d).join(' / ')}` : 'Sin leyenda') + (sideCount ? ` · sideboard ${sideCount}` : '') }),
-          el('div', { class: issues.length ? 'warn' : 'ok', text: issues.length ? `${issues.length} pendiente(s)` : 'Mazo válido' + (missing.length ? ` · faltan ${missing.reduce((a, [, n]) => a + n, 0)} cartas` : '') }),
+          deckStatus(v),
           rec && el('div', { class: 'deck-record', title: rec.title, text: rec.text }),
         ),
         el('button', {
@@ -298,6 +425,7 @@ const ICONS = {
   up: '<path d="M12 19V5M6 11l6-6 6 6"/>',
   x: '<path d="M6 6l12 12M18 6 6 18"/>',
   download: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
+  cards: '<rect x="8" y="3" width="11" height="15" rx="2"/><path d="M5 6.5v12A2.5 2.5 0 0 0 7.5 21H15"/>',
   trophy: '<path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5.5v1.5A2.5 2.5 0 0 0 8 10M16 6h2.5v1.5A2.5 2.5 0 0 1 16 10M12 13v4M8.5 20h7M10 17h4v3h-4z"/>',
 };
 function icon(name) {
@@ -313,7 +441,7 @@ function icon(name) {
 function deckTile({ label = '', sep = false, card, actions = [], below }) {
   return el('div', { class: `dt${sep ? ' dt-sep' : ''}` },
     el('span', { class: 'dt-label', text: label }),
-    el('div', { class: 'dt-img' }, el('button', { class: 'tile-img', title: card.name, onclick: () => ctx.openCard(card) }, cardImg(card)), actions),
+    el('div', { class: 'dt-img' }, el('button', { class: 'tile-img', title: card.name, onclick: () => ctx.openCard(card) }, cardImg(card)), banMark(card), actions),
     el('span', { class: 'dt-name', title: card.name, text: card.name }),
     below,
   );
@@ -325,6 +453,19 @@ function emptyTile({ label = '', sep = false, text, onclick }) {
     el('span', { class: 'dt-label', text: label }),
     onclick ? el('button', { class: 'dt-empty', onclick }, text) : el('div', { class: 'dt-empty' }, text),
   );
+}
+
+/** Marca «Baneada» (o «Ban 2v2») sobre la imagen; en gris si el baneo aún no ha entrado. */
+function banMark(card) {
+  const b = banInfo(card);
+  return b && el('span', { class: `dt-ban${b.upcoming || b.only ? ' soft' : ''}`, title: b.text.replace(/^⛔ /, ''),
+    text: b.upcoming ? `Ban ${new Date(`${b.date}T12:00:00`).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}` : b.label });
+}
+
+/** Al meter una carta baneada en el mazo, se avisa (pero se deja: puede ser para casual o para antes del baneo). */
+function warnBan(card) {
+  const b = banInfo(card);
+  if (b) toast(`⛔ ${card.name}: ${b.text.replace(/^⛔ /, '').replace(/^B/, 'b')}`, 4000);
 }
 
 const overlayBtn = (name, title, onclick) => el('button', { class: 'dt-act', title, 'aria-label': title, onclick }, icon(name));
@@ -483,6 +624,7 @@ function renderEditor() {
     if (!legend) return toast('Elige primero la Leyenda.');
     picker('Campeón', ctx.cards.filter((c) => c.type === 'Unit' && c.supertype === 'Champion' && ofChampion(c, legend)), (c) => {
       current.champion = c.id;
+      warnBan(c);
       save();
       renderEditor();
     });
@@ -525,8 +667,9 @@ function renderEditor() {
       el('button', { class: 'btn ghost small', disabled: !current.legend && !sum(current.main), onclick: (e) => runExport(e.target, () => shareDeckImage(current, ctx.byId, cloud.username ?? '')) }, 'Compartir imagen')),
     versionsBox(current),
     v.issues.length
-      ? el('ul', { class: 'issues' }, v.issues.map((i) => el('li', { text: i })))
+      ? el('ul', { class: 'issues' }, v.issues.map((i) => el('li', { class: i.startsWith('⛔') ? 'banned' : null, text: i })))
       : el('p', { class: 'ok', text: '✓ El mazo cumple las reglas de construcción.' }),
+    v.warnings.length > 0 ? el('ul', { class: 'issues ban-warnings' }, v.warnings.map((w) => el('li', { text: `⚠️ ${w}` }))) : '',
     // replaceChildren no ignora `false` (lo pintaría como texto), así que sin cartas que falten va ''.
     v.missing.length > 0 ? el('details', { class: 'missing' },
       el('summary', { text: `Te faltan ${v.missing.reduce((a, [, n]) => a + n, 0)} cartas de tu colección${missingCost(v.missing) ? ` (≈ ${eur(missingCost(v.missing))} en Cardmarket)` : ''}` }),

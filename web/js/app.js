@@ -582,6 +582,69 @@ $('#col-owned').addEventListener('change', (e) => { col.owned = e.target.checked
 $('#col-errata').addEventListener('change', (e) => { col.errata = e.target.checked; renderCollection(); });
 $('#col-banned').addEventListener('change', (e) => { col.banned = e.target.checked; renderCollection(); });
 
+// ---------- Filtros en el móvil ----------
+// En pantallas estrechas los filtros no caben en una fila: van en una hoja que se abre con «Filtros (n)»
+// y los activos se ven bajo el buscador como etiquetas que se quitan con la ✕. La hoja usa los mismos
+// controles (se mueven dentro al abrirla y vuelven al cerrarla), así que no hay nada que sincronizar.
+const FILTER_DEFAULTS = { set: '', type: '', domain: '', rarity: '', owned: true, errata: false, banned: false };
+const FILTER_CONTROLS = { set: '#col-set', type: '#col-type', domain: '#col-domain', rarity: '#col-rarity', owned: '#col-owned', errata: '#col-errata', banned: '#col-banned' };
+let colCount = 0; // cartas que salen con los filtros de ahora (para el botón de la hoja)
+
+/** [clave, texto] de cada filtro que no está como al principio. El orden no cuenta: no quita cartas. */
+function activeFilters() {
+  const out = ['set', 'type', 'domain', 'rarity'].filter((k) => col[k]).map((k) => [k, $(FILTER_CONTROLS[k]).selectedOptions[0]?.text ?? col[k]]);
+  if (!col.owned) out.push(['owned', 'Todas las cartas']);
+  if (col.errata) out.push(['errata', 'Con errata']);
+  if (col.banned) out.push(['banned', 'Baneadas']);
+  return out;
+}
+
+function setFilter(key, value) {
+  col[key] = value;
+  const ctl = $(FILTER_CONTROLS[key]);
+  if (ctl.type === 'checkbox') ctl.checked = value;
+  else ctl.value = value;
+}
+
+function clearFilters() {
+  for (const [k, v] of Object.entries(FILTER_DEFAULTS)) setFilter(k, v);
+  renderCollection();
+}
+
+function renderFilterBar() {
+  const active = activeFilters();
+  const badge = $('#col-filters-btn .filters-count');
+  badge.hidden = !active.length;
+  badge.textContent = active.length;
+  $('#col-filters-btn').setAttribute('aria-label', active.length ? `Filtros: ${active.length} activos` : 'Filtros');
+  $('#col-chips').replaceChildren(...active.map(([key, label]) => el('button', {
+    class: 'filter-chip', type: 'button', title: `Quitar «${label}»`, 'aria-label': `Quitar el filtro ${label}`,
+    onclick: () => { setFilter(key, FILTER_DEFAULTS[key]); renderCollection(); },
+  }, label, el('span', { class: 'x', 'aria-hidden': 'true', text: '✕' }))));
+  const dlg = $('#filters-dialog');
+  if (!dlg.open) return;
+  dlg.querySelector('.filters-apply').textContent = colCount === 1 ? 'Ver 1 carta' : `Ver ${colCount} cartas`;
+  dlg.querySelector('.filters-clear').hidden = !active.length;
+}
+
+function openFilters() {
+  const dlg = $('#filters-dialog');
+  dlg.replaceChildren(
+    el('div', { class: 'dialog-head' },
+      el('h2', { id: 'filters-title', text: 'Filtros' }),
+      el('button', { class: 'link filters-clear', type: 'button', onclick: clearFilters }, 'Quitar todos')),
+    $('#col-filter-panel'),
+    el('button', { class: 'btn primary filters-apply', type: 'button', onclick: () => dlg.close() }),
+  );
+  dlg.showModal();
+  renderFilterBar();
+}
+$('#col-filters-btn').addEventListener('click', openFilters);
+// Al cerrar, los controles vuelven a su sitio (en el ordenador se ven en la página).
+$('#filters-dialog').addEventListener('close', () => $('#view-collection .filters').append($('#col-filter-panel')));
+// Si la ventana se ensancha con la hoja abierta, se cierra: ya caben en la página.
+matchMedia('(min-width: 640px)').addEventListener('change', (e) => { if (e.matches && $('#filters-dialog').open) $('#filters-dialog').close(); });
+
 const COL_PAGE = 120;
 let colLimit = COL_PAGE;
 // Cartas que se acaban de quitar del todo con "−": siguen en la cuadrícula (en gris) aunque esté
@@ -838,6 +901,8 @@ function renderCollection(keepLimit = false) {
   };
   list = [...list].sort(sorters[col.sort]);
 
+  colCount = list.length;
+  renderFilterBar();
   const copies = list.reduce((a, c) => a + store.owned(c.id), 0);
   const value = list.reduce((a, c) => a + entryValue(c.id, store.collection[c.id]), 0);
   $('#col-summary').textContent = (col.owned
