@@ -62,15 +62,21 @@ function header({ profile, own }) {
       profile.is_public ? 'Así ven tu perfil los demás.' : 'Así ven tu perfil los demás: es privado, así que solo se ven los mazos que compartes.'));
 }
 
-/** Tú contra esta cuenta, con las partidas de tu historial en las que es tu rival con cuenta. */
+/** Tú contra esta cuenta, con las partidas de tu historial en las que es tu rival con cuenta. Con un
+ * amigo se puede pulsar: abre la lista de partidas entre vosotros. */
 function headToHead(profile) {
   const games = store.matches.filter((m) => m.rival === profile.id);
   if (!games.length) return null;
   const r = record(games);
-  return el('div', { class: 'head-to-head' },
+  const open = cloud.username && isFriend(profile.id);
+  return el(open ? 'button' : 'div', {
+    class: `head-to-head${open ? ' clickable' : ''}`,
+    ...(open && { type: 'button', onclick: () => openBetween(profile) }),
+  },
     el('span', { class: 'muted small', text: `Tú contra ${profile.display_name || profile.username}` }),
     el('strong', { text: recordText(r) }),
-    el('span', { class: 'muted small', text: `${rateText(r)} · ${countText(r)}` }));
+    el('span', { class: 'muted small', text: `${rateText(r)} · ${countText(r)}` }),
+    open && el('span', { class: 'h2h-more small', text: 'Ver partidas ›' }));
 }
 
 // ---------- Partidas entre vosotros ----------
@@ -89,7 +95,11 @@ function loadBetween(profile) {
   }, (err) => {
     console.error(err);
     if (between?.id === profile.id) between = { id: profile.id, state: 'error', theirs: [] };
-  }).then(() => page?.profile?.id === profile.id && render());
+  }).then(() => {
+    if (page?.profile?.id !== profile.id) return;
+    render();
+    refreshBetweenSheet();
+  });
 }
 
 function betweenRow(m, button, note) {
@@ -101,43 +111,57 @@ function betweenRow(m, button, note) {
       el('div', { class: 'actions' }, button)));
 }
 
-function betweenBox(profile) {
-  if (!cloud.username || !isFriend(profile.id)) return null;
-  if (between?.id !== profile.id) loadBetween(profile);
-  if (between.state === 'loading') return null;
-  if (between.state === 'error') return el('p', { class: 'muted small', text: 'No se pudieron mirar las partidas entre vosotros.' });
-  const name = profile.display_name || profile.username;
+/** Qué tiene cada uno: tus partidas contra él (`mine`), las suyas contra ti (`theirs`) y lo que falta. */
+function betweenLists(profile) {
   const { theirs } = between;
   const mine = store.matches.filter((m) => m.rival === profile.id);
   const split = (list, isDup) => [list.filter((x) => !isDup(x)), list.filter(isDup)];
-
   // Suyas contra ti que no tienes: ni su copia ni la original de la que es copia.
   const [forMe, forMeDup] = split(theirs.filter((r) => !store.matches.some((m) => linked(m, r))),
     (r) => mine.some((m) => sameGame(m, r)));
   // Tuyas (originales) contra él que no tiene.
   const [forHim, forHimDup] = split(mine.filter((m) => !m.mirrorOf && !theirs.some((r) => linked(m, r))),
     (m) => theirs.some((r) => sameGame(m, r)));
+  return { mine, theirs, forMe, forMeDup, forHim, forHimDup };
+}
+
+// Botones compartidos por el recuadro del perfil y la hoja.
+const authorOf = (profile) => ({ id: profile.id, username: profile.username, display_name: profile.display_name });
+const takeBtn = (profile, r) => el('button', { class: 'btn primary small', onclick: () => openMirrored(r, authorOf(profile)) }, 'Apuntar en mi historial');
+
+async function sendMatches(profile, list, btn) {
+  const name = profile.display_name || profile.username;
+  btn.disabled = true;
+  try {
+    const n = await resendMatches(list.map((m) => m.id), profile.id);
+    list.forEach((m) => sent.add(m.id));
+    toast(n === list.length
+      ? `${n === 1 ? 'Enviada' : `${n} enviadas`}: a ${name} le saldrá el aviso para guardarla${n === 1 ? '' : 's'}`
+      : `Enviadas ${n} de ${list.length}: las demás aún no se han subido a la nube. Prueba tras sincronizar.`, 5000);
+    render();
+    refreshBetweenSheet();
+  } catch (err) {
+    toast(err.message);
+    btn.disabled = false;
+  }
+}
+
+const giveBtn = (profile, m) => (sent.has(m.id)
+  ? el('span', { class: 'history-done', text: 'Enviada ✓' })
+  : el('button', { class: 'btn ghost small', onclick: (e) => sendMatches(profile, [m], e.currentTarget) }, 'Enviársela'));
+
+function betweenBox(profile) {
+  if (!cloud.username || !isFriend(profile.id)) return null;
+  if (between?.id !== profile.id) loadBetween(profile);
+  if (between.state === 'loading') return null;
+  if (between.state === 'error') return el('p', { class: 'muted small', text: 'No se pudieron mirar las partidas entre vosotros.' });
+  const name = profile.display_name || profile.username;
+  const { forMe, forMeDup, forHim, forHimDup } = betweenLists(profile);
   if (!forMe.length && !forMeDup.length && !forHim.length && !forHimDup.length) return null;
 
-  const author = { id: profile.id, username: profile.username, display_name: profile.display_name };
-  const take = (r) => el('button', { class: 'btn primary small', onclick: () => openMirrored(r, author) }, 'Apuntar en mi historial');
-  const send = async (list, btn) => {
-    btn.disabled = true;
-    try {
-      const n = await resendMatches(list.map((m) => m.id), profile.id);
-      list.forEach((m) => sent.add(m.id));
-      toast(n === list.length
-        ? `${n === 1 ? 'Enviada' : `${n} enviadas`}: a ${name} le saldrá el aviso para guardarla${n === 1 ? '' : 's'}`
-        : `Enviadas ${n} de ${list.length}: las demás aún no se han subido a la nube. Prueba tras sincronizar.`, 5000);
-      render();
-    } catch (err) {
-      toast(err.message);
-      btn.disabled = false;
-    }
-  };
-  const giveBtn = (m) => (sent.has(m.id)
-    ? el('span', { class: 'history-done', text: 'Enviada ✓' })
-    : el('button', { class: 'btn ghost small', onclick: (e) => send([m], e.currentTarget) }, 'Enviársela'));
+  const take = (r) => takeBtn(profile, r);
+  const send = (list, btn) => sendMatches(profile, list, btn);
+  const give = (m) => giveBtn(profile, m);
   const dupNote = 'Parece la misma que otra que ya está apuntada (menos de 1 h, mismo resultado y Leyendas).';
   const dupBox = (list, row) => list.length > 0 && el('details', { class: 'between-dup' },
     el('summary', { class: 'muted small', text: `${list.length === 1 ? '1 parece' : `${list.length} parecen`} que ya la tenéis · Ver` }),
@@ -145,15 +169,76 @@ function betweenBox(profile) {
   const pendingSend = forHim.filter((m) => !sent.has(m.id));
 
   return el('div', { class: 'between' }, ...[
-    el('h3', { class: 'stats-title', text: 'Partidas entre vosotros' }),
+    el('div', { class: 'between-head' },
+      el('h3', { class: 'stats-title', text: 'Partidas entre vosotros' }),
+      el('button', { class: 'btn ghost small', onclick: () => openBetween(profile) }, 'Ver todas')),
     (forMe.length || forMeDup.length) && el('p', { class: 'small', text: `Suyas contra ti que no tienes (${forMe.length})` }),
     forMe.length > 0 && el('ul', { class: 'incoming-list' }, ...forMe.map((r) => betweenRow(flipped(r), take(r)))),
     dupBox(forMeDup, (r, note) => betweenRow(flipped(r), take(r), note)),
     (forHim.length || forHimDup.length) && el('div', { class: 'between-head' },
       el('p', { class: 'small', text: `Tuyas contra ${name} que no tiene (${forHim.length})` }),
       pendingSend.length > 1 && el('button', { class: 'btn ghost small', onclick: (e) => send(pendingSend, e.currentTarget) }, 'Enviar todas')),
-    forHim.length > 0 && el('ul', { class: 'incoming-list' }, ...forHim.map((m) => betweenRow(m, giveBtn(m)))),
-    dupBox(forHimDup, (m, note) => betweenRow(m, giveBtn(m), note)),
+    forHim.length > 0 && el('ul', { class: 'incoming-list' }, ...forHim.map((m) => betweenRow(m, give(m)))),
+    dupBox(forHimDup, (m, note) => betweenRow(m, give(m), note)),
+  ].filter(Boolean));
+}
+
+// Hoja con todas las partidas entre vosotros y si las tenéis los dos (se abre desde «Tú contra…»).
+let sheetFor = null; // id del perfil de la hoja abierta
+
+function refreshBetweenSheet() {
+  if (!$('#picker-dialog').open || !sheetFor || page?.profile?.id !== sheetFor) return;
+  renderBetweenSheet(page.profile);
+}
+
+function openBetween(profile) {
+  if (between?.id !== profile.id || between.state === 'error') loadBetween(profile);
+  const dlg = $('#picker-dialog');
+  sheetFor = profile.id;
+  renderBetweenSheet(profile);
+  if (!dlg.open) dlg.showModal();
+  dlg.addEventListener('close', () => { sheetFor = null; }, { once: true });
+}
+
+function renderBetweenSheet(profile) {
+  const dlg = $('#picker-dialog');
+  const name = profile.display_name || profile.username;
+  const head = el('div', { class: 'dialog-head' },
+    el('h2', { text: `Partidas con ${name}` }),
+    el('button', { class: 'icon-btn', title: 'Cerrar', 'aria-label': 'Cerrar', onclick: () => dlg.close() }, '✕'));
+  if (between?.state !== 'ready') {
+    return dlg.replaceChildren(head, el('p', { class: 'muted small', text: between?.state === 'error'
+      ? 'No se pudieron mirar sus partidas. Prueba otra vez más tarde.' : 'Mirando qué tiene cada uno…' }));
+  }
+  const { mine, theirs, forMe, forMeDup, forHim, forHimDup } = betweenLists(profile);
+  const dupNote = 'Parece la misma que otra ya apuntada (menos de 1 h, mismo resultado y Leyendas).';
+  const both = { ok: true, note: 'La tenéis los dos' };
+  const rows = [
+    ...mine.map((m) => {
+      if (theirs.some((r) => linked(m, r))) return { m, ...both };
+      if (m.mirrorOf) return { m, note: `${name} ya no la tiene: la borró de su historial` };
+      if (forHimDup.includes(m)) return { m, note: `${name} no la tiene. ${dupNote}`, action: giveBtn(profile, m) };
+      if (forHim.includes(m)) return { m, note: sent.has(m.id) ? `Enviada: a ${name} le saldrá el aviso` : `${name} no la tiene`, action: giveBtn(profile, m) };
+      return { m, ...both };
+    }),
+    ...forMe.map((r) => ({ m: flipped(r), note: 'No la tienes en tu historial', action: takeBtn(profile, r) })),
+    ...forMeDup.map((r) => ({ m: flipped(r), note: `No la tienes. ${dupNote}`, action: takeBtn(profile, r) })),
+  ].sort((a, b) => b.m.at - a.m.at);
+  const missing = forMe.length + forMeDup.length + forHim.length + forHimDup.length;
+  const pendingSend = forHim.filter((m) => !sent.has(m.id));
+  const count = `${rows.length === 1 ? '1 partida' : `${rows.length} partidas`}`;
+  dlg.replaceChildren(...[
+    head,
+    el('p', { class: 'muted small', text: !rows.length ? 'Aún no hay partidas entre vosotros.'
+      : missing ? `${count} · ${missing === 1 ? 'falta 1' : `faltan ${missing}`} en algún historial` : `${count} · las tenéis todas los dos` }),
+    pendingSend.length > 1 && el('div', { class: 'actions' },
+      el('button', { class: 'btn ghost small', onclick: (e) => sendMatches(profile, pendingSend, e.currentTarget) }, `Enviarle las ${pendingSend.length}`)),
+    rows.length > 0 && el('ul', { class: 'between-list' }, ...rows.map(({ m, ok, note, action }) => el('li', { class: `between-row${ok ? '' : ' missing'}` },
+      el('span', { class: `match-result ${m.result}`, 'aria-hidden': 'true' }, { win: 'V', loss: 'D', draw: 'E' }[m.result] ?? '?'),
+      el('div', { class: 'grow' },
+        el('strong', { class: 'small', text: matchLine(m) }),
+        el('div', { class: `small ${ok ? 'between-ok' : 'muted'}`, text: ok ? `✓ ${note}` : note }),
+        action && el('div', { class: 'actions' }, action))))),
   ].filter(Boolean));
 }
 
@@ -316,5 +401,9 @@ export function initProfile(context) {
     else render();
   });
   // Al apuntarte una de sus partidas desaparece de «Partidas entre vosotros».
-  store.onChange((what) => what === 'matches' && showing() && render());
+  store.onChange((what) => {
+    if (what !== 'matches' || !showing()) return;
+    render();
+    refreshBetweenSheet();
+  });
 }

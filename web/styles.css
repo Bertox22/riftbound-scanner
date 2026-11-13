@@ -808,6 +808,14 @@ dialog input[type=date]:focus { outline: none; border-color: var(--muted); }
 .between-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .between-dup { margin: 4px 0 8px; }
 .between-dup summary { cursor: pointer; padding: 4px 0; }
+.head-to-head.clickable { width: 100%; border: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.head-to-head.clickable:hover { box-shadow: inset 0 0 0 1px var(--line); }
+.h2h-more { margin-left: auto; color: var(--gold); }
+.between-list { list-style: none; padding: 0; margin: 12px 0 0; display: flex; flex-direction: column; gap: 8px; }
+.between-row { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border-radius: 6px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border); }
+.between-row.missing { box-shadow: inset 0 0 0 1px var(--gold-deep); }
+.between-row .actions { margin-top: 8px; }
+.between-ok { color: var(--ok); }
 
 /* Importación */
 #import-dialog textarea { width: 100%; font: inherit; color: var(--text); background: var(--surface-2); border: 1px solid transparent; border-radius: 16px; padding: 12px 14px; margin-bottom: 8px; }
