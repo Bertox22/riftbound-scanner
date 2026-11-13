@@ -679,3 +679,28 @@ const startView = Object.keys(VIEW_HASH).find((v) => VIEW_HASH[v] && `#${VIEW_HA
 if (startView || !location.hash) history.replaceState({ base: true }, '', location.pathname + location.search);
 if (startView) showView(startView);
 else routeProfile();
+
+// Sin conexión: el service worker guarda la app y los datos (ver sw.js). Lleva la misma versión que
+// este archivo, así que al publicar con otra ?v= se instala solo el nuevo. En el PC (localhost) solo
+// con ?sw en la dirección, para probarlo sin que estorbe al desarrollo.
+const APP_VERSION = new URL(import.meta.url).searchParams.get('v') ?? 'dev';
+const localHost = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+if ('serviceWorker' in navigator && (!localHost || new URLSearchParams(location.search).has('sw'))) {
+  navigator.serviceWorker.register(`sw.js?v=${APP_VERSION}`).catch((err) => console.warn('Sin modo sin conexión:', err));
+}
+
+// Versión nueva publicada con la app abierta (en el móvil se queda días en segundo plano): al volver a
+// ella, como mucho cada 30 minutos, se mira la ?v= de index.html y, si es otra, se avisa. Nunca se
+// recarga sola: se podría estar jugando en la Mesa o escribiendo algo.
+let versionChecked = Date.now();
+async function checkVersion() {
+  if (Date.now() - versionChecked < 30 * 60 * 1000) return;
+  versionChecked = Date.now();
+  try {
+    const html = await (await fetch('./', { cache: 'no-store' })).text();
+    const live = html.match(/js\/app\.js\?v=([\w.]+)/)?.[1];
+    if (!live || live === APP_VERSION) return;
+    toast('Hay una versión nueva de la app', 15000, { label: 'Recargar', onclick: () => location.reload() });
+  } catch { /* sin conexión: se mirará la próxima vez */ }
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkVersion(); });

@@ -120,6 +120,12 @@ recargar se vuelve a ella. El botón «atrás» del móvil cierra la hoja abiert
 varias) y, sin hojas, sale de la Mesa o vuelve de la pestaña en la que estés a Escanear; desde
 Escanear, sale de la app.
 
+**Sin conexión:** después de abrirla una vez con internet, la app abre y funciona sin conexión (en una
+tienda o un torneo sin cobertura): escáner, colección, mazos, partidas y Mesa. Las miniaturas que ya
+has visto también salen; las imágenes grandes de la ficha y lo que va a la cuenta necesitan internet,
+y los cambios se suben al volver. Con conexión siempre se abre la última versión; si la app llevaba
+tiempo abierta en segundo plano y se ha publicado otra, avisa con «Recargar».
+
 **Precios:** cada noche se descargan los precios de Cardmarket (€) y TCGplayer ($) de riftbound.gg.
 La colección muestra el precio de cada carta y el valor total, se puede ordenar por precio, el escáner
 avisa cuando una carta vale 5 € o más (o cuando existe una versión con la misma ilustración mucho más
@@ -193,7 +199,8 @@ la cámara: se propone la edición normal y puedes cambiar la versión en la lis
 
 ```
 web/                 la app (estática, se puede publicar tal cual)
-  index.html, styles.css
+  index.html, styles.css, manifest.webmanifest, icon.svg, icons/ (PNG para instalarla)
+  sw.js              service worker: guarda la app y los datos para usarla sin conexión
   js/                app.js (escáner y colección), decks.js, matches.js (partidas),
                      cloud.js, merge.js y account-ui.js (cuenta y sincronización), profile.js (página de
                      perfil), friends.js (seguir y amigos), trades.js (intercambios), table.js (mesa), ledger.js (balance), store.js (localStorage),
@@ -222,6 +229,9 @@ python -m http.server 8000 --directory web
 Abre http://localhost:8000. En el PC la cámara funciona en `localhost`; en el móvil hace falta que
 la web se sirva por **HTTPS** (los navegadores no dejan usar la cámara en http).
 
+En el PC el modo sin conexión está apagado para no estorbar al desarrollo; para probarlo, abre
+http://localhost:8000/?sw (y en local pide siempre primero los archivos al servidor).
+
 ## Publicar en GitHub Pages (para usarla desde el móvil)
 
 1. Crea un repositorio vacío en GitHub (por ejemplo `riftbound-scanner`), sin README.
@@ -236,7 +246,8 @@ la web se sirva por **HTTPS** (los navegadores no dejan usar la cámara en http)
    "Añadir a pantalla de inicio" para tenerla como una app.
 5. GitHub Pages deja guardar los archivos unos 10 minutos. Para que cada publicación llegue entera,
    `styles.css`, `app.js` y el resto de módulos (con el `importmap` de `index.html`) llevan la misma
-   versión, `?v=66`: al publicar cambios de estilos o de código, súbela en todos a la vez.
+   versión, `?v=67`: al publicar cambios de estilos o de código, súbela en todos a la vez. El service
+   worker (`sw.js`) toma la versión de ahí solo: no hay que tocarlo.
 
 Sin cuenta, la colección, los mazos y las partidas se guardan solo en el navegador (localStorage:
 `rb.collection.v1`, `rb.decks.v1`, `rb.matches.v1`, `rb.ledger.v1`). Usa **Colección → Exportar copia** de vez en
