@@ -4,7 +4,8 @@ Fuentes (se combinan por id de carta, p. ej. "ven-095-166"):
   1. Galería oficial de Riot: es la que antes incluye los sets nuevos (Radiance...).
   2. API pública de Riftcodex: añade lo que falte en la galería (promos, cartas de OP...).
   3. Base de datos de riftbound.gg: versiones que no están en ninguna de las anteriores (sobre todo
-     las Showcase firmadas "*"), además de erratas y precios (web/data/prices.json).
+     las Showcase firmadas "*"), además de erratas y precios en dólares.
+  4. Guía de precios de Cardmarket: precios en euros (web/data/prices.json, ver prices.py).
 
 Uso:
     python tools/fetch_cards.py            # todos los sets
@@ -37,7 +38,8 @@ from PIL import Image
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import dotgg  # noqa: E402
 from errata import apply_errata, fetch_errata  # noqa: E402
-from prices import build_prices  # noqa: E402
+from prices import add_change, build_prices  # noqa: E402
+from prices import write as write_prices  # noqa: E402
 import price_history  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -384,13 +386,14 @@ def main():
             raise SourceError(f"Faltan {len(lost)} cartas que antes estaban (p. ej. {sorted(lost)[:5]}); no se guarda nada.")
     try:
         prices = build_prices(cards)  # también añade a cada carta su enlace de Cardmarket
-        (DATA / "prices.json").write_text(json.dumps(prices, separators=(",", ":")), encoding="utf-8")
-        print(f"Precios: {len(prices['prices'])} cartas")
+        print(f"Precios: {len(prices['prices'])} cartas (guía de Cardmarket del {prices['updated']})")
         try:
             hist = price_history.update(prices)
+            add_change(prices, hist)  # el cambio en 7 días sale del historial
             print(f"Historial de precios: {len(hist['dates'])} días")
         except Exception as exc:  # noqa: BLE001 (sin historial la app sigue igual)
             print(f"No se pudo actualizar el historial de precios: {exc}")
+        write_prices(prices)
     except Exception as exc:  # noqa: BLE001
         if strict:
             raise SourceError(f"No se pudieron leer los precios: {exc}") from exc

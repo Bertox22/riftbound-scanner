@@ -12,6 +12,10 @@ Cada lista va alineada con "dates"; null = ese día no había precio. Los últim
 guardan todos; los anteriores, uno por semana (el primero de cada semana), para que el archivo no
 crezca sin parar.
 
+Empezó de cero el 14/11/2026: antes los precios eran la media de un solo día de ventas (de
+riftbound.gg) y mezclarlos con los de ahora (ver prices.pick) daría saltos falsos. Por eso
+--backfill solo usa los prices.json con "source": SOURCE.
+
 Uso:
     python tools/price_history.py --backfill   # lo rehace desde los prices.json guardados en git
 """
@@ -24,6 +28,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 FILE = ROOT / "web" / "data" / "price-history.json"
 KEEP_DAILY = 90
+SOURCE = "cardmarket-guide"  # el "source" de los prices.json que entran en el historial
 
 
 def cents(v):
@@ -121,7 +126,8 @@ def backfill():
     for rev in revs:
         raw = subprocess.run(["git", "show", f"{rev}:web/data/prices.json"], capture_output=True, check=True, cwd=ROOT).stdout
         prices = json.loads(raw)
-        add_day(hist, prices["updated"], prices)
+        if prices.get("source") == SOURCE:
+            add_day(hist, prices["updated"], prices)
     current = json.loads((ROOT / "web" / "data" / "prices.json").read_text(encoding="utf-8"))
     add_day(hist, current["updated"], current)
     save(thin(hist))
