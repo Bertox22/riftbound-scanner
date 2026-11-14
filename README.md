@@ -82,7 +82,8 @@ en una fila. Los perfiles de los amigos usan el mismo aspecto.
 - **Filtro por rareza** en Colección (Común, Infrecuente, Rara, Épica, Showcase, Promo).
 - **Valor de la colección:** botón «Valor». Gráfica de cuánto valían tus cartas cada día (7 días, 30
   días o todo; toca la gráfica para ver un día) y lo que más sube y más baja. En la ficha de cada carta,
-  la gráfica de su precio. Hay precios desde el 25 de octubre de 2026.
+  la gráfica de su precio. El historial empezó de nuevo el 13 de noviembre de 2026, al cambiar de dónde
+  salen los precios (ver «Precios» más abajo).
 - **Añadir a «Busco» lo que falta**, de un toque: desde un set incompleto y desde «Te faltan…» de un
   mazo (tuyo o de otro jugador). Lo que ya buscabas no se duplica.
 - **Guardar todas las miniaturas** para verlas sin conexión (unos 31 MB), al final de Escanear, con
@@ -283,13 +284,17 @@ has visto también salen, y al final de Escanear puedes guardarlas todas de una 
 y los cambios se suben al volver. Con conexión siempre se abre la última versión; si la app llevaba
 tiempo abierta en segundo plano y se ha publicado otra, avisa con «Recargar».
 
-**Precios:** cada noche se descargan los precios de Cardmarket (€) y TCGplayer ($) de riftbound.gg.
-La colección muestra el precio de cada carta y el valor total, se puede ordenar por precio, el escáner
+**Precios:** cada noche se descarga la guía de precios oficial de Cardmarket (€) y los precios de
+TCGplayer ($) de riftbound.gg. Cada copia vale lo más bajo entre el *Price Trend* de Cardmarket y la
+media de venta de 7 y de 30 días, en normal o en foil según la copia (las cartas que solo existen en
+foil, como las Showcase, siempre en foil). Así una venta suelta muy cara o muy barata no dispara el
+precio, sobre todo en cartas de céntimos. La guía se publica una vez al día, así que el precio puede
+ir hasta un día por detrás de la web de Cardmarket. La colección muestra el precio de cada carta y el valor total, se puede ordenar por precio, el escáner
 avisa cuando una carta vale 5 € o más (o cuando existe una versión con la misma ilustración mucho más
 cara, como las Showcase firmadas) y las exportaciones llevan las columnas "Precio €" y "Valor €".
 Cada noche también se añade el día a `web/data/price-history.json` (un precio por carta y día, en
-céntimos; pasados 90 días, uno por semana), del que salen la hoja «Valor» y la gráfica de la ficha.
-Las runas de arte alternativo ("Showcase") solo existen en foil y se valoran como tales.
+céntimos; pasados 90 días, uno por semana), del que salen la hoja «Valor», la gráfica de la ficha y el
+cambio en 7 días.
 
 **Erratas:** las cartas cuyo texto oficial ha cambiado respecto al impreso usan el texto vigente
 (fuente: la base de datos de [riftbound.gg](https://riftbound.gg/rules/errata/)). La app avisa al
@@ -389,6 +394,7 @@ web/                 la app (estática, se puede publicar tal cual)
 tools/
   fetch_cards.py     descarga cartas e imágenes (galería oficial + Riftcodex) y aplica erratas
   errata.py          erratas desde la base de datos de riftbound.gg
+  prices.py          precios del día (guía de Cardmarket); `py tools/prices.py` los rehace solos
   price_history.py   añade cada noche el día a price-history.json (--backfill: lo rehace desde git)
   build_index.py     calcula los embeddings de referencia
   calibrate.py       mide la precisión y propone umbrales
