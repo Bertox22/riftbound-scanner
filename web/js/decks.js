@@ -684,6 +684,39 @@ const recordLine = (list) => {
   return `${recordText(r)}${r.rate == null ? '' : ` · ${rateText(r)}`} · ${countText(r)}`;
 };
 
+const NOTES_PLACEHOLDER = 'Notas del mazo: plan de juego, mulligan, cambios contra cada Leyenda…';
+
+/**
+ * Las notas del mazo en una hoja casi a pantalla completa, para leerlas y editarlas con espacio (el
+ * cuadro del editor se queda pequeño en el móvil). Se guardan mientras se escribe; al cerrar, el editor
+ * se vuelve a pintar con lo nuevo.
+ */
+function openNotesSheet(deck) {
+  const dlg = $('#picker-dialog');
+  const area = el('textarea', {
+    class: 'deck-notes deck-notes-big', maxlength: 4000, placeholder: NOTES_PLACEHOLDER, 'aria-label': 'Notas del mazo',
+    oninput: (e) => { deck.notes = e.target.value; save(); count.textContent = `${e.target.value.length}/4000`; },
+  }, deck.notes ?? '');
+  const count = el('span', { class: 'muted small', text: `${(deck.notes ?? '').length}/4000` });
+  dlg.replaceChildren(
+    el('div', { class: 'dialog-head' },
+      el('h2', { text: `Notas · ${deck.name}` }),
+      el('button', { class: 'btn primary small', onclick: () => dlg.close() }, 'Listo')),
+    area,
+    el('div', { class: 'deck-notes-foot' }, el('span', { class: 'muted small', text: 'Se guardan solas mientras escribes.' }), count));
+  dlg.classList.add('notes-sheet');
+  // Al cerrarla (Listo, Escape o «atrás») se repinta el editor. Se mira el atributo open y no el aviso
+  // «close», que algunos navegadores no envían siempre (igual que back.js).
+  const watch = new MutationObserver(() => {
+    if (dlg.open) return;
+    watch.disconnect();
+    dlg.classList.remove('notes-sheet');
+    renderEditor();
+  });
+  dlg.showModal();
+  watch.observe(dlg, { attributes: true, attributeFilter: ['open'] });
+}
+
 function versionsBox(deck) {
   const versions = deck.versions ?? [];
   const last = versions.at(-1);
@@ -714,9 +747,11 @@ function versionsBox(deck) {
         ? `v${versions.length} · ${recordLine(now.matches).split(' · ').slice(0, 2).join(' · ')}`
         : deck.notes ? 'con notas' : 'sin versiones' })),
     el('textarea', {
-      class: 'deck-notes', rows: 3, maxlength: 4000, placeholder: 'Notas del mazo: plan de juego, mulligan, cambios contra cada Leyenda…',
+      class: 'deck-notes', rows: 3, maxlength: 4000, placeholder: NOTES_PLACEHOLDER,
       oninput: (e) => { deck.notes = e.target.value; save(); },
     }, deck.notes ?? ''),
+    el('div', { class: 'deck-notes-tools' },
+      el('button', { class: 'btn ghost small', onclick: () => openNotesSheet(deck) }, deck.notes ? 'Ver en grande' : 'Escribir en grande')),
     pending?.length > 0 && el('p', { class: 'small version-pending', text: `Cambios desde la v${versions.length}: ${pending.join(', ')}` }),
     el('div', { class: 'version-save' }, noteInput,
       el('button', { class: 'btn primary small', disabled: !!last && !pending.length, onclick: saveVersion },

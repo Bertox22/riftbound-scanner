@@ -1550,3 +1550,18 @@ button.build-head:hover { background: var(--hover); border-radius: var(--radius)
 .build-detail .missing { margin: 0 0 10px; background: var(--surface); }
 .build-detail .actions { margin: 0; }
 .empty-link { margin-top: 14px; }
+
+/* Notas del mazo: el cuadro crece con el texto (hasta un límite) y «Ver en grande» las abre en una
+   hoja casi a pantalla completa para leerlas y editarlas con espacio. */
+.deck-notes { field-sizing: content; max-height: 40vh; }
+.deck-notes-tools { display: flex; justify-content: flex-end; margin-top: 6px; }
+#picker-dialog.notes-sheet { width: min(760px, calc(100vw - 24px)); }
+.deck-notes-big { display: block; min-height: 60vh; max-height: none; margin-top: 0; font-size: 15px; line-height: 1.6; resize: none; }
+.deck-notes-foot { display: flex; justify-content: space-between; gap: 12px; margin-top: 8px; font-variant-numeric: tabular-nums; }
+@media (max-width: 560px) {
+  #picker-dialog.notes-sheet { height: 92dvh; }
+  .deck-notes-big { min-height: calc(92dvh - 170px); }
+}
+/* «Guardar versión»: en móviles estrechos el botón baja de línea en vez de aplastar la nota. */
+.version-save { flex-wrap: wrap; }
+.version-save .version-note { flex: 1 1 160px; }

@@ -165,7 +165,7 @@ en una fila. Los perfiles de los amigos usan el mismo aspecto.
     juntas) en la mano inicial, tras el mulligan devolviendo las demás y tras robar N cartas más.
   - **Compartir imagen:** un PNG del mazo (1080 px de ancho) con las miniaturas de la app. En el
     móvil abre el menú de compartir; en el PC se descarga.
-  - **Notas y versiones** (plegable): notas libres del mazo y «Guardar versión» con una nota corta.
+  - **Notas y versiones** (plegable): notas libres del mazo (el cuadro crece con el texto y «Ver en grande» las abre en una hoja casi a pantalla completa para leerlas y editarlas) y «Guardar versión» con una nota corta.
     La app compara cada versión con la anterior (+2 X, −1 Y, también sideboard, runas y Campos), avisa
     de los cambios aún sin guardar y reparte las partidas del mazo por versión según su fecha, con su
     balance. Hasta 20 versiones. Se sincronizan con la cuenta y se ven igual que el mazo (las notas
