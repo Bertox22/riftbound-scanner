@@ -76,6 +76,26 @@ OVERRIDES = {
 }
 
 
+# Colecciones especiales que solo trae riftbound.gg, como promos de otros sets ("OGN-247-KDA-P"), pero
+# que llevan su propia numeración impresa ("KDA · 003/005"). Se guardan como un set aparte:
+# "kda-003-005". El número de cada carta sale de la carta impresa; una carta nueva de la colección
+# que aún no esté aquí toma el siguiente número libre (y se avisa para corregirlo).
+PROMO_COLLECTIONS = {
+    "KDA": {
+        "name": "K/DA Couture Collection",
+        "suffix": "-KDA-P",
+        "total": 5,
+        "numbers": {
+            "OGN-255-KDA-P": 1,  # Ahri - Nine-Tailed Fox
+            "RAD-153-KDA-P": 2,  # Evelynn - Agony's Embrace
+            "OGN-247-KDA-P": 3,  # Kai'Sa - Daughter of the Void
+            "VEN-139-KDA-P": 4,  # Akali - Rogue Assassin
+            "RAD-164-KDA-P": 5,  # Packed Amphitheater
+        },
+    },
+}
+
+
 def get(url):
     with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=90) as resp:
         return resp.read()
@@ -317,6 +337,50 @@ def from_dotgg(merged):
     return cards
 
 
+def dotgg_card(c, card_id, set_id, set_name, number, total):
+    """Carta de riftbound.gg con nuestro formato. "dotgg" guarda su id para enlazar los precios."""
+    types = [t for t in (c.get("type") or []) if t in KNOWN_TYPES] or ["Other"]
+    energy = dotgg.number(c.get("cost"))
+    return {
+        "id": card_id,
+        "name": c.get("name_normal") or c["name"],
+        "set": set_id,
+        "setName": set_name,
+        "number": number,
+        "code": f"{set_id}-{number:03d}/{total:03d}",
+        "type": types[0],
+        "supertype": c.get("supertype") or None,
+        "rarity": c.get("rarity") or "",
+        "domain": [d for d in (c.get("color") or []) if d in DOMAIN_COLORS],
+        "energy": energy,
+        "might": dotgg.number(c.get("might")),
+        "power": dotgg.number(c.get("power")) if energy is not None else None,
+        "tags": c.get("tags") or [],
+        "text": dotgg.clean(c.get("effect")),
+        "mightBonus": dotgg.number(c.get("mightBonus")) if types[0] == "Gear" else None,
+        "image": c["image"],
+        "orientation": "landscape" if types[0] == "Battlefield" else "portrait",
+        "dotgg": c["id"],
+    }
+
+
+def from_promo_collections():
+    """Cartas de PROMO_COLLECTIONS (p. ej. la K/DA Couture Collection), sacadas de riftbound.gg."""
+    cards = []
+    for set_id, col in PROMO_COLLECTIONS.items():
+        found = sorted((c for c in dotgg.get_cards() if c["id"].upper().endswith(col["suffix"])), key=lambda c: c["id"])
+        used = set(col["numbers"].values())
+        for c in found:
+            number = col["numbers"].get(c["id"].upper())
+            if number is None:
+                number = next(n for n in range(1, 1000) if n not in used)
+                used.add(number)
+                print(f"  {set_id}: carta nueva sin número conocido, {c['id']} {c['name']} -> {number:03d} (revisar PROMO_COLLECTIONS)")
+            total = max(col["total"], number)
+            cards.append(dotgg_card(c, f"{set_id.lower()}-{number:03d}-{total:03d}", set_id, col["name"], number, total))
+    return cards
+
+
 class SourceError(Exception):
     pass
 
@@ -343,6 +407,10 @@ def main():
         extra = [c for c in from_dotgg(merged) if not only or c["set"] in only]
         print(f"riftbound.gg: {len(extra)} versiones que no estaban")
         for c in extra:
+            merged[c["id"]] = {k: v for k, v in c.items() if v is not None}
+        promos = [c for c in from_promo_collections() if c["id"] not in merged and (not only or c["set"] in only)]
+        print(f"riftbound.gg: {len(promos)} cartas de colecciones especiales ({', '.join(PROMO_COLLECTIONS)})")
+        for c in promos:
             merged[c["id"]] = {k: v for k, v in c.items() if v is not None}
     except Exception as exc:  # noqa: BLE001
         if strict:

@@ -12,7 +12,7 @@ import re
 
 from dotgg import clean, get_cards, is_variant, key_of
 
-PROMO_SETS = {"OPP", "PR", "JDG"}
+PROMO_SETS = {"OPP", "PR", "JDG", "KDA"}
 
 
 def fetch_errata():

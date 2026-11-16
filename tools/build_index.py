@@ -40,7 +40,7 @@ STD = np.array([0.229, 0.224, 0.225], np.float32)
 # Además de la imagen limpia, cada referencia promedia varias "fotos" simuladas:
 # así se parece más a lo que ve la cámara del móvil.
 PROTO_PHOTOS = 4
-PROMO_SETS = {"OPP", "PR", "JDG", "OGS"}
+PROMO_SETS = {"OPP", "PR", "JDG", "OGS", "KDA"}
 
 
 def ensure_model():

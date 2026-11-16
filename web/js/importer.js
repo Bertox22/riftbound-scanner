@@ -19,7 +19,7 @@ export const ROLES = {
   foil: '¿Es foil? (sí/no)',
 };
 
-const PROMO_SETS = new Set(['OPP', 'PR', 'JDG']);
+const PROMO_SETS = new Set(['OPP', 'PR', 'JDG', 'KDA']);
 const FUZZY_MIN = 0.82; // similitud mínima para proponer una carta por nombre aproximado
 
 // ---------- Utilidades de texto ----------

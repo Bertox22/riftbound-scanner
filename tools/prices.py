@@ -55,15 +55,17 @@ def pick(row, foil):
 
 def build_prices(cards):
     guide, created = get_guide()
-    by_key = {}
+    by_key, by_id = {}, {}
     for c in get_cards():
+        by_id[c["id"]] = c
         key = key_of(c["id"])
         if not is_variant(key):
             by_key.setdefault(key, c)
     prices = {}
     linked = 0
     for card in cards:
-        src = by_key.get("-".join(card["id"].split("-")[:2]))
+        # Las cartas de colecciones especiales (K/DA...) guardan el id de riftbound.gg en "dotgg".
+        src = by_id.get(card.get("dotgg")) or by_key.get("-".join(card["id"].split("-")[:2]))
         if not src:
             continue
         foil_only = src.get("hasNormal") == "0" and src.get("hasFoil") == "1"

@@ -296,6 +296,11 @@ Cada noche también se añade el día a `web/data/price-history.json` (un precio
 céntimos; pasados 90 días, uno por semana), del que salen la hoja «Valor», la gráfica de la ficha y el
 cambio en 7 días.
 
+**Colecciones especiales:** la *K/DA Couture Collection* (Ahri, Evelynn, Kai'Sa, Akali y el campo de
+batalla Packed Amphitheater) no está en la galería de Riot: sale de riftbound.gg, donde figura como
+promo de otros sets, y se guarda como su propio set `KDA` con la numeración impresa (`KDA-003/005`).
+Si sale otra colección así, se añade a `PROMO_COLLECTIONS` en `tools/fetch_cards.py`.
+
 **Erratas:** las cartas cuyo texto oficial ha cambiado respecto al impreso usan el texto vigente
 (fuente: la base de datos de [riftbound.gg](https://riftbound.gg/rules/errata/)). La app avisa al
 escanearlas, la ficha muestra también el texto impreso y la exportación lleva una columna "Errata".
