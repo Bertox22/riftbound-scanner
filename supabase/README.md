@@ -21,6 +21,7 @@ aunque la app aún no las use.
 | `13_mazo_rival_turnos.sql` | 2 · Registro de partidas | Mazo del rival amigo (`opponent_deck_id`, `opponent_deck_name`) y quién empezó cada juego (`game_starts`) |
 | `14_privacidad_limites.sql` | — | Partidas de perfiles públicos por la vista `public_matches`, `follows` solo para quien aparece y límite de filas por cuenta |
 | `15_notas_versiones_mazo.sql` | — | Notas y versiones de cada mazo (`decks.notes`, `decks.versions`), con límite de tamaño; sin ellas la app sube los mazos sin esos datos |
+| `16_intercambios_balance.sql` | — | Intercambios en el balance (`ledger.kind = 'trade'`, `ledger.details`); sin él los intercambios se quedan en el dispositivo |
 
 Las cartas no están en la base de datos: siguen en `web/data/cards.json`. Las tablas guardan el id
 de la carta (`ven-116-166`) y la app lo cruza con ese archivo, como hace hoy con el `localStorage`.

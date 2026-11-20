@@ -1074,6 +1074,31 @@ body.mesa-open { overflow: hidden; }
 .ledger-form-end { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .ledger-form-total { font-variant-numeric: tabular-nums; color: var(--accent); }
 
+.ledger-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: end; }
+.ledger-pair .segmented { flex-wrap: nowrap; }
+.ledger-pair .segmented button { flex: 1; }
+/* Intercambio: formulario */
+.ledger-trade-zone { display: flex; flex-direction: column; gap: 8px; }
+.ledger-trade-zone h3 { margin: 4px 0 0; font-size: 15px; }
+.ledger-trade-items { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.ledger-trade-items:empty { display: none; }
+.ledger-trade-item { border-radius: 14px; background: var(--surface-2); padding-bottom: 10px; }
+.ledger-trade-item .history-row { background: none; }
+.ledger-trade-item .grow { flex: 1; }
+.ledger-trade-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; align-items: end; padding: 0 10px; }
+.ledger-trade-fields > :first-child { grid-column: 1 / -1; }
+.ledger-trade-fields input:disabled { opacity: .7; }
+/* Intercambio: en la lista */
+.ledger-trade { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; padding: 0 12px 12px; }
+.ledger-trade-side { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ledger-trade-side ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; }
+.ledger-trade-side li { display: flex; justify-content: space-between; gap: 8px; }
+.ledger-trade-card { text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.ledger-trade-side li > span { flex: none; font-variant-numeric: tabular-nums; }
+.ledger-trade-diff { grid-column: 1 / -1; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ledger-trade-diff.up { color: var(--ok); }
+.ledger-trade-diff.down { color: var(--danger); }
+
 /* Mesa: quien gana el sorteo elige quién empieza */
 .mesa-choose { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 16px; text-align: center; background: rgba(0, 0, 0, .88); }
 .mesa-choose strong { font-size: 20px; font-weight: 600; }
@@ -1137,8 +1162,7 @@ dialog > .dialog-head:first-child {
   /* La lista de mazos, a dos columnas (el editor de cada mazo no cambia). */
   .deck-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .export-all { margin-top: 20px; }
-  /* Balance: el total a la izquierda y las dos acciones a su derecha, en la misma franja. */
-  .ledger-head { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+  /* Balance: el total arriba y las tres acciones debajo, en una fila. */
   .ledger-head .ledger-actions { flex-wrap: nowrap; }
 }
 /* Con ratón: lo que se puede tocar responde al pasar por encima (sin moverse con el scroll). */

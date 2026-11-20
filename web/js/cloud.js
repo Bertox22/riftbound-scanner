@@ -652,7 +652,12 @@ const snapMatch = (m, snap) => (deckPending(m, snap) ? { ...m, deck: null } : m)
 const ledgerKey = (m) => canon({
   at: m.at, kind: m.kind, label: m.label ?? null, card: m.card ?? null, foil: !!m.foil, qty: m.qty, price: m.price,
   ownedBefore: m.ownedBefore ?? null, inCollection: !!m.inCollection,
+  ...(m.kind === 'trade' ? { details: tradeDetails(m) } : {}), // sin la clave en lo demás: no cambia su foto
 });
+// Intercambio: lo que va en ledger.details (16_intercambios_balance.sql). null en compras y ventas.
+const tradeDetails = (m) => (m.kind === 'trade' ? { cash: m.cash ?? 0, mode: m.valueMode ?? 'day', give: m.give ?? [], get: m.get ?? [] } : null);
+// Sin 16_intercambios_balance.sql la base de datos no admite intercambios: se quedan en el dispositivo.
+let ledgerTradesMissing = false;
 
 function toRow(uid, d) {
   return {
@@ -712,6 +717,7 @@ function toLedgerRow(uid, m) {
     user_id: uid, id: m.id, kind: m.kind, occurred_at: new Date(m.at).toISOString(),
     label: m.label ?? null, card_id: m.card ?? null, foil: !!m.foil, quantity: m.qty, unit_price: m.price,
     owned_before: m.ownedBefore ?? null, in_collection: !!m.inCollection, deleted_at: null,
+    ...(m.kind === 'trade' ? { details: tradeDetails(m) } : {}),
   };
 }
 function fromLedgerRow(r) {
@@ -719,6 +725,9 @@ function fromLedgerRow(r) {
     id: r.id, at: Date.parse(r.occurred_at), kind: r.kind, label: r.label, card: r.card_id, foil: r.foil,
     qty: r.quantity, price: Number(r.unit_price), ownedBefore: r.owned_before, inCollection: r.in_collection,
     updated: Date.parse(r.updated_at),
+    ...(r.kind === 'trade' && r.details ? {
+      cash: Number(r.details.cash) || 0, valueMode: r.details.mode ?? 'day', give: r.details.give ?? [], get: r.details.get ?? [],
+    } : {}),
   };
 }
 
@@ -927,10 +936,20 @@ async function push(uid, snap) {
   }
 
   snap.ledger ??= {}; // foto de antes de sincronizar el balance
-  const changedLedger = store.ledger.filter((m) => snap.ledger[m.id] !== ledgerKey(m));
+  const changedLedger = store.ledger.filter((m) => !(ledgerTradesMissing && m.kind === 'trade') && snap.ledger[m.id] !== ledgerKey(m));
   for (let i = 0; i < changedLedger.length; i += 500) {
-    const chunk = changedLedger.slice(i, i + 500);
-    const { error } = await sb.from('ledger').upsert(chunk.map((m) => toLedgerRow(uid, m)), { onConflict: 'id' });
+    let chunk = changedLedger.slice(i, i + 500);
+    const upsert = () => sb.from('ledger').upsert(chunk.map((m) => toLedgerRow(uid, m)), { onConflict: 'id' });
+    let { error } = await upsert();
+    // Sin 16_intercambios_balance.sql (falta ledger.details o el kind 'trade'): sube lo demás.
+    const noTrades = error && chunk.some((m) => m.kind === 'trade')
+      && (((error.code === 'PGRST204' || error.code === '42703') && /details/.test(error.message)) || (error.code === '23514' && /ledger_kind_check/.test(error.message)));
+    if (noTrades) {
+      console.warn('Falta 16_intercambios_balance.sql: los intercambios del balance se quedan en este dispositivo.');
+      ledgerTradesMissing = true;
+      chunk = chunk.filter((m) => m.kind !== 'trade');
+      ({ error } = chunk.length ? await upsert() : { error: null });
+    }
     if (error) throw error;
     for (const m of chunk) snap.ledger[m.id] = ledgerKey(m);
     writeSnap(snap);

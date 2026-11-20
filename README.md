@@ -139,6 +139,12 @@ en una fila. Los perfiles de los amigos usan el mismo aspecto.
     carta no la añade: avisa «No la has incluido en la colección» hasta que la tengas, con un botón
     «Añadir». Con cuenta se sincroniza entre tus dispositivos y solo lo ves tú. Es tu cuenta de gastos:
     no usa los precios de Cardmarket.
+    **Intercambios:** cartas que das y recibes, con dinero de por medio o sin él (das dos cartas y
+    recibes otra más 20 €). Lo que das sale de la colección (Historial «intercambio») y lo que recibes
+    avisa hasta que lo añadas, como una compra. El valor de cada carta es el precio de Cardmarket
+    guardado de ese día o uno que escribes tú, y se ve la diferencia de valor; al total del balance
+    solo suma el dinero. En la nube hace falta `supabase/16_intercambios_balance.sql`; sin él, los
+    intercambios se quedan en el dispositivo.
 - **Importar:** cualquier Excel o CSV (o una lista pegada tipo "3x Arena Kingpin"). La app adivina
   las columnas (código, set, nº, nombre, copias, foil), busca cada carta por código, por nombre o
   por nombre aproximado, y enseña todo para revisarlo antes de sumar o reemplazar la colección.
