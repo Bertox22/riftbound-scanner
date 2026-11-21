@@ -76,10 +76,10 @@ OVERRIDES = {
 }
 
 
-# Colecciones especiales que solo trae riftbound.gg, como promos de otros sets ("OGN-247-KDA-P"), pero
-# que llevan su propia numeración impresa ("KDA · 003/005"). Se guardan como un set aparte:
-# "kda-003-005". El número de cada carta sale de la carta impresa; una carta nueva de la colección
-# que aún no esté aquí toma el siguiente número libre (y se avisa para corregirlo).
+# Colecciones especiales que solo trae riftbound.gg, con su propia numeración impresa ("KDA · 003/005").
+# Se guardan como un set aparte: "kda-003-005". riftbound.gg las tuvo primero como promos de otros sets
+# ("OGN-247-KDA-P", de ahí "numbers") y desde el 21/11/2026 con su número ("KDA-003-P"): valen las dos
+# formas. Una carta nueva de la colección sin número conocido toma el siguiente libre (y se avisa).
 PROMO_COLLECTIONS = {
     "KDA": {
         "name": "K/DA Couture Collection",
@@ -368,14 +368,23 @@ def from_promo_collections():
     """Cartas de PROMO_COLLECTIONS (p. ej. la K/DA Couture Collection), sacadas de riftbound.gg."""
     cards = []
     for set_id, col in PROMO_COLLECTIONS.items():
-        found = sorted((c for c in dotgg.get_cards() if c["id"].upper().endswith(col["suffix"])), key=lambda c: c["id"])
-        used = set(col["numbers"].values())
-        for c in found:
-            number = col["numbers"].get(c["id"].upper())
-            if number is None:
-                number = next(n for n in range(1, 1000) if n not in used)
-                used.add(number)
-                print(f"  {set_id}: carta nueva sin número conocido, {c['id']} {c['name']} -> {number:03d} (revisar PROMO_COLLECTIONS)")
+        own = re.compile(rf"{set_id}-(\d+)-P", re.I)  # "KDA-003-P"
+        by_number, unknown = {}, []
+        for c in sorted(dotgg.get_cards(), key=lambda c: c["id"]):
+            cid = c["id"].upper()
+            m = own.fullmatch(cid)
+            if m:
+                by_number[int(m.group(1))] = c  # la forma propia gana a la antigua
+            elif cid.endswith(col["suffix"]):
+                if cid in col["numbers"]:
+                    by_number.setdefault(col["numbers"][cid], c)
+                else:
+                    unknown.append(c)
+        for c in unknown:
+            number = next(n for n in range(1, 1000) if n not in by_number and n not in col["numbers"].values())
+            by_number[number] = c
+            print(f"  {set_id}: carta nueva sin número conocido, {c['id']} {c['name']} -> {number:03d} (revisar PROMO_COLLECTIONS)")
+        for number, c in sorted(by_number.items()):
             total = max(col["total"], number)
             cards.append(dotgg_card(c, f"{set_id.lower()}-{number:03d}-{total:03d}", set_id, col["name"], number, total))
     return cards
@@ -448,10 +457,14 @@ def main():
         cards = sorted(kept + cards, key=lambda c: (c["set"], c["number"], c["id"]))
     if strict and not only:
         # Una fuente que de repente devuelve menos cartas es casi seguro un fallo suyo, no cartas retiradas.
-        previous = {c["id"] for c in json.loads((DATA / "cards.json").read_text(encoding="utf-8"))}
-        lost = previous - {c["id"] for c in cards}
+        old = json.loads((DATA / "cards.json").read_text(encoding="utf-8"))
+        lost = {c["id"] for c in old} - {c["id"] for c in cards}
         if len(lost) > 5:
             raise SourceError(f"Faltan {len(lost)} cartas que antes estaban (p. ej. {sorted(lost)[:5]}); no se guarda nada.")
+        # Un set entero que desaparece (p. ej. KDA el 21/11/2026, cuando riftbound.gg cambió sus ids).
+        gone = {c["set"] for c in old} - {c["set"] for c in cards}
+        if gone:
+            raise SourceError(f"Han desaparecido sets enteros ({', '.join(sorted(gone))}); no se guarda nada.")
     try:
         prices = build_prices(cards)  # también añade a cada carta su enlace de Cardmarket
         print(f"Precios: {len(prices['prices'])} cartas (guía de Cardmarket del {prices['updated']})")
