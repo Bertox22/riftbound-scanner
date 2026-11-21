@@ -303,9 +303,10 @@ céntimos; pasados 90 días, uno por semana), del que salen la hoja «Valor», l
 cambio en 7 días.
 
 **Colecciones especiales:** la *K/DA Couture Collection* (Ahri, Evelynn, Kai'Sa, Akali y el campo de
-batalla Packed Amphitheater) no está en la galería de Riot: sale de riftbound.gg, donde figura como
-promo de otros sets, y se guarda como su propio set `KDA` con la numeración impresa (`KDA-003/005`).
-Si sale otra colección así, se añade a `PROMO_COLLECTIONS` en `tools/fetch_cards.py`.
+batalla Packed Amphitheater) no está en la galería de Riot: sale de riftbound.gg (con ids `KDA-003-P`;
+antes, como promo de otros sets, `OGN-247-KDA-P`: valen los dos) y se guarda como su propio set `KDA`
+con la numeración impresa (`KDA-003/005`). Si sale otra colección así, se añade a `PROMO_COLLECTIONS`
+en `tools/fetch_cards.py`. Si un día desaparece un set entero, la actualización nocturna no guarda nada.
 
 **Erratas:** las cartas cuyo texto oficial ha cambiado respecto al impreso usan el texto vigente
 (fuente: la base de datos de [riftbound.gg](https://riftbound.gg/rules/errata/)). La app avisa al
